@@ -4,7 +4,8 @@ REST API for TutorLink, a home tutoring platform where Nigerian parents find vet
 book recurring weekly sessions, and pay monthly for parent-confirmed lessons.
 
 Stack: Python 3.11 · FastAPI · SQLModel · PostgreSQL 16 · Alembic · uv · Docker.
-See `CLAUDE.md` for the full spec.
+See `CLAUDE.md` for the full spec. This is the `backend/` folder of the TutorLink repository;
+run the commands below from here. The web app is in [`../frontend`](../frontend).
 
 ## Setup
 

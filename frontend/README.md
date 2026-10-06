@@ -2,7 +2,7 @@
 
 The Next.js web app for TutorLink, where Nigerian parents find vetted home tutors, book weekly
 lessons, and pay monthly for confirmed lessons only. It talks to the
-[TutorLink backend](https://github.com/OziokoAnthony/TutorLink) (FastAPI) at `NEXT_PUBLIC_API_URL`.
+TutorLink backend in [`../backend`](../backend) (FastAPI) at `NEXT_PUBLIC_API_URL`.
 
 Stack: Next.js 14 (App Router) · TypeScript (strict) · Tailwind CSS 3 · shadcn/ui · React Hook Form + Zod · Axios.
 See `CLAUDE.md` for the full spec.
@@ -10,7 +10,7 @@ See `CLAUDE.md` for the full spec.
 ## Run it
 
 ```bash
-# 1. Backend running (from tutorlink-backend):  docker compose up -d
+# 1. Backend running (from ../backend):  docker compose up -d
 # 2. Frontend:
 cp .env.local.example .env.local
 npm install

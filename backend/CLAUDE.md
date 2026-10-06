@@ -9,8 +9,8 @@ TutorLink is a home tutoring platform where Nigerian parents find vetted tutors,
 book recurring weekly sessions, and pay monthly — only for lessons that were confirmed
 by the parent.
 
-This repo is the **backend only** (REST API).
-The frontend (Next.js) is a separate repo that calls this API.
+This folder is the **backend only** (REST API). It lives in `backend/` of the TutorLink repository;
+the frontend (Next.js) is in `../frontend/` and calls this API.
 
 ---
 
