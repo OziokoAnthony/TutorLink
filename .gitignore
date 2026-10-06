@@ -1,6 +1,2 @@
-.venv/
-__pycache__/
-*.pyc
-.env
-.pytest_cache/
-*.db
+# Local Claude Code settings (per machine)
+.claude/settings.local.json

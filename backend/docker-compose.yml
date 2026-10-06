@@ -1,3 +1,6 @@
+# Pinned so the project (and its postgres_data volume) keeps this name wherever the file lives.
+name: tutorlink-backend
+
 services:
   app:
     build: .
