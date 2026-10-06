@@ -8,11 +8,13 @@ from uuid import UUID
 
 import httpx
 from fastapi import HTTPException, status
+from sqlalchemy import true as sa_true
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
 from app.core.config import settings
-from app.domains.auth.models import ParentProfile, User
+from app.domains.auth import service as auth_service
+from app.domains.auth.models import ParentProfile, User, UserRole
 from app.domains.billing.models import (
     GenerateInvoicesRequest,
     GenerateInvoicesResponse,
@@ -125,10 +127,19 @@ def generate_invoices(session: Session, data: GenerateInvoicesRequest) -> Genera
         notifications.invoice_generated(parent.email, _parent_name(session, parent.id), invoice.billing_month,
                                         invoice.billing_year, invoice.total_sessions, invoice.total_amount)
 
+    parents_without_sessions = session.exec(
+        select(func.count()).select_from(User).where(
+            User.role == UserRole.parent,
+            User.is_active == True,  # noqa: E712
+            User.id.not_in(list(by_parent)) if by_parent else sa_true(),
+        )
+    ).one()
+    names = auth_service.full_names(session, [i.parent_id for i in created])
     return GenerateInvoicesResponse(
         created=len(created),
         skipped_existing=skipped,
-        invoices=[InvoiceRead.model_validate(i) for i in created],
+        parents_without_sessions=parents_without_sessions,
+        invoices=[InvoiceRead.model_validate(i, update={"parent_name": names.get(i.parent_id)}) for i in created],
     )
 
 
@@ -204,7 +215,7 @@ def pay_invoice(session: Session, parent: User, invoice_id: UUID) -> PaymentInit
         email=parent.email,
         amount_kobo=to_kobo(invoice.total_amount),
         reference=reference,
-        callback_url=f"{settings.FRONTEND_URL}/invoices/{invoice.id}",
+        callback_url=f"{settings.FRONTEND_URL}/dashboard/parent/invoices?invoice={invoice.id}",
         metadata={"invoice_id": str(invoice.id)},
     )
     invoice.paystack_reference = reference

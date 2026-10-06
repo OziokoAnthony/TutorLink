@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.db.base import utcnow
+from app.domains.auth import service as auth_service
 from app.domains.auth.models import ParentProfile, User
 from app.domains.notifications import service as notifications
 from app.domains.reviews import service as review_service
@@ -21,6 +22,23 @@ WAT = timezone(timedelta(hours=1), "WAT")
 
 def today_in_nigeria() -> date:
     return datetime.now(WAT).date()
+
+
+def to_reads(session: Session, sessions: list[TutoringSession]) -> list[SessionRead]:
+    """SessionRead with subject and names from each session's schedule (two lookups per list)."""
+    schedule_ids = list({s.schedule_id for s in sessions})
+    schedules = {sc.id: sc for sc in session.exec(select(Schedule).where(Schedule.id.in_(schedule_ids))).all()}         if schedule_ids else {}
+    names = auth_service.full_names(
+        session, [sc.tutor_id for sc in schedules.values()] + [sc.parent_id for sc in schedules.values()]
+    )
+    reads = []
+    for s in sessions:
+        sc = schedules[s.schedule_id]
+        reads.append(SessionRead.model_validate(s, update={
+            "subject": sc.subject, "level": sc.level, "tutor_id": sc.tutor_id,
+            "tutor_name": names.get(sc.tutor_id), "parent_name": names.get(sc.parent_id),
+        }))
+    return reads
 
 
 def _filtered(stmt, status_: SessionStatus | None, month: int | None, year: int | None):
@@ -83,7 +101,7 @@ def log_session(session: Session, tutor: User, data: SessionCreate) -> SessionRe
     profile = session.exec(select(ParentProfile).where(ParentProfile.user_id == parent.id)).first()
     notifications.session_logged(parent.email, profile.full_name if profile else "there", schedule.subject,
                                  tutoring_session.session_date, tutoring_session.topic_covered)
-    return SessionRead.model_validate(tutoring_session)
+    return to_reads(session, [tutoring_session])[0]
 
 
 def list_parent_sessions(session: Session, parent: User, status_: SessionStatus | None,
@@ -93,7 +111,7 @@ def list_parent_sessions(session: Session, parent: User, status_: SessionStatus 
         .join(Schedule, Schedule.id == TutoringSession.schedule_id)
         .where(Schedule.parent_id == parent.id)
     )
-    return [SessionRead.model_validate(s) for s in session.exec(_filtered(stmt, status_, month, year)).all()]
+    return to_reads(session, list(session.exec(_filtered(stmt, status_, month, year)).all()))
 
 
 def list_tutor_sessions(session: Session, tutor: User, status_: SessionStatus | None,
@@ -103,13 +121,13 @@ def list_tutor_sessions(session: Session, tutor: User, status_: SessionStatus | 
         .join(Schedule, Schedule.id == TutoringSession.schedule_id)
         .where(Schedule.tutor_id == tutor.id)
     )
-    return [SessionRead.model_validate(s) for s in session.exec(_filtered(stmt, status_, month, year)).all()]
+    return to_reads(session, list(session.exec(_filtered(stmt, status_, month, year)).all()))
 
 
 def list_all_sessions(session: Session, status_: SessionStatus | None, month: int | None,
                       year: int | None, skip: int, limit: int) -> list[SessionRead]:
     stmt = _filtered(select(TutoringSession), status_, month, year).offset(skip).limit(limit)
-    return [SessionRead.model_validate(s) for s in session.exec(stmt).all()]
+    return to_reads(session, list(session.exec(stmt).all()))
 
 
 def confirm_session(session: Session, parent: User, session_id: UUID) -> SessionRead:
@@ -132,7 +150,7 @@ def confirm_session(session: Session, parent: User, session_id: UUID) -> Session
         tutor_profile = session.exec(select(TutorProfile).where(TutorProfile.user_id == schedule.tutor_id)).first()
         notifications.rate_tutor_prompt(parent.email, parent_profile.full_name if parent_profile else "there",
                                         tutor_profile.full_name if tutor_profile else "your tutor")
-    return SessionRead.model_validate(tutoring_session)
+    return to_reads(session, [tutoring_session])[0]
 
 
 def cancel_session(session: Session, parent: User, session_id: UUID) -> SessionRead:
@@ -147,4 +165,4 @@ def cancel_session(session: Session, parent: User, session_id: UUID) -> SessionR
     session.add(tutoring_session)
     session.commit()
     session.refresh(tutoring_session)
-    return SessionRead.model_validate(tutoring_session)
+    return to_reads(session, [tutoring_session])[0]

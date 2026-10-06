@@ -57,6 +57,8 @@ class ScheduleRead(SQLModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    tutor_name: str | None = None
+    parent_name: str | None = None
 
 
 class TutorSlotRead(SQLModel):

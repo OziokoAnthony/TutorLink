@@ -13,6 +13,7 @@ router = APIRouter(prefix="/schedules", tags=["schedules"])
 tutor_router = APIRouter(prefix="/tutors", tags=["schedules"])
 
 parent_only = require_roles([UserRole.parent])
+tutor_only = require_roles([UserRole.tutor])
 
 
 @router.post("", response_model=ScheduleRead, status_code=status.HTTP_201_CREATED)
@@ -24,6 +25,11 @@ def create_schedule(data: ScheduleCreate, parent: User = Depends(parent_only),
 @router.get("/me", response_model=list[ScheduleRead])
 def my_schedules(parent: User = Depends(parent_only), session: Session = Depends(get_session)):
     return service.list_my_schedules(session, parent)
+
+
+@router.get("/tutor/me", response_model=list[ScheduleRead])
+def my_tutor_schedules(tutor: User = Depends(tutor_only), session: Session = Depends(get_session)):
+    return service.list_tutor_schedules(session, tutor)
 
 
 @router.delete("/{schedule_id}", response_model=ScheduleRead)

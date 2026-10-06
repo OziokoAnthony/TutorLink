@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -19,6 +21,20 @@ from app.domains.notifications import service as notifications
 from app.domains.reviews import service as review_service
 from app.domains.tutors import service as tutor_service
 from app.domains.tutors.models import TutorProfile
+
+
+def full_names(session: Session, user_ids) -> dict[UUID, str]:
+    """user id -> full_name from parent or tutor profiles, in two queries for any number of ids."""
+    ids = list({uid for uid in user_ids if uid is not None})
+    if not ids:
+        return {}
+    names = dict(session.exec(
+        select(ParentProfile.user_id, ParentProfile.full_name).where(ParentProfile.user_id.in_(ids))
+    ).all())
+    names.update(session.exec(
+        select(TutorProfile.user_id, TutorProfile.full_name).where(TutorProfile.user_id.in_(ids))
+    ).all())
+    return names
 
 
 def get_user_by_email(session: Session, email: str) -> User | None:

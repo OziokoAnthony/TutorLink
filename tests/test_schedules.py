@@ -102,3 +102,25 @@ def test_tutor_schedule_shows_booked_slots_without_parent(client, parent, tutor)
     assert len(response.json()) == 1
     assert "parent_id" not in response.json()[0]
     assert client.get(f"/v1/tutors/{tutor['id']}/schedule").status_code == 401
+
+
+def test_schedule_responses_include_tutor_and_parent_names(client, parent, tutor):
+    schedule = helpers.booked_schedule(client, parent, tutor)
+    assert schedule["tutor_name"] == "Tunde Tutor"
+    assert schedule["parent_name"] == "Ada Parent"
+    mine = client.get("/v1/schedules/me", headers=parent["headers"]).json()
+    assert mine[0]["tutor_name"] == "Tunde Tutor"
+
+
+def test_tutor_lists_own_active_schedules(client, parent, tutor, admin_headers):
+    mine = helpers.booked_schedule(client, parent, tutor, day=0)
+    cancelled = helpers.booked_schedule(client, parent, tutor, day=1)
+    client.delete(f"/v1/schedules/{cancelled['id']}", headers=parent["headers"])
+    other_tutor = helpers.approved_tutor(client, admin_headers)
+    helpers.booked_schedule(client, parent, other_tutor, day=2)
+
+    response = client.get("/v1/schedules/tutor/me", headers=tutor["headers"])
+    assert response.status_code == 200
+    assert [s["id"] for s in response.json()] == [mine["id"]]
+    assert response.json()[0]["parent_name"] == "Ada Parent"
+    assert client.get("/v1/schedules/tutor/me", headers=parent["headers"]).status_code == 403

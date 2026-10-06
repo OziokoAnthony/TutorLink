@@ -123,3 +123,14 @@ def test_admin_sessions_is_admin_only(client, admin_headers, parent, tutor, sche
     helpers.logged_session(client, tutor, schedule["id"], "2025-10-06")
     assert len(client.get("/v1/admin/sessions", headers=admin_headers).json()) == 1
     assert client.get("/v1/admin/sessions", headers=parent["headers"]).status_code == 403
+
+
+def test_session_responses_include_schedule_context(client, parent, tutor, schedule):
+    session = helpers.logged_session(client, tutor, schedule["id"], "2025-10-06")
+    assert session["subject"] == "Mathematics"
+    assert session["level"] == "senior_secondary"
+    assert session["tutor_id"] == tutor["id"]
+    assert session["tutor_name"] == "Tunde Tutor"
+    assert session["parent_name"] == "Ada Parent"
+    listed = client.get("/v1/sessions/me", headers=parent["headers"]).json()[0]
+    assert listed["tutor_name"] == "Tunde Tutor"

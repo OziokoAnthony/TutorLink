@@ -559,3 +559,18 @@ GET    /tutors?sort=rating    No auth      Best average first, more ratings brea
 14. A parent can only rate a tutor after at least one CONFIRMED session with them → 403 otherwise.
 15. After a parent's FIRST confirmed session with a tutor, if they haven't rated that tutor yet,
     send email: "How was your lesson with [Tutor]?"
+
+---
+
+## ADDENDUM: FRONTEND SUPPORT (added for tutorlink-frontend)
+
+All additive; no existing field or endpoint changed.
+
+```
+GET    /schedules/tutor/me    JWT+tutor    My active schedules as tutor (for logging sessions)
+```
+- `ScheduleRead` also returns `tutor_name`, `parent_name`.
+- `SessionRead` also returns `subject`, `level`, `tutor_id`, `tutor_name`, `parent_name` (from its schedule).
+- `POST /invoices/generate` response also returns `parents_without_sessions` (active parents with no
+  confirmed sessions that month), and each invoice includes `parent_name`.
+- Paystack `callback_url` = `{FRONTEND_URL}/dashboard/parent/invoices?invoice={id}`.

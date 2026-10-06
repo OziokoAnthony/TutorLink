@@ -117,3 +117,22 @@ def test_pay_initializes_paystack_and_stores_reference(client, admin_headers, pa
     assert paystack[0]["email"] == parent["email"]
     invoice = client.get(f"/v1/invoices/{invoice_id}", headers=parent["headers"]).json()
     assert invoice["paystack_reference"] == reference
+
+
+def test_generate_reports_parent_names_and_parents_without_sessions(client, admin_headers, parent, tutor, schedule):
+    helpers.register_parent(client)  # no sessions at all
+    idle = helpers.register_parent(client)  # has a schedule but nothing confirmed
+    helpers.booked_schedule(client, idle, tutor, day=4)
+    helpers.confirmed_session(client, parent, tutor, schedule["id"], "2025-10-06")
+
+    result = generate(client, admin_headers)
+    assert result["created"] == 1
+    assert result["parents_without_sessions"] == 2
+    assert result["invoices"][0]["parent_name"] == "Ada Parent"
+
+
+def test_paystack_returns_parent_to_invoices_page(client, admin_headers, parent, tutor, schedule, paystack):
+    helpers.confirmed_session(client, parent, tutor, schedule["id"], "2025-10-06")
+    invoice_id = generate(client, admin_headers)["invoices"][0]["id"]
+    client.post(f"/v1/invoices/{invoice_id}/pay", headers=parent["headers"])
+    assert paystack[0]["callback_url"].endswith(f"/dashboard/parent/invoices?invoice={invoice_id}")

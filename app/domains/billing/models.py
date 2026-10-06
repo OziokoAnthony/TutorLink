@@ -75,6 +75,7 @@ class InvoiceRead(SQLModel):
     paid_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    parent_name: str | None = None
 
 
 class InvoiceItemRead(SQLModel):
@@ -93,6 +94,7 @@ class InvoiceDetail(InvoiceRead):
 class GenerateInvoicesResponse(SQLModel):
     created: int
     skipped_existing: int
+    parents_without_sessions: int  # active parents with no confirmed sessions that month
     invoices: list[InvoiceRead]
 
 

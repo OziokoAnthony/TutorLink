@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
+from app.domains.auth import service as auth_service
 from app.domains.auth.models import ParentProfile, User, UserRole
 from app.domains.notifications import service as notifications
 from app.domains.schedules.models import Schedule, ScheduleCreate, ScheduleRead, TutorSlotRead
@@ -22,6 +23,16 @@ def _notify_recipients(session: Session, schedule: Schedule) -> list[tuple[str, 
     return [
         (parent.email, _parent_name(session, parent.id)),
         (tutor.email, tutor_profile.full_name if tutor_profile else "there"),
+    ]
+
+
+def to_reads(session: Session, schedules: list[Schedule]) -> list[ScheduleRead]:
+    """ScheduleRead with tutor and parent names, one name lookup for the whole list."""
+    names = auth_service.full_names(session, [s.tutor_id for s in schedules] + [s.parent_id for s in schedules])
+    return [
+        ScheduleRead.model_validate(s, update={"tutor_name": names.get(s.tutor_id),
+                                               "parent_name": names.get(s.parent_id)})
+        for s in schedules
     ]
 
 
@@ -64,7 +75,7 @@ def create_schedule(session: Session, parent: User, data: ScheduleCreate) -> Sch
 
     notifications.schedule_booked(_notify_recipients(session, schedule), schedule.subject,
                                   schedule.day_of_week, schedule.start_time, schedule.end_time)
-    return ScheduleRead.model_validate(schedule)
+    return to_reads(session, [schedule])[0]
 
 
 def list_my_schedules(session: Session, parent: User) -> list[ScheduleRead]:
@@ -73,7 +84,17 @@ def list_my_schedules(session: Session, parent: User) -> list[ScheduleRead]:
         .where(Schedule.parent_id == parent.id, Schedule.is_active == True)  # noqa: E712
         .order_by(Schedule.day_of_week, Schedule.start_time)
     ).all()
-    return [ScheduleRead.model_validate(s) for s in schedules]
+    return to_reads(session, list(schedules))
+
+
+def list_tutor_schedules(session: Session, tutor: User) -> list[ScheduleRead]:
+    """The tutor's own active schedules (with parent names), for logging sessions."""
+    schedules = session.exec(
+        select(Schedule)
+        .where(Schedule.tutor_id == tutor.id, Schedule.is_active == True)  # noqa: E712
+        .order_by(Schedule.day_of_week, Schedule.start_time)
+    ).all()
+    return to_reads(session, list(schedules))
 
 
 def cancel_schedule(session: Session, parent: User, schedule_id: UUID) -> ScheduleRead:
@@ -92,7 +113,7 @@ def cancel_schedule(session: Session, parent: User, schedule_id: UUID) -> Schedu
 
     notifications.schedule_cancelled(_notify_recipients(session, schedule), schedule.subject,
                                      schedule.day_of_week, schedule.start_time)
-    return ScheduleRead.model_validate(schedule)
+    return to_reads(session, [schedule])[0]
 
 
 def get_tutor_slots(session: Session, tutor_user_id: UUID) -> list[TutorSlotRead]:

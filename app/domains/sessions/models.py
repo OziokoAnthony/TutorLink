@@ -6,6 +6,7 @@ import sqlalchemy as sa
 from sqlmodel import Field, SQLModel
 
 from app.db.base import BaseUUIDModel, pg_enum
+from app.domains.tutors.models import EducationLevel
 
 
 class SessionStatus(str, Enum):
@@ -60,3 +61,9 @@ class SessionRead(SQLModel):
     confirmed_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    # From the schedule, so session lists can show "Mathematics, Tutor: Amara" without extra calls.
+    subject: str | None = None
+    level: EducationLevel | None = None
+    tutor_id: UUID | None = None
+    tutor_name: str | None = None
+    parent_name: str | None = None
