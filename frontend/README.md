@@ -1,11 +1,11 @@
 # TutorLink Frontend
 
 The Next.js web app for TutorLink, where Nigerian parents find vetted home tutors, book weekly
-lessons, and pay monthly for confirmed lessons only. It talks to the
+lessons and pay ahead by bank transfer, and TutorLink pays tutors after the lessons. It talks to the
 TutorLink backend in [`../backend`](../backend) (FastAPI) at `NEXT_PUBLIC_API_URL`.
 
 Stack: Next.js 14 (App Router) · TypeScript (strict) · Tailwind CSS 3 · shadcn/ui · React Hook Form + Zod · Axios.
-See `CLAUDE.md` for the full spec.
+What it does is specified in [`../specs/`](../specs/); `CLAUDE.md` covers how the code is organised.
 
 ## Run it
 
@@ -18,7 +18,7 @@ npm run dev          # http://localhost:3000
 ```
 
 The backend's `FRONTEND_URL` must match this app's address (default `http://localhost:3000`) for CORS
-and the Paystack return URL.
+and the links in notification emails.
 
 ## Accounts
 
@@ -30,24 +30,15 @@ and the Paystack return URL.
 
 | Path | What |
 |---|---|
-| `app/` | Pages (see `CLAUDE.md` → *Pages*) |
+| `app/` | Pages: `dashboard/parent/`, `dashboard/tutor/`, `admin/`, `receipts/` |
 | `lib/` | **All** API calls. Converts backend responses to the types in `types/index.ts` (e.g. money strings → numbers). Pages never call Axios directly. |
-| `middleware.ts` | `/dashboard/*` and `/admin/*` require the `tutorlink_token` cookie. Each area also requires the right role, which is read from the JWT; the backend still checks every request. |
+| `middleware.ts` | `/dashboard/*`, `/admin/*` and `/receipts/*` require the `tutorlink_token` cookie. Each area also requires the right role, which is read from the JWT; the backend still checks every request. |
 | `hooks/useAuth.ts` | Current user (`/auth/me`), login (redirects by role), logout |
-
-## Additions on top of `CLAUDE.md`
-
-- **Tutor ratings:**
-  - Stars and rating count on tutor cards and profiles.
-  - "Top rated" sort.
-  - Reviews on each tutor's profile.
-  - "Rate your tutors" prompts for parents.
-- **Log a session:** offers all of the tutor's schedules, today's first, so a lesson can be logged after the day it happened. The date must fall on the schedule's weekday.
-- **Failed payments:** an invoice with status `failed` shows "Try again". A paid invoice never shows a pay button.
-- **Return from Paystack:** parents come back to `/dashboard/parent/invoices?invoice=<id>`. The page refreshes until the webhook marks the invoice paid.
 
 ## Payments in development
 
-Paystack's checkout needs real **test** keys in the backend `.env`. Its webhook must also be able
-to reach the backend, e.g. through `ngrok http 8000`, with the webhook URL set in the Paystack
-dashboard. Without that, "Pay Now" shows an error and invoices stay `pending`.
+Parents pay by bank transfer into their own Paystack account number; there is no card checkout.
+To try it end to end you need Paystack **test** keys in the backend `.env`, with Dedicated Virtual
+Accounts and Transfers enabled, and the webhook must reach the backend (e.g. `ngrok http 8000`,
+with the webhook URL set in the Paystack dashboard). Without that, parents can't get an account
+number and balances don't change; everything else (offers, requests, accepting) still works.
