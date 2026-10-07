@@ -14,7 +14,9 @@ import FormField from '@/components/shared/FormField'
 import { useToast } from '@/hooks/useToast'
 import { errorMessage, errorStatus } from '@/lib/api'
 import { register as registerUser } from '@/lib/auth'
+import type { OfferInput } from '@/lib/tutors'
 import { cn } from '@/lib/utils'
+import OfferFields, { EMPTY_OFFER, offerProblem } from '@/components/tutors/OfferFields'
 
 const optionalText = z.string().trim().max(200).optional().or(z.literal(''))
 
@@ -31,8 +33,6 @@ const schema = z.discriminatedUnion('role', [
     role: z.literal('tutor'),
     ...common,
     area: z.string().trim().min(2, 'Enter the area you cover').max(120),
-    rate_per_session: z.coerce.number({ message: 'Enter your rate in Naira' })
-      .positive('Rate must be more than ₦0').max(10_000_000, 'Rate is too high'),
     bio: z.string().trim().max(2000).optional().or(z.literal('')),
   }),
 ])
@@ -44,6 +44,7 @@ export default function RegisterPage() {
   const router = useRouter()
   const toast = useToast()
   const [formError, setFormError] = useState<string | null>(null)
+  const [offer, setOffer] = useState<OfferInput>(EMPTY_OFFER)
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } =
     useForm<RegisterValues, unknown, RegisterOutput>({
       resolver: zodResolver(schema),
@@ -52,18 +53,23 @@ export default function RegisterPage() {
     })
   const role = watch('role')
   // Field errors for tutor-only fields live on the tutor branch of the union.
-  const tutorErrors = errors as Partial<Record<'area' | 'rate_per_session' | 'bio', { message?: string }>>
+  const tutorErrors = errors as Partial<Record<'area' | 'bio', { message?: string }>>
   const parentErrors = errors as Partial<Record<'address', { message?: string }>>
 
   async function onSubmit(values: RegisterOutput) {
     setFormError(null)
+    const problem = values.role === 'tutor' ? offerProblem(offer) : null
+    if (problem) {
+      setFormError(`What you teach: ${problem.toLowerCase()}.`)
+      return
+    }
     try {
       await registerUser({
         ...values,
         phone: values.phone || undefined,
         ...(values.role === 'parent'
           ? { address: values.address || undefined }
-          : { bio: values.bio || undefined }),
+          : { bio: values.bio || undefined, offers: [offer] }),
       })
       toast.success('Account created!')
       router.push('/login')
@@ -73,11 +79,11 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-lg px-4 py-12">
+    <div className="mx-auto flex max-w-xl px-4 py-12">
       <Card className="w-full">
         <CardHeader>
           <CardTitle className="text-2xl">Create your account</CardTitle>
-          <CardDescription>Parents find tutors; tutors get booked for weekly lessons.</CardDescription>
+          <CardDescription>Parents find tutors; tutors get booked for weekly lessons. You&apos;ll add a profile picture after signing in.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
@@ -122,9 +128,14 @@ export default function RegisterPage() {
                 <FormField id="area" label="Area you cover" error={tutorErrors.area?.message} hint="e.g. Lekki, Yaba, Ikeja">
                   <Input id="area" {...register('area')} aria-invalid={!!tutorErrors.area} />
                 </FormField>
-                <FormField id="rate_per_session" label="Rate per session (₦)" error={tutorErrors.rate_per_session?.message}>
-                  <Input id="rate_per_session" type="number" inputMode="decimal" min={1} step="50" {...register('rate_per_session')} aria-invalid={!!tutorErrors.rate_per_session} />
-                </FormField>
+                <fieldset className="space-y-3 rounded-lg border p-4">
+                  <legend className="px-1 text-sm font-medium">What you teach</legend>
+                  <p className="text-xs text-muted-foreground">
+                    Pick the subjects you teach together in one lesson, when you can teach, and one price per lesson.
+                    You can add more offers and change them anytime from your dashboard.
+                  </p>
+                  <OfferFields value={offer} onChange={setOffer} />
+                </fieldset>
                 <FormField id="bio" label="About you (optional)" error={tutorErrors.bio?.message}>
                   <Textarea id="bio" rows={3} placeholder="Your experience, qualifications and teaching style" {...register('bio')} />
                 </FormField>

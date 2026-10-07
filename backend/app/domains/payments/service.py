@@ -20,11 +20,14 @@ from app.core.config import is_placeholder, settings
 from app.db.base import utcnow
 from app.domains.auth import service as auth_service
 from app.domains.auth.models import ParentProfile, User, UserRole
-from app.domains.bookings.models import BookingPeriod, PeriodStatus
+from app.domains.bookings.models import Booking, BookingPeriod, PeriodStatus
+from app.domains.lessons.models import Lesson
 from app.domains.notifications import service as notifications
 from app.domains.payments.models import (
     BankRead,
     EntryKind,
+    ParentReceipt,
+    ReceiptLine,
     TransferStatus,
     VirtualAccount,
     VirtualAccountRead,
@@ -139,6 +142,49 @@ def wallet(session: Session, parent: User) -> WalletRead:
     )
 
 
+# ---------- Receipts ----------
+
+RECEIPT_TITLES = {
+    EntryKind.deposit: "Payment received",
+    EntryKind.period_payment: "Lessons paid",
+    EntryKind.refund: "Refund",
+    EntryKind.withdrawal: "Withdrawal to your bank",
+    EntryKind.withdrawal_reversal: "Withdrawal returned",
+}
+
+
+def receipt_number(entity_id: UUID) -> str:
+    return f"TL-{entity_id.hex[:10].upper()}"
+
+
+def parent_receipt(session: Session, parent: User, entry_id: UUID) -> ParentReceipt:
+    """A receipt for one entry of the parent's balance: what was paid or returned, and the balance after."""
+    entry = session.get(WalletEntry, entry_id)
+    if entry is None or entry.parent_id != parent.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Receipt not found")
+    lines = [ReceiptLine(description=entry.description, amount=abs(entry.amount))]
+    if entry.kind == EntryKind.period_payment and entry.period_id:
+        rows = session.exec(select(Lesson, Booking).join(Booking, Booking.id == Lesson.booking_id)
+                            .where(Lesson.period_id == entry.period_id).order_by(Lesson.starts_at)).all()
+        names = auth_service.full_names(session, [b.tutor_id for _, b in rows])
+        if rows:
+            lines = [ReceiptLine(
+                description=f"{notifications.date_text(l.lesson_date)}, {l.start_time:%H:%M}: "
+                            f"{', '.join(b.subjects)} with {names.get(b.tutor_id, 'your tutor')}",
+                amount=l.parent_price,
+            ) for l, b in rows]
+    balance_after = session.exec(
+        select(func.coalesce(func.sum(WalletEntry.amount), 0))
+        .where(WalletEntry.parent_id == parent.id, WalletEntry.created_at <= entry.created_at)
+    ).one()
+    return ParentReceipt(
+        receipt_number=receipt_number(entry.id), issued_at=entry.created_at,
+        parent_name=auth_service.full_names(session, [parent.id]).get(parent.id), parent_email=parent.email,
+        kind=entry.kind, title=RECEIPT_TITLES[entry.kind], lines=lines, total=abs(entry.amount),
+        balance_after=money(Decimal(balance_after)),
+    )
+
+
 # ---------- Deposits (from the Paystack webhook) ----------
 
 def credit_deposit(session: Session, data: dict) -> UUID | None:
@@ -165,10 +211,11 @@ def credit_deposit(session: Session, data: dict) -> UUID | None:
     if session.exec(select(WalletEntry.id).where(WalletEntry.reference == reference)).first():
         return None  # already credited
     amount = Decimal(amount_kobo) / 100
-    add_entry(session, account.parent_id, EntryKind.deposit, amount, "Bank transfer received", reference=reference)
+    entry = add_entry(session, account.parent_id, EntryKind.deposit, amount, "Bank transfer received",
+                      reference=reference)
     notifications.notify(session, account.parent_id, "Payment received — thank you!",
-                         f"We received {notifications.naira(amount)} into your TutorLink balance.",
-                         "/dashboard/parent/wallet")
+                         f"We received {notifications.naira(amount)} into your TutorLink balance. "
+                         "Your receipt is ready.", f"/receipts/wallet/{entry.id}")
     return account.parent_id
 
 

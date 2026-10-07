@@ -14,7 +14,8 @@ from app.core import clock
 from app.core import paystack
 from app.core.clock import money, to_kobo
 from app.domains.auth import service as auth_service
-from app.domains.auth.models import User
+from app.domains.auth.models import User, UserRole
+from app.domains.bookings.models import Booking
 from app.domains.lessons.models import EarningStatus, Lesson
 from app.domains.notifications import service as notifications
 from app.domains.payments import service as payments
@@ -29,6 +30,8 @@ from app.domains.payouts.models import (
     PayoutDue,
     PayoutMethod,
     PayoutRead,
+    PayoutReceipt,
+    PayoutReceiptLine,
     TutorBankAccount,
 )
 from app.domains.tutors import service as tutor_service
@@ -196,7 +199,7 @@ def create_payout(session: Session, admin: User, data: PayoutCreate, now: dateti
 def _notify_paid(session: Session, payout: Payout) -> None:
     notifications.notify(session, payout.tutor_id, "You've been paid",
                          f"{notifications.naira(payout.amount)} for {payout.lesson_count} lesson(s) has been "
-                         "sent to your bank account.", "/dashboard/tutor/earnings")
+                         "sent to your bank account. Your receipt is ready.", f"/receipts/payouts/{payout.id}")
 
 
 def settle_payout_transfer(session: Session, reference: str, succeeded: bool, now: datetime | None = None) -> None:
@@ -221,3 +224,39 @@ def settle_payout_transfer(session: Session, reference: str, succeeded: bool, no
                                  f"A payout of {notifications.naira(payout.amount)} failed; the earnings are "
                                  "payable again.", "/admin/payouts", email=False)
     session.add(payout)
+
+
+# ---------- Tutor's payouts and receipts ----------
+
+def my_payouts(session: Session, tutor: User) -> list[PayoutRead]:
+    rows = session.exec(select(Payout).where(Payout.tutor_id == tutor.id).order_by(Payout.created_at.desc())).all()
+    return _reads(session, list(rows))
+
+
+def payout_receipt(session: Session, user: User, payout_id: UUID) -> PayoutReceipt:
+    """The tutor's receipt for a payout, lesson by lesson: agreed price, TutorLink's fee, earning."""
+    payout = session.get(Payout, payout_id)
+    if payout is None or (user.role != UserRole.admin and payout.tutor_id != user.id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Receipt not found")
+    if payout.status == TransferStatus.failed:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This payout failed, so there is no receipt")
+    rows = session.exec(select(Lesson, Booking).join(Booking, Booking.id == Lesson.booking_id)
+                        .where(Lesson.payout_id == payout.id).order_by(Lesson.starts_at)).all()
+    first_names = {uid: name.split()[0] for uid, name in
+                   auth_service.full_names(session, [l.parent_id for l, _ in rows]).items()}
+    lines = [PayoutReceiptLine(lesson_date=l.lesson_date, subjects=b.subjects,
+                               parent_first_name=first_names.get(l.parent_id, "Parent"), price=l.price,
+                               tutor_fee=money(l.price - l.tutor_earning), earning=l.tutor_earning)
+             for l, b in rows]
+    rates = {b.tutor_fee_rate for _, b in rows}
+    account = _bank(session, payout.tutor_id)
+    tutor = session.get(User, payout.tutor_id)
+    return PayoutReceipt(
+        receipt_number=payments.receipt_number(payout.id), issued_at=payout.paid_at or payout.created_at,
+        tutor_name=auth_service.full_names(session, [payout.tutor_id]).get(payout.tutor_id), tutor_email=tutor.email,
+        method=payout.method, status=payout.status, tutor_fee_rate=rates.pop() if len(rates) == 1 else None,
+        bank=f"{account.bank_name} ****{account.account_number[-4:]}"
+        if account and payout.method == PayoutMethod.paystack else None,
+        lines=lines, total_price=money(sum((x.price for x in lines), Decimal(0))),
+        total_fee=money(sum((x.tutor_fee for x in lines), Decimal(0))), total=payout.amount,
+    )

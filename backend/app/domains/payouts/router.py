@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlmodel import Session
 
-from app.core.deps import require_roles
+from app.core.deps import get_current_user, require_roles
 from app.db.session import get_session
 from app.domains.auth.models import User, UserRole
 from app.domains.payouts import service
@@ -16,6 +16,7 @@ from app.domains.payouts.models import (
     PayoutCreate,
     PayoutDue,
     PayoutRead,
+    PayoutReceipt,
 )
 
 router = APIRouter(prefix="/earnings", tags=["earnings"])
@@ -39,6 +40,17 @@ def my_bank_account(tutor: User = Depends(tutor_only), session: Session = Depend
 def set_bank_account(data: BankAccountUpdate, tutor: User = Depends(tutor_only),
                      session: Session = Depends(get_session)):
     return service.set_bank_account(session, tutor, data)
+
+
+@router.get("/me/payouts", response_model=list[PayoutRead])
+def my_payouts(tutor: User = Depends(tutor_only), session: Session = Depends(get_session)):
+    return service.my_payouts(session, tutor)
+
+
+@router.get("/payouts/{payout_id}/receipt", response_model=PayoutReceipt)
+def payout_receipt(payout_id: UUID, user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    """The tutor's own payout receipt (admins can open any)."""
+    return service.payout_receipt(session, user, payout_id)
 
 
 @admin_router.get("/payouts/due", response_model=list[PayoutDue])

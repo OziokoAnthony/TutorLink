@@ -4,21 +4,17 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { RatingSummary } from '@/components/reviews/StarRating'
+import Avatar from '@/components/shared/Avatar'
 import { formatNaira, levelLabel } from '@/lib/format'
-import type { TutorProfile } from '@/types'
+import type { Offer, TutorProfile } from '@/types'
 
-export function TutorAvatar({ name, size = 'md' }: { name: string; size?: 'md' | 'lg' }) {
-  const initials = name.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
-  return (
-    <div
-      aria-hidden
-      className={size === 'lg'
-        ? 'flex h-20 w-20 items-center justify-center rounded-full bg-accent text-2xl font-semibold text-accent-foreground'
-        : 'flex h-12 w-12 items-center justify-center rounded-full bg-accent text-base font-semibold text-accent-foreground'}
-    >
-      {initials}
-    </div>
-  )
+/** Every subject + level the tutor offers, once each. */
+export function subjectBadges(offers: Offer[]): string[] {
+  const seen = new Set<string>()
+  for (const offer of offers) {
+    for (const subject of offer.subjects) seen.add(`${subject} • ${levelLabel(offer.level)}`)
+  }
+  return Array.from(seen)
 }
 
 export default function TutorCard({ tutor }: { tutor: TutorProfile }) {
@@ -26,7 +22,7 @@ export default function TutorCard({ tutor }: { tutor: TutorProfile }) {
     <Card className="flex flex-col">
       <CardContent className="flex-1 space-y-3 pt-6">
         <div className="flex items-center gap-3">
-          <TutorAvatar name={tutor.full_name} />
+          <Avatar name={tutor.full_name} photoUrl={tutor.photo_url} />
           <div className="min-w-0">
             <h3 className="truncate font-semibold">{tutor.full_name}</h3>
             <p className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -36,11 +32,11 @@ export default function TutorCard({ tutor }: { tutor: TutorProfile }) {
         </div>
         <RatingSummary average={tutor.average_rating} count={tutor.rating_count} />
         <div className="flex flex-wrap gap-1.5">
-          {tutor.subjects.map((s) => (
-            <Badge key={s.id} variant="secondary">{s.subject} • {levelLabel(s.level)}</Badge>
-          ))}
+          {subjectBadges(tutor.offers).map((s) => <Badge key={s} variant="secondary">{s}</Badge>)}
         </div>
-        <p className="text-sm"><span className="text-lg font-semibold">{formatNaira(tutor.rate_per_session)}</span> per session</p>
+        {tutor.price_from !== null && (
+          <p className="text-sm">From <span className="text-lg font-semibold">{formatNaira(tutor.price_from)}</span> per lesson</p>
+        )}
       </CardContent>
       <CardFooter>
         <Button className="w-full" variant="outline" asChild>

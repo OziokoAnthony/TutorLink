@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Annotated
@@ -122,3 +122,30 @@ class PayoutRead(SQLModel):
     note: str | None
     created_at: datetime
     paid_at: datetime | None
+
+
+class PayoutReceiptLine(SQLModel):
+    lesson_date: date
+    subjects: list[str]
+    parent_first_name: str
+    price: Decimal  # agreed price (P)
+    tutor_fee: Decimal  # P x T
+    earning: Decimal  # what the tutor receives
+
+
+class PayoutReceipt(SQLModel):
+    """A tutor's receipt for one payout: the agreed price, TutorLink's fee and what they received,
+    lesson by lesson. Never shows the parent's fee or total (spec 1 R1.2)."""
+
+    receipt_number: str
+    issued_at: datetime
+    tutor_name: str | None
+    tutor_email: str
+    method: PayoutMethod
+    status: TransferStatus
+    tutor_fee_rate: Decimal | None  # None when lessons in the payout used different rates
+    bank: str | None  # "Access Bank ****6789"
+    lines: list[PayoutReceiptLine]
+    total_price: Decimal
+    total_fee: Decimal
+    total: Decimal

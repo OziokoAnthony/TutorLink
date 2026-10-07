@@ -1,6 +1,6 @@
 import Cookies from 'js-cookie'
 import api, { TOKEN_COOKIE } from '@/lib/api'
-import { toTutorProfile, type RawTutorProfile } from '@/lib/tutors'
+import { toTutorProfile, type OfferInput } from '@/lib/tutors'
 import type { ParentProfile, Role, TutorToRate, UserMe } from '@/types'
 
 export interface RegisterInput {
@@ -10,15 +10,16 @@ export interface RegisterInput {
   full_name: string
   phone?: string
   address?: string
+  // Tutors: area and at least one offer
   area?: string
-  rate_per_session?: number
   bio?: string
+  offers?: OfferInput[]
 }
 
 interface RawMe {
-  user: { id: string; email: string; role: Role }
+  user: { id: string; email: string; role: Role; photo_url: string | null }
   parent_profile: ParentProfile | null
-  tutor_profile: RawTutorProfile | null
+  tutor_profile: unknown | null
   tutors_to_rate: TutorToRate[]
 }
 
@@ -42,15 +43,33 @@ export async function login(email: string, password: string): Promise<void> {
   })
 }
 
-export async function getMe(): Promise<UserMe> {
-  const { data } = await api.get<RawMe>('/auth/me')
+function toUserMe(data: RawMe): UserMe {
   return {
     id: data.user.id,
     email: data.user.email,
     role: data.user.role,
+    photo_url: data.user.photo_url ?? null,
     profile: data.tutor_profile ? toTutorProfile(data.tutor_profile) : data.parent_profile,
     tutors_to_rate: data.tutors_to_rate ?? [],
   }
+}
+
+export async function getMe(): Promise<UserMe> {
+  const { data } = await api.get<RawMe>('/auth/me')
+  return toUserMe(data)
+}
+
+/** JPG, PNG or WebP up to 5 MB; the backend crops it to a square. */
+export async function uploadPhoto(file: File): Promise<UserMe> {
+  const form = new FormData()
+  form.append('file', file)
+  const { data } = await api.put<RawMe>('/auth/me/photo', form)
+  return toUserMe(data)
+}
+
+/** Admin: remove an inappropriate profile picture. */
+export async function removeUserPhoto(userId: string): Promise<void> {
+  await api.delete(`/admin/users/${userId}/photo`)
 }
 
 export function logout(): void {

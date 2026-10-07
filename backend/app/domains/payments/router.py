@@ -10,6 +10,7 @@ from app.domains.payments import service
 from app.domains.payments.models import (
     AdminDecision,
     BankRead,
+    ParentReceipt,
     TransferStatus,
     VirtualAccountRead,
     WalletRead,
@@ -45,6 +46,11 @@ def request_withdrawal(data: WithdrawalCreate, parent: User = Depends(parent_onl
 @router.get("/me/withdrawals", response_model=list[WithdrawalRead])
 def my_withdrawals(parent: User = Depends(parent_only), session: Session = Depends(get_session)):
     return service.my_withdrawals(session, parent)
+
+
+@router.get("/me/receipts/{entry_id}", response_model=ParentReceipt)
+def receipt(entry_id: UUID, parent: User = Depends(parent_only), session: Session = Depends(get_session)):
+    return service.parent_receipt(session, parent, entry_id)
 
 
 @banks_router.get("", response_model=list[BankRead])

@@ -34,7 +34,7 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get('tutorlink_token')
   const { pathname } = request.nextUrl
 
-  const protectedPrefixes = ['/dashboard', '/admin']
+  const protectedPrefixes = ['/dashboard', '/admin', '/receipts']
   const isProtected = protectedPrefixes.some(p => pathname.startsWith(p))
 
   if (isProtected && !token) {
@@ -60,5 +60,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*'],
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/receipts/:path*'],
 }

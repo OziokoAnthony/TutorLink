@@ -453,7 +453,7 @@ def pay_due_periods(session: Session, parent_id: UUID, now: datetime | None = No
         if period.amount > available:
             break
         booking = _get(session, period.booking_id, lock=True)
-        payments.add_entry(session, parent_id, EntryKind.period_payment, -period.amount,
+        entry = payments.add_entry(session, parent_id, EntryKind.period_payment, -period.amount,
                            f"{period.lesson_count} lesson(s): {', '.join(booking.subjects)}, "
                            f"{period.starts_on:%d %b} - {period.ends_on:%d %b %Y}", period_id=period.id)
         available -= period.amount
@@ -467,7 +467,8 @@ def pay_due_periods(session: Session, parent_id: UUID, now: datetime | None = No
         paid += 1
         notifications.notify(session, parent_id, "Lessons confirmed",
                              f"{count} lesson(s) from {notifications.date_text(period.starts_on)} are paid for "
-                             "and confirmed.", "/dashboard/parent/lessons")
+                             f"and confirmed. {notifications.naira(period.amount)} was taken from your balance; "
+                             "your receipt is ready.", f"/receipts/wallet/{entry.id}")
         notifications.notify(session, booking.tutor_id, "Lessons confirmed",
                              f"{count} lesson(s) from {notifications.date_text(period.starts_on)} are paid for "
                              "and confirmed on your timetable.", "/dashboard/tutor/lessons")
@@ -504,11 +505,11 @@ def decide_refund(session: Session, admin: User, refund_id: UUID, approve: bool,
     session.add(refund)
     if approve:
         payments.lock_parent(session, refund.parent_id)
-        payments.add_entry(session, refund.parent_id, EntryKind.refund, refund.amount,
-                           f"Refund for {refund.lesson_count} cancelled lesson(s)", refund_id=refund.id)
+        entry = payments.add_entry(session, refund.parent_id, EntryKind.refund, refund.amount,
+                                   f"Refund for {refund.lesson_count} cancelled lesson(s)", refund_id=refund.id)
         notifications.notify(session, refund.parent_id, "Refund added to your balance",
                              f"{notifications.naira(refund.amount)} for {refund.lesson_count} cancelled lesson(s) "
-                             "is now in your TutorLink balance.", "/dashboard/parent/wallet")
+                             "is now in your TutorLink balance.", f"/receipts/wallet/{entry.id}")
     else:
         notifications.notify(session, refund.parent_id, "Refund not approved",
                              f"Your refund request wasn't approved.{' Note: ' + note if note else ''}",

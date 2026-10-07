@@ -175,6 +175,26 @@ class AdminDecision(SQLModel):
     note: str | None = Field(default=None, max_length=1000)
 
 
+class ReceiptLine(SQLModel):
+    description: str
+    amount: Decimal
+
+
+class ParentReceipt(SQLModel):
+    """A receipt for one movement of the parent's money. Amounts are what the parent paid or got back;
+    the parent fee is never broken out (spec 1 R1.2)."""
+
+    receipt_number: str
+    issued_at: datetime
+    parent_name: str | None
+    parent_email: str
+    kind: EntryKind
+    title: str
+    lines: list[ReceiptLine]
+    total: Decimal
+    balance_after: Decimal
+
+
 class BankRead(SQLModel):
     name: str
     code: str

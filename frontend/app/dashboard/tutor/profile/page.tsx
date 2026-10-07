@@ -1,111 +1,104 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { RatingSummary } from '@/components/reviews/StarRating'
 import FormField from '@/components/shared/FormField'
+import PhotoUploader from '@/components/shared/PhotoUploader'
+import OfferFields, { EMPTY_OFFER, offerProblem } from '@/components/tutors/OfferFields'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
 import PageHeader from '@/components/shared/PageHeader'
 import { VettingStatusBadge } from '@/components/shared/StatusBadge'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
-import { errorMessage, errorStatus } from '@/lib/api'
-import { LEVELS, SUBJECTS, levelLabel } from '@/lib/format'
-import { addSubject, removeSubject, upsertProfile } from '@/lib/tutors'
-import type { Level, TutorProfile, TutorSubject } from '@/types'
+import { errorMessage } from '@/lib/api'
+import { createOffer, getMyOffers, removeOffer, updateOffer, upsertProfile, type OfferInput } from '@/lib/tutors'
+import type { Offer, TutorProfile } from '@/types'
 
 const profileSchema = z.object({
   full_name: z.string().trim().min(2, 'Enter your full name').max(200),
   phone: z.string().trim().regex(/^\+?[0-9 ]{7,20}$/, 'Enter a valid phone number').optional().or(z.literal('')),
   bio: z.string().trim().max(2000).optional().or(z.literal('')),
   area: z.string().trim().min(2, 'Enter the area you cover').max(120),
-  rate_per_session: z.coerce.number({ message: 'Enter your rate in Naira' }).positive('Rate must be more than ₦0'),
 })
 type ProfileInput = z.input<typeof profileSchema>
 type ProfileValues = z.output<typeof profileSchema>
 
-function SubjectsSection({ subjects, onChange }: { subjects: TutorSubject[]; onChange: () => Promise<void> }) {
+function OfferEditor({ offer, onSaved, canRemove }: { offer: Offer | null; onSaved: () => Promise<void>; canRemove: boolean }) {
   const toast = useToast()
-  const [subject, setSubject] = useState('')
-  const [level, setLevel] = useState<Level | ''>('')
-  const [error, setError] = useState<string | null>(null)
+  const [value, setValue] = useState<OfferInput>(offer ?? EMPTY_OFFER)
   const [busy, setBusy] = useState(false)
 
-  async function add(e: React.FormEvent) {
-    e.preventDefault()
-    if (!subject.trim() || !level) { setError('Enter a subject and choose a level'); return }
+  async function save() {
+    const problem = offerProblem(value)
+    if (problem) { toast.error(problem); return }
     setBusy(true)
-    setError(null)
     try {
-      await addSubject(subject.trim(), level)
-      setSubject('')
-      setLevel('')
-      toast.success('Subject added')
-      await onChange()
+      if (offer) await updateOffer(offer.id, value)
+      else await createOffer(value)
+      toast.success('Saved. Bookings you already accepted keep what was agreed.')
+      if (!offer) setValue(EMPTY_OFFER)
+      await onSaved()
     } catch (err) {
-      setError(errorStatus(err) === 409 ? 'You already teach this subject at this level.' : errorMessage(err))
+      toast.error(errorMessage(err))
     } finally {
       setBusy(false)
     }
   }
 
-  async function remove(s: TutorSubject) {
+  async function remove() {
+    if (!offer) return
+    setBusy(true)
     try {
-      await removeSubject(s.id)
-      toast.success('Subject removed')
-      await onChange()
+      await removeOffer(offer.id)
+      toast.success('Removed')
+      await onSaved()
     } catch (err) {
       toast.error(errorMessage(err))
+    } finally {
+      setBusy(false)
     }
   }
 
   return (
+    <div className="space-y-4 rounded-lg border p-4">
+      <OfferFields value={value} onChange={setValue} />
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" onClick={save} disabled={busy}>{busy ? 'Saving…' : offer ? 'Save changes' : 'Add this offer'}</Button>
+        {offer && canRemove && <Button type="button" variant="ghost" className="text-destructive" onClick={remove} disabled={busy}>Remove</Button>}
+      </div>
+    </div>
+  )
+}
+
+function OffersSection() {
+  const [offers, setOffers] = useState<Offer[] | null>(null)
+  const load = useCallback(async () => setOffers(await getMyOffers()), [])
+  useEffect(() => { load().catch(() => setOffers([])) }, [load])
+
+  return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Subjects</CardTitle>
-        <CardDescription>Parents can only book you for subjects and levels listed here.</CardDescription>
+        <CardTitle className="text-lg">What you teach</CardTitle>
+        <CardDescription>
+          Each offer is one or more subjects taught together, the times you can teach them every week, and one price per lesson.
+          Parents can only book times inside these. Change them anytime.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {subjects.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No subjects yet. Add at least one so parents can book you.</p>
-        ) : (
-          <ul className="flex flex-wrap gap-2">
-            {subjects.map((s) => (
-              <li key={s.id}>
-                <Badge variant="secondary" className="gap-1 py-1 pl-3 pr-1 text-sm">
-                  {s.subject} • {levelLabel(s.level)}
-                  <button type="button" onClick={() => remove(s)} aria-label={`Remove ${s.subject} (${levelLabel(s.level)})`}
-                    className="rounded-full p-0.5 hover:bg-destructive/10 hover:text-destructive">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </Badge>
-              </li>
-            ))}
-          </ul>
-        )}
-        <form onSubmit={add} className="grid gap-3 sm:grid-cols-[1fr_200px_auto] sm:items-end" noValidate>
-          <FormField id="new-subject" label="Subject">
-            <Input id="new-subject" list="subject-suggestions" placeholder="e.g. Mathematics" value={subject} onChange={(e) => setSubject(e.target.value)} />
-            <datalist id="subject-suggestions">{SUBJECTS.map((s) => <option key={s} value={s} />)}</datalist>
-          </FormField>
-          <FormField id="new-level" label="Level">
-            <Select value={level} onValueChange={(v) => setLevel(v as Level)}>
-              <SelectTrigger id="new-level"><SelectValue placeholder="Choose level" /></SelectTrigger>
-              <SelectContent>{LEVELS.map((l) => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </FormField>
-          <Button type="submit" disabled={busy}>{busy ? 'Adding…' : 'Add Subject'}</Button>
-        </form>
-        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        {offers === null ? <LoadingSpinner /> : offers.map((o) => (
+          <OfferEditor key={`${o.id}-${o.price}-${o.subjects.join()}`} offer={o} onSaved={load} canRemove={offers.length > 1} />
+        ))}
+        <details>
+          <summary className="cursor-pointer text-sm font-medium text-primary">Add another offer</summary>
+          <div className="mt-3"><OfferEditor offer={null} onSaved={load} canRemove={false} /></div>
+        </details>
       </CardContent>
     </Card>
   )
@@ -125,7 +118,6 @@ export default function TutorProfilePage() {
         phone: profile.phone ?? '',
         bio: profile.bio ?? '',
         area: profile.area,
-        rate_per_session: profile.rate_per_session,
       })
     }
   }, [profile, reset])
@@ -145,7 +137,7 @@ export default function TutorProfilePage() {
   return (
     <>
       <PageHeader
-        title="Profile & subjects"
+        title="Profile & what you teach"
         description="This is what parents see when they find you."
         action={profile && <div className="flex items-center gap-2 text-sm">Vetting status: <VettingStatusBadge status={profile.vetting_status} /></div>}
       />
@@ -159,6 +151,10 @@ export default function TutorProfilePage() {
           </Card>
         )}
         <Card>
+          <CardHeader><CardTitle className="text-lg">Profile picture</CardTitle><CardDescription>Parents see it when they find and book you.</CardDescription></CardHeader>
+          <CardContent><PhotoUploader name={profile?.full_name ?? ''} /></CardContent>
+        </Card>
+        <Card>
           <CardHeader><CardTitle className="text-lg">Your details</CardTitle></CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 sm:grid-cols-2" noValidate>
@@ -171,9 +167,6 @@ export default function TutorProfilePage() {
               <FormField id="area" label="Area you cover" error={errors.area?.message}>
                 <Input id="area" {...register('area')} aria-invalid={!!errors.area} />
               </FormField>
-              <FormField id="rate_per_session" label="Rate per session (₦)" error={errors.rate_per_session?.message}>
-                <Input id="rate_per_session" type="number" inputMode="decimal" min={1} step="50" {...register('rate_per_session')} aria-invalid={!!errors.rate_per_session} />
-              </FormField>
               <div className="sm:col-span-2">
                 <FormField id="bio" label="About you" error={errors.bio?.message}>
                   <Textarea id="bio" rows={4} {...register('bio')} />
@@ -185,7 +178,7 @@ export default function TutorProfilePage() {
             </form>
           </CardContent>
         </Card>
-        {profile && <SubjectsSection subjects={profile.subjects} onChange={refresh} />}
+        {profile && <OffersSection />}
       </div>
     </>
   )
