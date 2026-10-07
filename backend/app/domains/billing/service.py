@@ -4,6 +4,7 @@ import secrets
 from collections import defaultdict
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
+from urllib.parse import quote
 from uuid import UUID
 
 import httpx
@@ -34,6 +35,7 @@ from app.domains.tutors.models import TutorProfile
 logger = logging.getLogger(__name__)
 
 PAYSTACK_INITIALIZE_URL = "https://api.paystack.co/transaction/initialize"
+PAYSTACK_VERIFY_URL = "https://api.paystack.co/transaction/verify/{reference}"
 CENT = Decimal("0.01")
 
 
@@ -200,6 +202,29 @@ def initialize_paystack_transaction(*, email: str, amount_kobo: int, reference: 
     if response.status_code != 200 or not body.get("status"):
         logger.error("Paystack initialize rejected: %s %s", response.status_code, body.get("message"))
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Payment provider rejected the request")
+    return body["data"]
+
+
+def verify_paystack_transaction(reference: str) -> dict:
+    """Calls Paystack's Verify Transaction API and returns its `data` object, or {} if Paystack
+    doesn't know the reference. Raises 502 when Paystack can't be reached, so the webhook is retried."""
+    try:
+        response = httpx.get(
+            PAYSTACK_VERIFY_URL.format(reference=quote(reference, safe="")),
+            headers={"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}"},
+            timeout=15,
+        )
+        body = response.json()
+    except (httpx.HTTPError, ValueError):
+        logger.exception("Paystack verify request failed")
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Payment provider unavailable")
+
+    if response.status_code >= 500:
+        logger.error("Paystack verify failed: %s %s", response.status_code, body.get("message"))
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Payment provider unavailable")
+    if response.status_code != 200 or not body.get("status"):
+        logger.warning("Paystack verify rejected %s: %s", reference, body.get("message"))
+        return {}
     return body["data"]
 
 

@@ -89,13 +89,34 @@ def outbox(monkeypatch):
     return sent
 
 
+@pytest.fixture(autouse=True)
+def paystack_secrets(monkeypatch):
+    """Real-looking Paystack secrets, whatever the developer's .env holds."""
+    monkeypatch.setattr(settings, "PAYSTACK_SECRET_KEY", "sk_test_tutorlink_tests")
+    monkeypatch.setattr(settings, "PAYSTACK_WEBHOOK_SECRET", "sk_test_tutorlink_tests")
+
+
 @pytest.fixture
-def paystack(monkeypatch):
-    """Fakes Paystack's Initialize Transaction API and records the calls."""
+def paystack_transactions(monkeypatch):
+    """Fakes Paystack's Verify Transaction API: reference -> transaction `data` as Paystack reports it."""
+    transactions: dict[str, dict] = {}
+    monkeypatch.setattr(billing_service, "verify_paystack_transaction",
+                        lambda reference: transactions.get(reference, {}))
+    return transactions
+
+
+@pytest.fixture
+def paystack(monkeypatch, paystack_transactions):
+    """Fakes Paystack's Initialize Transaction API and records the calls.
+    Every started transaction counts as successfully paid unless a test edits `paystack_transactions`."""
     calls: list[dict] = []
 
     def fake_initialize(**kwargs):
         calls.append(kwargs)
+        paystack_transactions[kwargs["reference"]] = {
+            "status": "success", "reference": kwargs["reference"],
+            "amount": kwargs["amount_kobo"], "currency": "NGN",
+        }
         return {
             "authorization_url": f"https://checkout.paystack.com/{kwargs['reference']}",
             "access_code": "test_access_code",

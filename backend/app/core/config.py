@@ -4,6 +4,11 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def is_placeholder(value: str) -> bool:
+    """True for an empty secret or one still copied from .env.example (which is public on GitHub)."""
+    return not value or "xxxx" in value or value.startswith("your_")
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -27,7 +32,11 @@ class Settings(BaseSettings):
 
     @field_validator("SECRET_KEY")
     @classmethod
-    def secret_key_min_length(cls, v: str) -> str:
+    def secret_key_is_real(cls, v: str) -> str:
+        # Anyone who knows the key can sign an admin token, so the public example value is refused.
+        if is_placeholder(v):
+            raise ValueError("SECRET_KEY is still the .env.example placeholder; generate one with "
+                             "python -c \"import secrets; print(secrets.token_urlsafe(48))\"")
         if len(v) < 32:
             raise ValueError("SECRET_KEY must be at least 32 characters")
         return v

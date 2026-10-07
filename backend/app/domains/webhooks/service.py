@@ -8,11 +8,11 @@ from fastapi import HTTPException, status
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import Session, select
 
-from app.core.config import settings
+from app.core.config import is_placeholder, settings
 from app.db.base import utcnow
 from app.domains.auth.models import ParentProfile, User
+from app.domains.billing import service as billing_service
 from app.domains.billing.models import Invoice, InvoiceStatus
-from app.domains.billing.service import to_kobo
 from app.domains.notifications import service as notifications
 from app.domains.webhooks.models import WebhookEvent
 
@@ -64,9 +64,19 @@ def _mark_paid(session: Session, data: dict) -> Invoice | None:
         return None
     if invoice.status == InvoiceStatus.paid:
         return None
-    if data.get("amount") != to_kobo(invoice.total_amount) or data.get("currency", "NGN") != "NGN":
+    amount_kobo = billing_service.to_kobo(invoice.total_amount)
+    if data.get("amount") != amount_kobo or data.get("currency", "NGN") != "NGN":
         logger.warning("charge.success amount mismatch for invoice %s: got %s %s",
                        invoice.id, data.get("amount"), data.get("currency"))
+        return None
+
+    # The signature only proves the sender knows our secret; ask Paystack itself that the money arrived.
+    reference = data.get("reference")
+    verified = billing_service.verify_paystack_transaction(reference) if reference else {}
+    if (verified.get("status") != "success" or verified.get("reference") != reference
+            or verified.get("amount") != amount_kobo or verified.get("currency") != "NGN"):
+        logger.warning("charge.success for invoice %s not confirmed by Paystack (reference=%s, status=%s)",
+                       invoice.id, reference, verified.get("status"))
         return None
 
     invoice.status = InvoiceStatus.paid
@@ -92,6 +102,11 @@ def _mark_failed(session: Session, data: dict) -> None:
 
 def process_payment_webhook(session: Session, raw_body: bytes, signature: str | None,
                             header_event_id: str | None) -> dict:
+    # With an empty or public example secret, anyone could sign a fake "payment succeeded" event.
+    if is_placeholder(settings.PAYSTACK_WEBHOOK_SECRET):
+        logger.error("PAYSTACK_WEBHOOK_SECRET is not set; rejecting payment webhook")
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Payment webhooks are not configured")
+
     # 1-2. Signature is checked against the raw bytes, before any JSON parsing.
     if not verify_signature(raw_body, signature):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid signature")

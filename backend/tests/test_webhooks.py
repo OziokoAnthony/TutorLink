@@ -3,9 +3,11 @@ import hmac
 import json
 
 import pytest
+from fastapi import HTTPException
 from sqlmodel import select
 
 from app.core.config import settings
+from app.domains.billing import service as billing_service
 from app.domains.webhooks.models import WebhookEvent
 from tests import helpers
 
@@ -128,3 +130,42 @@ def test_other_events_are_recorded_and_acknowledged(client, db, unpaid_invoice):
     assert post_webhook(client, payload).status_code == 200
     assert invoice_status(client, unpaid_invoice) == "pending"
     assert db.exec(select(WebhookEvent.event_type)).all() == ["transfer.success"]
+
+
+@pytest.mark.parametrize("secret", ["", "whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"])
+def test_unconfigured_webhook_secret_rejects_every_event(client, db, monkeypatch, unpaid_invoice, secret):
+    # Otherwise anyone could sign with the empty or public example secret.
+    monkeypatch.setattr(settings, "PAYSTACK_WEBHOOK_SECRET", secret)
+    response = post_webhook(client, charge_success(unpaid_invoice["reference"]))
+    assert response.status_code == 503
+    assert invoice_status(client, unpaid_invoice) == "pending"
+    assert db.exec(select(WebhookEvent)).all() == []
+
+
+def test_charge_success_not_confirmed_by_paystack_does_not_mark_paid(client, unpaid_invoice, paystack_transactions):
+    paystack_transactions[unpaid_invoice["reference"]]["status"] = "abandoned"
+    assert post_webhook(client, charge_success(unpaid_invoice["reference"])).status_code == 200
+    assert invoice_status(client, unpaid_invoice) == "pending"
+
+
+def test_charge_success_for_reference_paystack_does_not_know_does_not_mark_paid(client, unpaid_invoice,
+                                                                                 paystack_transactions):
+    paystack_transactions.clear()
+    post_webhook(client, charge_success(unpaid_invoice["reference"]))
+    assert invoice_status(client, unpaid_invoice) == "pending"
+
+
+def test_paystack_unreachable_is_502_and_event_can_be_retried(client, db, monkeypatch, unpaid_invoice,
+                                                              paystack_transactions):
+    def unreachable(reference):
+        raise HTTPException(502, "Payment provider unavailable")
+
+    saved = dict(paystack_transactions)
+    monkeypatch.setattr(billing_service, "verify_paystack_transaction", unreachable)
+    payload = charge_success(unpaid_invoice["reference"])
+    assert post_webhook(client, payload).status_code == 502
+    assert db.exec(select(WebhookEvent)).all() == []  # not recorded, so Paystack's retry is processed
+
+    monkeypatch.setattr(billing_service, "verify_paystack_transaction", lambda reference: saved.get(reference, {}))
+    assert post_webhook(client, payload).json() == {"status": "ok"}
+    assert invoice_status(client, unpaid_invoice) == "paid"

@@ -88,7 +88,11 @@ up, then truncate the tables before each test. Emails and Paystack calls are fak
 Paystack then calls `POST /v1/webhooks/payment`:
 
 - The webhook signature is checked against `PAYSTACK_WEBHOOK_SECRET`. Paystack signs with your
-  secret key, so set this to the same value as `PAYSTACK_SECRET_KEY`.
+  secret key, so set this to the same value as `PAYSTACK_SECRET_KEY`. While it is empty or still
+  the `.env.example` placeholder, every webhook is rejected with 503.
+- Before an invoice is marked paid, the transaction is re-checked with Paystack's Verify Transaction
+  API (status, amount and currency must match). If Paystack can't be reached the webhook returns 502
+  and isn't recorded, so Paystack's retry is processed.
 - Each event is processed once:
   - If an `X-Paystack-Event-Id` header is present, it identifies the event.
   - Otherwise the event is identified by `<event>:<transaction id>`.

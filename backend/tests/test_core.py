@@ -2,7 +2,9 @@ from datetime import timedelta
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
+from app.core.config import Settings
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.scripts.create_admin import create_admin
 from tests import helpers
@@ -33,3 +35,9 @@ def test_create_admin_script(client, db):
     assert me["user"]["role"] == "admin"
     with pytest.raises(ValueError):
         create_admin(db, "boss@tutorlink.ng", helpers.PASSWORD)
+
+
+def test_placeholder_secret_key_is_refused():
+    # .env.example is public, so its SECRET_KEY would let anyone sign an admin token.
+    with pytest.raises(ValidationError, match="placeholder"):
+        Settings(SECRET_KEY="your_minimum_32_character_secret_key_here", DATABASE_URL="postgresql://x")
