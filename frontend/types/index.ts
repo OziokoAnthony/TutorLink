@@ -47,6 +47,9 @@ export interface TutorProfile {
   id: string
   user_id: string
   full_name: string
+  // Only on the tutor's own profile and admin views; the public listing has full_name only.
+  first_name?: string
+  surname?: string
   phone?: string
   bio?: string
   area: string
@@ -61,7 +64,10 @@ export interface TutorProfile {
 
 export interface UserMe {
   id: string
+  /** Personal email: notifications go here. Parents and admins log in with it. */
   email: string
+  /** Tutors only: the TutorLink email they log in with, e.g. o.anthony@tutorlink.com. */
+  work_email: string | null
   role: Role
   photo_url: string | null
   profile: ParentProfile | TutorProfile | null

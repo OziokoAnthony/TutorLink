@@ -11,6 +11,15 @@ identity checked against the national NIN database, certificates authenticated, 
 
 ## Requirements
 
+### R0. Tutor work email (built 2026-10-07)
+1. Tutors register with first name and surname as separate fields.
+2. On registration each tutor is assigned a work email: initial of the surname, a dot, the first name, `@tutorlink.com`. Anthony Ozioko → `o.anthony@tutorlink.com`; a second Anthony Ozioko gets `o.anthony2@tutorlink.com`.
+3. The work email is the tutor's **only** login, shown once after registration and sent to their personal email. It doesn't change if they change their name.
+4. Their personal email stays on the account, and every notification goes there.
+5. Parents and admins are excluded: they log in with their own email.
+
+> **Open question for R1:** Google sign-in conflicts with R0.3 for tutors. Decide whether tutors use Google at all before building R1.
+
 ### R1. Google sign-in (parents and tutors)
 1. Register and login pages have **Continue with Google**.
 2. The backend accepts a Google ID token, verifies its signature, audience (our Client ID) and expiry, and requires `email_verified`.

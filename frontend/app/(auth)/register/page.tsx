@@ -23,15 +23,21 @@ const optionalText = z.string().trim().max(200).optional().or(z.literal(''))
 const common = {
   email: z.string().trim().email('Enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters').max(72, 'Password is too long'),
-  full_name: z.string().trim().min(2, 'Enter your full name').max(200),
   phone: z.string().trim().regex(/^\+?[0-9 ]{7,20}$/, 'Enter a valid phone number').optional().or(z.literal('')),
 }
 
 const schema = z.discriminatedUnion('role', [
-  z.object({ role: z.literal('parent'), ...common, address: optionalText }),
+  z.object({
+    role: z.literal('parent'),
+    ...common,
+    full_name: z.string().trim().min(2, 'Enter your full name').max(200),
+    address: optionalText,
+  }),
   z.object({
     role: z.literal('tutor'),
     ...common,
+    first_name: z.string().trim().min(1, 'Enter your first name').max(100),
+    surname: z.string().trim().min(1, 'Enter your surname').max(100),
     area: z.string().trim().min(2, 'Enter the area you cover').max(120),
     bio: z.string().trim().max(2000).optional().or(z.literal('')),
   }),
@@ -45,6 +51,7 @@ export default function RegisterPage() {
   const toast = useToast()
   const [formError, setFormError] = useState<string | null>(null)
   const [offer, setOffer] = useState<OfferInput>(EMPTY_OFFER)
+  const [workEmail, setWorkEmail] = useState<string | null>(null)
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } =
     useForm<RegisterValues, unknown, RegisterOutput>({
       resolver: zodResolver(schema),
@@ -53,8 +60,8 @@ export default function RegisterPage() {
     })
   const role = watch('role')
   // Field errors for tutor-only fields live on the tutor branch of the union.
-  const tutorErrors = errors as Partial<Record<'area' | 'bio', { message?: string }>>
-  const parentErrors = errors as Partial<Record<'address', { message?: string }>>
+  const tutorErrors = errors as Partial<Record<'first_name' | 'surname' | 'area' | 'bio', { message?: string }>>
+  const parentErrors = errors as Partial<Record<'full_name' | 'address', { message?: string }>>
 
   async function onSubmit(values: RegisterOutput) {
     setFormError(null)
@@ -64,7 +71,7 @@ export default function RegisterPage() {
       return
     }
     try {
-      await registerUser({
+      const { work_email } = await registerUser({
         ...values,
         phone: values.phone || undefined,
         ...(values.role === 'parent'
@@ -72,11 +79,14 @@ export default function RegisterPage() {
           : { bio: values.bio || undefined, offers: [offer] }),
       })
       toast.success('Account created!')
-      router.push('/login')
+      if (work_email) setWorkEmail(work_email) // tutors must see the email they'll log in with
+      else router.push('/login')
     } catch (error) {
       setFormError(errorStatus(error) === 409 ? 'Email already registered' : errorMessage(error))
     }
   }
+
+  if (workEmail) return <WorkEmailCreated email={workEmail} />
 
   return (
     <div className="mx-auto flex max-w-xl px-4 py-12">
@@ -106,10 +116,22 @@ export default function RegisterPage() {
             </div>
             <input type="hidden" {...register('role')} />
 
-            <FormField id="full_name" label="Full name" error={errors.full_name?.message}>
-              <Input id="full_name" autoComplete="name" {...register('full_name')} aria-invalid={!!errors.full_name} />
-            </FormField>
-            <FormField id="email" label="Email" error={errors.email?.message}>
+            {role === 'parent' ? (
+              <FormField id="full_name" label="Full name" error={parentErrors.full_name?.message}>
+                <Input id="full_name" autoComplete="name" {...register('full_name')} aria-invalid={!!parentErrors.full_name} />
+              </FormField>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField id="first_name" label="First name" error={tutorErrors.first_name?.message}>
+                  <Input id="first_name" autoComplete="given-name" {...register('first_name')} aria-invalid={!!tutorErrors.first_name} />
+                </FormField>
+                <FormField id="surname" label="Surname" error={tutorErrors.surname?.message}>
+                  <Input id="surname" autoComplete="family-name" {...register('surname')} aria-invalid={!!tutorErrors.surname} />
+                </FormField>
+              </div>
+            )}
+            <FormField id="email" label={role === 'tutor' ? 'Your own email' : 'Email'} error={errors.email?.message}
+              hint={role === 'tutor' ? "We'll send your messages here. You'll get a TutorLink email to log in with." : undefined}>
               <Input id="email" type="email" autoComplete="email" {...register('email')} aria-invalid={!!errors.email} />
             </FormField>
             <FormField id="password" label="Password" error={errors.password?.message} hint="At least 8 characters.">
@@ -150,6 +172,38 @@ export default function RegisterPage() {
               Already have an account? <Link href="/login" className="font-medium text-primary hover:underline">Log in</Link>
             </p>
           </form>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+/** Shown once to a new tutor: the work email TutorLink assigned, which is their only login. */
+function WorkEmailCreated({ email }: { email: string }) {
+  const toast = useToast()
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(email)
+      toast.success('Copied')
+    } catch {
+      toast.error("Couldn't copy. Please write it down.")
+    }
+  }
+  return (
+    <div className="mx-auto flex max-w-xl px-4 py-12">
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle className="text-2xl">Your TutorLink email</CardTitle>
+          <CardDescription>
+            This is your login. Use it with your password every time you log in. We&apos;ve also sent it to your own email.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted px-4 py-3">
+            <span className="break-all font-mono text-lg font-semibold">{email}</span>
+            <Button type="button" variant="outline" size="sm" onClick={copy}>Copy</Button>
+          </div>
+          <Button asChild className="w-full"><Link href="/login">Log in</Link></Button>
         </CardContent>
       </Card>
     </div>

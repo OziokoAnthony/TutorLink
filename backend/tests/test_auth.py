@@ -5,6 +5,8 @@ from tests.helpers import PASSWORD
 def register(client, **overrides):
     body = {"email": helpers.unique_email("user"), "password": PASSWORD, "role": "parent",
             "full_name": "Ada Parent"}
+    if overrides.get("role") == "tutor":
+        body = {**body, "full_name": None, "first_name": "Anthony", "surname": "Ozioko"}
     body.update(overrides)
     return client.post("/v1/auth/register", json=body)
 
@@ -94,7 +96,8 @@ def test_password_hash_never_in_any_response(client):
     headers = helpers.login(client, "parent@example.com")
     responses.append(client.post("/v1/auth/login", json={"email": "parent@example.com", "password": PASSWORD}))
     responses.append(client.get("/v1/auth/me", headers=headers))
-    responses.append(client.get("/v1/auth/me", headers=helpers.login(client, "tutor@example.com")))
+    tutor_login = responses[1].json()["user"]["work_email"]
+    responses.append(client.get("/v1/auth/me", headers=helpers.login(client, tutor_login)))
     for response in responses:
         assert "password_hash" not in response.text
         assert "$2b$" not in response.text  # no bcrypt hash under any other name

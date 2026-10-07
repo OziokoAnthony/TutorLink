@@ -57,8 +57,14 @@ up, then truncate the tables before each test. Emails and Paystack calls are fak
   `parent_id` appears, the id is `users.id`. `GET /v1/tutors` returns it as `user_id`.
 - Money is sent and returned as decimal strings in naira (`"5000.00"`).
 - Lesson dates and times are Nigerian local time (WAT, UTC+1, no daylight saving).
-- Tutors register with at least one offer (subjects, level, weekly windows, price). Their profile
-  starts as `pending` and doesn't appear in `GET /v1/tutors` until an admin approves it.
+- Tutors register with `first_name`, `surname` and at least one offer (subjects, level, weekly
+  windows, price). Their profile starts as `pending` and doesn't appear in `GET /v1/tutors` until an
+  admin approves it.
+- **Tutor work emails.** Registration assigns each tutor a work email: initial of the surname, a
+  dot, the first name, at `TUTOR_EMAIL_DOMAIN` (`o.anthony@tutorlink.com`; the next Anthony Ozioko
+  gets `o.anthony2@…`). It's returned as `user.work_email`, emailed to the tutor, and is their only
+  login: logging in with their personal email gets a 401 naming the work email. Nobody can register
+  with an address at that domain. Parents and admins log in with their own email.
 - The same booking or lesson comes back in a different shape for the parent, the tutor and the
   admin, so each side sees only its own fee figures (spec 1, R1).
 - `GET /health` is an unversioned copy of `GET /v1/health`, for load balancers and container

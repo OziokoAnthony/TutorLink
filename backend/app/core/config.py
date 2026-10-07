@@ -26,6 +26,8 @@ class Settings(BaseSettings):
 
     RESEND_API_KEY: str = ""
     FROM_EMAIL: str = "noreply@tutorlink.ng"
+    # Tutors are assigned a work email at this domain (e.g. o.anthony@tutorlink.com) and log in with it.
+    TUTOR_EMAIL_DOMAIN: str = "tutorlink.com"
 
     # Cloudflare R2 for uploaded files. While unset, files are kept under LOCAL_STORAGE_DIR (development only).
     R2_ACCOUNT_ID: str = ""

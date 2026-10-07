@@ -88,7 +88,7 @@ def test_public_listing_hides_contact_and_vetting_details(client, admin_headers)
 def test_tutor_updates_profile(client):
     tutor = helpers.register_tutor(client)
     response = client.post("/v1/tutors/profile", headers=tutor["headers"], json={
-        "full_name": "Tunde Updated", "area": "Ikeja", "bio": "10 years",
+        "first_name": "Tunde", "surname": "Updated", "area": "Ikeja", "bio": "10 years",
     })
     assert response.status_code == 200
     assert response.json()["full_name"] == "Tunde Updated"
@@ -97,7 +97,7 @@ def test_tutor_updates_profile(client):
 def test_profile_endpoints_are_tutor_only(client):
     parent = helpers.register_parent(client)
     assert client.post("/v1/tutors/profile", headers=parent["headers"],
-                       json={"full_name": "X", "area": "Y"}).status_code == 403
+                       json={"first_name": "X", "surname": "Z", "area": "Y"}).status_code == 403
     assert client.post("/v1/tutors/profile/offers", headers=parent["headers"], json=helpers.offer()).status_code == 403
 
 

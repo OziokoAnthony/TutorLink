@@ -24,6 +24,7 @@ from app.domains.tutors.models import (
     VetRequest,
     VettingStatus,
     WeeklyTime,
+    clean_name_part,
 )
 
 
@@ -97,11 +98,15 @@ def _build_public_list(session: Session, profiles: list[TutorProfile]) -> list[T
 # ---------- Tutor self-service ----------
 
 def upsert_profile(session: Session, user: User, data: TutorProfileUpsert) -> TutorProfileRead:
+    # Changing a name doesn't change the work email: it stays the tutor's login.
+    fields = data.model_dump()
+    fields["first_name"], fields["surname"] = clean_name_part(data.first_name), clean_name_part(data.surname)
+    fields["full_name"] = f"{fields['first_name']} {fields['surname']}"
     profile = get_profile_by_user_id(session, user.id)
     if profile is None:
-        profile = TutorProfile(user_id=user.id, **data.model_dump())
+        profile = TutorProfile(user_id=user.id, **fields)
     else:
-        for field, value in data.model_dump().items():
+        for field, value in fields.items():
             setattr(profile, field, value)
     session.add(profile)
     session.commit()

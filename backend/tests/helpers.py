@@ -151,13 +151,17 @@ def offer(subjects=("Mathematics",), level: str = "senior_secondary", price: str
 
 def register_tutor(client, email: str | None = None, full_name: str = "Tunde Tutor", area: str = "Lekki",
                    offers: list | None = None, **offer_kwargs) -> dict:
+    """`full_name` is split into first name (first word) and surname (the rest)."""
     email = email or unique_email("tutor")
+    first_name, _, surname = full_name.partition(" ")
     response = client.post("/v1/auth/register", json={
-        "email": email, "password": PASSWORD, "role": "tutor", "full_name": full_name,
+        "email": email, "password": PASSWORD, "role": "tutor", "first_name": first_name, "surname": surname,
         "area": area, "offers": offers or [offer(**offer_kwargs)],
     })
     assert response.status_code == 201, response.text
-    tutor = {"id": response.json()["user"]["id"], "email": email, "headers": login(client, email)}
+    user = response.json()["user"]
+    tutor = {"id": user["id"], "email": email, "work_email": user["work_email"],
+             "headers": login(client, user["work_email"])}
     tutor["offer_id"] = client.get("/v1/tutors/profile/offers", headers=tutor["headers"]).json()[0]["id"]
     return tutor
 

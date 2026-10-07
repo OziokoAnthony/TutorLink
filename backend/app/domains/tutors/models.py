@@ -33,7 +33,9 @@ class TutorProfile(BaseUUIDModel, table=True):
     __tablename__ = "tutor_profiles"
 
     user_id: UUID = Field(foreign_key="users.id", unique=True)
-    full_name: str
+    first_name: str
+    surname: str
+    full_name: str  # "first_name surname", kept for display everywhere
     phone: str | None = None
     bio: str | None = Field(default=None, sa_type=sa.Text)
     area: str
@@ -129,8 +131,17 @@ class OfferRead(SQLModel):
     price: Decimal
 
 
+def clean_name_part(value: str | None) -> str:
+    """Trims a name and collapses inner spaces: "  Anthony   Chidi " -> "Anthony Chidi"."""
+    return " ".join((value or "").split())
+
+
+NamePart = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+
+
 class TutorProfileUpsert(SQLModel):
-    full_name: str = Field(min_length=1, max_length=200)
+    first_name: NamePart
+    surname: NamePart
     phone: str | None = Field(default=None, max_length=30)
     bio: str | None = None
     area: str = Field(min_length=1, max_length=120)
@@ -141,6 +152,8 @@ class TutorProfileRead(SQLModel):
 
     id: UUID
     user_id: UUID
+    first_name: str
+    surname: str
     full_name: str
     phone: str | None
     bio: str | None

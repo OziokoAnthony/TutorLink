@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import FormField from '@/components/shared/FormField'
 import { useAuth } from '@/hooks/useAuth'
-import { errorMessage, errorStatus } from '@/lib/api'
+import { errorMessage } from '@/lib/api'
 
 const schema = z.object({
   email: z.string().trim().email('Enter a valid email address'),
@@ -30,7 +30,8 @@ export default function LoginPage() {
     try {
       await login(values.email, values.password) // stores cookie and redirects by role
     } catch (error) {
-      setFormError(errorStatus(error) === 401 ? 'Invalid email or password' : errorMessage(error))
+      // The backend's 401 text is shown as is: it tells a tutor who used their own email which one to use.
+      setFormError(errorMessage(error))
     }
   }
 
@@ -43,7 +44,8 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-            <FormField id="email" label="Email" error={errors.email?.message}>
+            <FormField id="email" label="Email" error={errors.email?.message}
+              hint="Tutors: use your TutorLink email, like o.anthony@tutorlink.com.">
               <Input id="email" type="email" autoComplete="email" {...register('email')} aria-invalid={!!errors.email} />
             </FormField>
             <FormField id="password" label="Password" error={errors.password?.message}>

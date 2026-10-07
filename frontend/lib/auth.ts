@@ -7,7 +7,10 @@ export interface RegisterInput {
   email: string
   password: string
   role: 'parent' | 'tutor'
-  full_name: string
+  // Parents give a full name; tutors give first name and surname, which make their work email.
+  full_name?: string
+  first_name?: string
+  surname?: string
   phone?: string
   address?: string
   // Tutors: area and at least one offer
@@ -17,7 +20,7 @@ export interface RegisterInput {
 }
 
 interface RawMe {
-  user: { id: string; email: string; role: Role; photo_url: string | null }
+  user: { id: string; email: string; work_email: string | null; role: Role; photo_url: string | null }
   parent_profile: ParentProfile | null
   tutor_profile: unknown | null
   tutors_to_rate: TutorToRate[]
@@ -29,8 +32,10 @@ export const ROLE_HOME: Record<Role, string> = {
   admin: '/admin/tutors',
 }
 
-export async function register(input: RegisterInput): Promise<void> {
-  await api.post('/auth/register', input)
+/** Creates the account. For a tutor, returns the work email they must log in with. */
+export async function register(input: RegisterInput): Promise<{ work_email: string | null }> {
+  const { data } = await api.post<RawMe>('/auth/register', input)
+  return { work_email: data.user.work_email ?? null }
 }
 
 /** Logs in and stores the JWT cookie. */
@@ -47,6 +52,7 @@ function toUserMe(data: RawMe): UserMe {
   return {
     id: data.user.id,
     email: data.user.email,
+    work_email: data.user.work_email ?? null,
     role: data.user.role,
     photo_url: data.user.photo_url ?? null,
     profile: data.tutor_profile ? toTutorProfile(data.tutor_profile) : data.parent_profile,

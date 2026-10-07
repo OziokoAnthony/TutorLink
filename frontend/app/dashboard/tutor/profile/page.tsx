@@ -22,7 +22,8 @@ import { createOffer, getMyOffers, removeOffer, updateOffer, upsertProfile, type
 import type { Offer, TutorProfile } from '@/types'
 
 const profileSchema = z.object({
-  full_name: z.string().trim().min(2, 'Enter your full name').max(200),
+  first_name: z.string().trim().min(1, 'Enter your first name').max(100),
+  surname: z.string().trim().min(1, 'Enter your surname').max(100),
   phone: z.string().trim().regex(/^\+?[0-9 ]{7,20}$/, 'Enter a valid phone number').optional().or(z.literal('')),
   bio: z.string().trim().max(2000).optional().or(z.literal('')),
   area: z.string().trim().min(2, 'Enter the area you cover').max(120),
@@ -114,7 +115,8 @@ export default function TutorProfilePage() {
   useEffect(() => {
     if (profile) {
       reset({
-        full_name: profile.full_name,
+        first_name: profile.first_name ?? '',
+        surname: profile.surname ?? '',
         phone: profile.phone ?? '',
         bio: profile.bio ?? '',
         area: profile.area,
@@ -155,11 +157,22 @@ export default function TutorProfilePage() {
           <CardContent><PhotoUploader name={profile?.full_name ?? ''} /></CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle className="text-lg">Your details</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-lg">Your details</CardTitle>
+            {user.work_email && (
+              <CardDescription>
+                You log in with <span className="font-medium text-foreground">{user.work_email}</span>.
+                It stays the same if you change your name. Messages go to {user.email}.
+              </CardDescription>
+            )}
+          </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 sm:grid-cols-2" noValidate>
-              <FormField id="full_name" label="Full name" error={errors.full_name?.message}>
-                <Input id="full_name" {...register('full_name')} aria-invalid={!!errors.full_name} />
+              <FormField id="first_name" label="First name" error={errors.first_name?.message}>
+                <Input id="first_name" {...register('first_name')} aria-invalid={!!errors.first_name} />
+              </FormField>
+              <FormField id="surname" label="Surname" error={errors.surname?.message}>
+                <Input id="surname" {...register('surname')} aria-invalid={!!errors.surname} />
               </FormField>
               <FormField id="phone" label="Phone (optional)" error={errors.phone?.message}>
                 <Input id="phone" type="tel" {...register('phone')} aria-invalid={!!errors.phone} />

@@ -8,7 +8,7 @@ from sqlmodel import Field, SQLModel
 
 from app.db.base import BaseUUIDModel, pg_enum
 from app.domains.reviews.models import TutorToRate
-from app.domains.tutors.models import OfferIn, TutorProfileRead
+from app.domains.tutors.models import OfferIn, TutorProfileRead, clean_name_part
 
 
 class UserRole(str, Enum):
@@ -22,7 +22,9 @@ class UserRole(str, Enum):
 class User(BaseUUIDModel, table=True):
     __tablename__ = "users"
 
-    email: str = Field(unique=True)
+    email: str = Field(unique=True)  # personal email: notifications go here; parents and admins log in with it
+    # Tutors only: the address TutorLink assigns them, e.g. o.anthony@tutorlink.com. Their only login.
+    work_email: str | None = Field(default=None, unique=True)
     password_hash: str
     role: UserRole = Field(sa_type=pg_enum(UserRole, "user_role"))
     is_active: bool = Field(default=True, sa_column_kwargs={"server_default": sa.true()})
@@ -44,7 +46,10 @@ class RegisterRequest(SQLModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=72)  # bcrypt only uses the first 72 bytes
     role: UserRole
-    full_name: str = Field(min_length=1, max_length=200)
+    full_name: str | None = Field(default=None, min_length=1, max_length=200)  # parents
+    # Tutors give their names separately; full_name is built from them and their work email from both.
+    first_name: str | None = Field(default=None, max_length=100)
+    surname: str | None = Field(default=None, max_length=100)
     phone: str | None = Field(default=None, max_length=30)
     # Parent-only
     address: str | None = None
@@ -57,8 +62,15 @@ class RegisterRequest(SQLModel):
     def check_role_fields(self) -> "RegisterRequest":
         if self.role == UserRole.admin:
             raise ValueError("role must be 'parent' or 'tutor'")
-        if self.role == UserRole.tutor and (not self.area or not self.offers):
-            raise ValueError("tutors must provide area and at least one offer")
+        if self.role == UserRole.tutor:
+            if not self.area or not self.offers:
+                raise ValueError("tutors must provide area and at least one offer")
+            self.first_name, self.surname = clean_name_part(self.first_name), clean_name_part(self.surname)
+            if not self.first_name or not self.surname:
+                raise ValueError("tutors must provide first_name and surname")
+            self.full_name = f"{self.first_name} {self.surname}"
+        elif not self.full_name or not self.full_name.strip():
+            raise ValueError("full_name is required")
         return self
 
 
@@ -75,6 +87,7 @@ class TokenResponse(SQLModel):
 class UserRead(SQLModel):
     id: UUID
     email: str
+    work_email: str | None = None
     role: UserRole
     is_active: bool
     created_at: datetime
