@@ -206,8 +206,16 @@ class BookingAdminView(BookingBase):
 
 
 class TutorSlotRead(SQLModel):
-    """A tutor's booked weekly time as any signed-in user can see it, without who booked it."""
+    """A tutor's booked weekly time, without who booked it."""
 
     day_of_week: int
     start_time: time
     end_time: time
+
+
+class TutorAvailability(SQLModel):
+    """What parents see before booking, so they don't pick a time the tutor is already teaching."""
+
+    in_session_now: bool  # the tutor is teaching a lesson right now
+    busy: list[TutorSlotRead]  # weekly times already booked
+    free: list[TutorSlotRead]  # weekly times the tutor offers that are still open

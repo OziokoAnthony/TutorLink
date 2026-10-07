@@ -26,33 +26,48 @@ def test_parent_registration_sends_no_email(client, outbox):
     assert sent_to(outbox, parent["email"]) == []
 
 
-def test_schedule_booked_and_cancelled_emails_go_to_both(client, admin_headers, outbox):
+def test_booking_events_reach_both_sides_in_app_and_by_email(client, admin_headers, paystack, outbox):
     parent = helpers.register_parent(client)
     tutor = helpers.approved_tutor(client, admin_headers)
-    schedule = helpers.booked_schedule(client, parent, tutor, day=2)
-    client.delete(f"/v1/schedules/{schedule['id']}", headers=parent["headers"])
+    helpers.paid_booking(client, paystack, parent, tutor)
 
-    for email in (parent["email"], tutor["email"]):
-        subjects = sent_to(outbox, email)
-        assert "New session booked: Mathematics every Wednesday" in subjects
-        assert "Session cancelled" in subjects
+    assert sent_to(outbox, tutor["email"])[-2:] == ["New booking request", "Lessons confirmed"]
+    assert sent_to(outbox, parent["email"]) == ["Your booking has been taken", "Payment received — thank you!",
+                                                "Lessons confirmed"]
+    in_app = client.get("/v1/notifications/me", headers=parent["headers"]).json()
+    assert in_app["unread_count"] == 3
+    assert [n["title"] for n in in_app["items"]][0] == "Lessons confirmed"  # newest first
 
 
-def test_session_logged_email_to_parent(client, admin_headers, outbox):
+def test_marking_notifications_read(client, admin_headers):
     parent = helpers.register_parent(client)
     tutor = helpers.approved_tutor(client, admin_headers)
-    schedule = helpers.booked_schedule(client, parent, tutor)
-    helpers.logged_session(client, tutor, schedule["id"], "2025-10-06")
-    assert "Please confirm your Mathematics session on Monday 6 October 2025" in sent_to(outbox, parent["email"])
+    helpers.requested_booking(client, parent, tutor)
+    helpers.requested_booking(client, helpers.register_parent(client), tutor, start_date=helpers.days_ahead(4))
+    items = client.get("/v1/notifications/me", headers=tutor["headers"]).json()["items"]
+    assert client.post(f"/v1/notifications/{items[0]['id']}/read", headers=tutor["headers"]).status_code == 204
+    assert client.get("/v1/notifications/me", headers=tutor["headers"]).json()["unread_count"] == 1
+    client.post("/v1/notifications/me/read-all", headers=tutor["headers"])
+    assert client.get("/v1/notifications/me", headers=tutor["headers"]).json()["unread_count"] == 0
+    # Someone else's notification can't be touched.
+    client.post(f"/v1/notifications/{items[1]['id']}/read", headers=parent["headers"])
 
 
-def test_invoice_generated_email_to_parent(client, admin_headers, outbox):
-    parent = helpers.register_parent(client)
-    tutor = helpers.approved_tutor(client, admin_headers)
-    schedule = helpers.booked_schedule(client, parent, tutor)
-    helpers.confirmed_session(client, parent, tutor, schedule["id"], "2025-10-06")
-    client.post("/v1/invoices/generate", headers=admin_headers, json={"month": 10, "year": 2025})
-    assert "Your TutorLink invoice for October 2025 is ready" in sent_to(outbox, parent["email"])
+def test_no_email_when_the_change_is_rolled_back(db, outbox):
+    parent_id = helpers_user(db)
+    notifications.notify(db, parent_id, "Should not send", "Rolled back")
+    db.rollback()
+    db.commit()
+    assert outbox == []
+
+
+def helpers_user(db):
+    from app.domains.auth.models import User, UserRole
+
+    user = User(email=helpers.unique_email("x"), password_hash="x", role=UserRole.parent)
+    db.add(user)
+    db.commit()
+    return user.id
 
 
 def test_user_supplied_text_is_html_escaped(client, admin_headers, outbox):

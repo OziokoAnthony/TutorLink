@@ -144,8 +144,12 @@ def _own_offer(session: Session, user: User, offer_id: UUID) -> TutorOffer:
     return offer
 
 
+def list_offers_of(session: Session, tutor_id: UUID) -> list[OfferRead]:
+    return _offers_for(session, [tutor_id])[tutor_id]
+
+
 def list_my_offers(session: Session, user: User) -> list[OfferRead]:
-    return _offers_for(session, [user.id])[user.id]
+    return list_offers_of(session, user.id)
 
 
 def create_offer(session: Session, user: User, data: OfferIn) -> OfferRead:

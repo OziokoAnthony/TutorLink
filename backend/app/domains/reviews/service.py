@@ -55,12 +55,6 @@ def has_reviewed(session: Session, parent_id: UUID, tutor_id: UUID) -> bool:
     ).first() is not None
 
 
-def should_prompt_for_rating(session: Session, parent_id: UUID, tutor_id: UUID) -> bool:
-    """True right after the parent's *first* completed lesson with this tutor, if not yet rated."""
-    return (completed_lesson_count(session, parent_id, tutor_id) == 1
-            and not has_reviewed(session, parent_id, tutor_id))
-
-
 def upsert_review(session: Session, parent: User, tutor_user_id: UUID, data: ReviewUpsert) -> ReviewRead:
     profile = session.exec(select(TutorProfile).where(TutorProfile.user_id == tutor_user_id)).first()
     if profile is None:

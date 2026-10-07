@@ -176,10 +176,10 @@ def report_problem(session: Session, parent: User, lesson_id: UUID, data: IssueC
 
 
 def list_issues(session: Session, open_only: bool) -> list[LessonAdminView]:
-    stmt = select(Lesson).join(LessonIssue, LessonIssue.lesson_id == Lesson.id)
+    has_issue = select(LessonIssue.id).where(LessonIssue.lesson_id == Lesson.id)
     if open_only:
-        stmt = stmt.where(LessonIssue.resolved_at.is_(None))
-    stmt = stmt.order_by(LessonIssue.created_at.desc()).distinct()
+        has_issue = has_issue.where(LessonIssue.resolved_at.is_(None))
+    stmt = select(Lesson).where(has_issue.exists()).order_by(Lesson.updated_at.desc())
     return _views(session, list(session.exec(stmt).all()), LessonAdminView)
 
 
@@ -224,9 +224,12 @@ def resolve_issue(session: Session, admin: User, lesson_id: UUID, data: IssueRes
         new_when = f"{notifications.date_text(data.new_date)} at {data.new_start_time:%H:%M}"
         parent_text = tutor_text = f"The lesson from {when} has been rescheduled to {new_when}."
     else:
+        first = _first_completions(session, [lesson])
         lesson.status = LessonStatus.completed
         lesson.earning_status = EarningStatus.payable
         lesson.payable_at = now
+        for parent_id, tutor_id in first:
+            _prompt_rating(session, parent_id, tutor_id)
         parent_text = f"After review, the lesson on {when} stands as taught."
         tutor_text = f"After review, the lesson on {when} stands, and it will be paid."
 
@@ -242,21 +245,25 @@ def resolve_issue(session: Session, admin: User, lesson_id: UUID, data: IssueRes
     session.commit()
     if data.resolution == IssueResolution.refund:
         bookings_service.pay_due_periods(session, lesson.parent_id, now)
-    elif data.resolution == IssueResolution.reject:
-        _maybe_prompt_rating(session, lesson)
-        session.commit()
     session.refresh(lesson)
     return _views(session, [lesson], LessonAdminView)[0]
 
 
 # ---------- Background jobs ----------
 
-def _maybe_prompt_rating(session: Session, lesson: Lesson) -> None:
-    if review_service.should_prompt_for_rating(session, lesson.parent_id, lesson.tutor_id):
-        tutor_name = auth_service.full_names(session, [lesson.tutor_id]).get(lesson.tutor_id, "your tutor")
-        notifications.notify(session, lesson.parent_id, f"How was your lesson with {tutor_name}?",
-                             "Please take a moment to rate them. Your rating helps other parents choose the "
-                             "best tutor.", f"/tutors/{lesson.tutor_id}")
+def _first_completions(session: Session, lessons: list[Lesson]) -> set[tuple]:
+    """(parent, tutor) pairs among these lessons with no completed lesson yet and no rating:
+    completing them now is their first completed lesson together. Call before marking them completed."""
+    pairs = {(l.parent_id, l.tutor_id) for l in lessons}
+    return {p for p in pairs if review_service.completed_lesson_count(session, *p) == 0
+            and not review_service.has_reviewed(session, *p)}
+
+
+def _prompt_rating(session: Session, parent_id: UUID, tutor_id: UUID) -> None:
+    tutor_name = auth_service.full_names(session, [tutor_id]).get(tutor_id, "your tutor")
+    notifications.notify(session, parent_id, f"How was your lesson with {tutor_name}?",
+                         "Please take a moment to rate them. Your rating helps other parents choose the "
+                         "best tutor.", f"/tutors/{tutor_id}")
 
 
 def flag_unreported(session: Session, now: datetime) -> int:
@@ -281,13 +288,13 @@ def complete_reported(session: Session, now: datetime) -> int:
     """The parent's 24 h problem window closed with no problem: the tutor's earning becomes payable."""
     rows = session.exec(select(Lesson).where(Lesson.status == LessonStatus.reported,
                                              Lesson.problem_window_ends_at <= now).with_for_update()).all()
+    first = _first_completions(session, list(rows))
     for lesson in rows:
         lesson.status = LessonStatus.completed
         lesson.earning_status = EarningStatus.payable
         lesson.payable_at = now
         session.add(lesson)
-    session.flush()
-    for lesson in rows:
-        _maybe_prompt_rating(session, lesson)
+    for parent_id, tutor_id in first:
+        _prompt_rating(session, parent_id, tutor_id)
     session.commit()
     return len(rows)

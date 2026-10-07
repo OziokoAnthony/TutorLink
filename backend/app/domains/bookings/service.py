@@ -29,6 +29,7 @@ from app.domains.bookings.models import (
     BookingTutorView,
     PeriodStatus,
     PeriodView,
+    TutorAvailability,
     TutorSlotRead,
 )
 from app.domains.fees import service as fees_service
@@ -143,16 +144,39 @@ def list_all_bookings(session: Session, status_: BookingStatus | None, skip: int
     return _views(session, list(session.exec(stmt).all()), BookingAdminView)
 
 
-def tutor_slots(session: Session, tutor_user_id: UUID) -> list[TutorSlotRead]:
-    """The tutor's taken weekly times, so parents can avoid them when booking."""
-    if tutor_service.get_profile_by_user_id(session, tutor_user_id) is None:
+def _minus(window: WeeklyTime, busy: list[BookingSlot]) -> list[TutorSlotRead]:
+    """The parts of a weekly window not covered by any busy slot."""
+    pieces = [(window.start_time, window.end_time)]
+    for b in sorted((b for b in busy if b.day_of_week == window.day_of_week), key=lambda b: b.start_time):
+        cut = []
+        for start, end in pieces:
+            if b.end_time <= start or b.start_time >= end:
+                cut.append((start, end))
+                continue
+            if start < b.start_time:
+                cut.append((start, b.start_time))
+            if b.end_time < end:
+                cut.append((b.end_time, end))
+        pieces = cut
+    return [TutorSlotRead(day_of_week=window.day_of_week, start_time=s, end_time=e) for s, e in pieces]
+
+
+def tutor_availability(session: Session, tutor_user_id: UUID, now: datetime | None = None) -> TutorAvailability:
+    """The tutor's booked weekly times, their open times, and whether they're teaching now."""
+    now = now or clock.now()
+    if tutor_service.get_approved_profile(session, tutor_user_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tutor not found")
-    rows = session.exec(
-        select(BookingSlot).join(Booking, Booking.id == BookingSlot.booking_id)
-        .where(Booking.tutor_id == tutor_user_id, Booking.status.in_(HOLDS_SLOTS))
-        .order_by(BookingSlot.day_of_week, BookingSlot.start_time)
-    ).all()
-    return [TutorSlotRead.model_validate(s) for s in rows]
+    busy = sorted(_taken_slots(session, tutor_user_id), key=lambda s: (s.day_of_week, s.start_time))
+    windows = {(w.day_of_week, w.start_time, w.end_time): w
+               for offer in tutor_service.list_offers_of(session, tutor_user_id) for w in offer.windows}
+    free = [piece for w in sorted(windows.values(), key=lambda w: (w.day_of_week, w.start_time))
+            for piece in _minus(w, busy)]
+    teaching = session.exec(select(Lesson.id).where(
+        Lesson.tutor_id == tutor_user_id, Lesson.starts_at <= now, Lesson.ends_at > now,
+        Lesson.status.in_((LessonStatus.confirmed, LessonStatus.reported)),
+    )).first()
+    return TutorAvailability(in_session_now=teaching is not None,
+                             busy=[TutorSlotRead.model_validate(s) for s in busy], free=free)
 
 
 # ---------- Requesting ----------

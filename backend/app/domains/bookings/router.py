@@ -14,7 +14,7 @@ from app.domains.bookings.models import (
     BookingParentView,
     BookingStatus,
     BookingTutorView,
-    TutorSlotRead,
+    TutorAvailability,
 )
 from app.domains.payments.models import AdminDecision, RefundRead, RefundStatus
 
@@ -72,9 +72,10 @@ def end(booking_id: UUID, data: BookingClose, user: User = Depends(get_current_u
     return service.end(session, user, booking_id, data)
 
 
-@tutor_router.get("/{tutor_id}/schedule", response_model=list[TutorSlotRead])
-def tutor_schedule(tutor_id: UUID, user: User = Depends(get_current_user), session: Session = Depends(get_session)):
-    return service.tutor_slots(session, tutor_id)
+@tutor_router.get("/{tutor_id}/schedule", response_model=TutorAvailability)
+def tutor_schedule(tutor_id: UUID, session: Session = Depends(get_session)):
+    """Public: when the tutor is booked, when they're free, and whether they're teaching now."""
+    return service.tutor_availability(session, tutor_id)
 
 
 @admin_router.get("/bookings", response_model=list[BookingAdminView])
