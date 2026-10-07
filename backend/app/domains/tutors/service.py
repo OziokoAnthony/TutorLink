@@ -2,29 +2,32 @@ from collections import defaultdict
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import delete, func
 from sqlmodel import Session, select
 
 from app.db.base import utcnow
+from app.domains.auth import photos as photos_service
 from app.domains.auth.models import User
 from app.domains.notifications import service as notifications
 from app.domains.reviews import service as review_service
 from app.domains.tutors.models import (
     EducationLevel,
+    OfferIn,
+    OfferRead,
+    TutorOffer,
+    TutorOfferSubject,
+    TutorOfferWindow,
     TutorProfile,
     TutorProfileRead,
     TutorProfileUpsert,
     TutorPublic,
-    TutorSubject,
-    TutorSubjectCreate,
-    TutorSubjectRead,
     VetRequest,
     VettingStatus,
+    WeeklyTime,
 )
 
 
-# ---------- Read helpers (also used by auth, schedules and billing) ----------
+# ---------- Read helpers (also used by auth and bookings) ----------
 
 def get_profile_by_user_id(session: Session, user_id: UUID) -> TutorProfile | None:
     return session.exec(select(TutorProfile).where(TutorProfile.user_id == user_id)).first()
@@ -39,37 +42,43 @@ def get_approved_profile(session: Session, user_id: UUID) -> TutorProfile | None
     ).first()
 
 
-def teaches(session: Session, profile: TutorProfile, subject: str, level: EducationLevel) -> bool:
-    return session.exec(
-        select(TutorSubject.id).where(
-            TutorSubject.tutor_profile_id == profile.id,
-            func.lower(TutorSubject.subject) == subject.strip().lower(),
-            TutorSubject.level == level,
-        )
-    ).first() is not None
-
-
-def _subjects_for(session: Session, profile_ids: list[UUID]) -> dict[UUID, list[TutorSubjectRead]]:
-    grouped: dict[UUID, list[TutorSubjectRead]] = defaultdict(list)
-    if not profile_ids:
+def _offers_for(session: Session, tutor_ids: list[UUID]) -> dict[UUID, list[OfferRead]]:
+    """tutor user id -> active offers with subjects and windows (three queries for any number of tutors)."""
+    grouped: dict[UUID, list[OfferRead]] = defaultdict(list)
+    if not tutor_ids:
         return grouped
-    rows = session.exec(
-        select(TutorSubject)
-        .where(TutorSubject.tutor_profile_id.in_(profile_ids))
-        .order_by(TutorSubject.subject, TutorSubject.level)
+    offers = session.exec(
+        select(TutorOffer)
+        .where(TutorOffer.tutor_id.in_(tutor_ids), TutorOffer.is_active == True)  # noqa: E712
+        .order_by(TutorOffer.price, TutorOffer.created_at)
     ).all()
-    for row in rows:
-        grouped[row.tutor_profile_id].append(TutorSubjectRead.model_validate(row))
+    offer_ids = [o.id for o in offers]
+    subjects: dict[UUID, list[str]] = defaultdict(list)
+    windows: dict[UUID, list[WeeklyTime]] = defaultdict(list)
+    if offer_ids:
+        for row in session.exec(select(TutorOfferSubject).where(TutorOfferSubject.offer_id.in_(offer_ids))
+                                .order_by(TutorOfferSubject.subject)).all():
+            subjects[row.offer_id].append(row.subject)
+        for row in session.exec(select(TutorOfferWindow).where(TutorOfferWindow.offer_id.in_(offer_ids))
+                                .order_by(TutorOfferWindow.day_of_week, TutorOfferWindow.start_time)).all():
+            windows[row.offer_id].append(WeeklyTime.model_validate(row))
+    for offer in offers:
+        grouped[offer.tutor_id].append(OfferRead(id=offer.id, subjects=subjects[offer.id], level=offer.level,
+                                                 windows=windows[offer.id], price=offer.price))
     return grouped
 
 
 def _build(session: Session, profiles: list[TutorProfile], read_model):
-    """Attach subjects and rating summary to each profile (two queries, whatever the list size)."""
-    subjects = _subjects_for(session, [p.id for p in profiles])
-    ratings = review_service.rating_stats(session, [p.user_id for p in profiles])
+    """Attach offers, photo and rating summary to each profile (a fixed number of queries per list)."""
+    user_ids = [p.user_id for p in profiles]
+    offers = _offers_for(session, user_ids)
+    photos = photos_service.urls_for(session, user_ids)
+    ratings = review_service.rating_stats(session, user_ids)
     return [
         read_model.model_validate(p, update={
-            "subjects": subjects[p.id],
+            "offers": offers[p.user_id],
+            "price_from": min((o.price for o in offers[p.user_id]), default=None),
+            "photo_url": photos.get(p.user_id),
             "average_rating": ratings.get(p.user_id, (None, 0))[0],
             "rating_count": ratings.get(p.user_id, (None, 0))[1],
         })
@@ -100,38 +109,75 @@ def upsert_profile(session: Session, user: User, data: TutorProfileUpsert) -> Tu
     return build_profile_read(session, profile)
 
 
-def _require_own_profile(session: Session, user: User) -> TutorProfile:
-    profile = get_profile_by_user_id(session, user.id)
-    if profile is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Create your tutor profile first")
-    return profile
+# ---------- Offers ----------
+
+def get_offer(session: Session, offer_id: UUID) -> OfferRead | None:
+    """An active offer with its subjects and windows."""
+    offer = session.get(TutorOffer, offer_id)
+    if offer is None or not offer.is_active:
+        return None
+    return next(o for o in _offers_for(session, [offer.tutor_id])[offer.tutor_id] if o.id == offer_id)
 
 
-def add_subject(session: Session, user: User, data: TutorSubjectCreate) -> TutorSubjectRead:
-    profile = _require_own_profile(session, user)
-    subject_name = data.subject.strip()
-    if teaches(session, profile, subject_name, data.level):
-        raise HTTPException(status.HTTP_409_CONFLICT, "Subject already added at this level")
-
-    subject = TutorSubject(tutor_profile_id=profile.id, subject=subject_name, level=data.level)
-    session.add(subject)
-    try:
-        session.commit()
-    except IntegrityError:
-        session.rollback()
-        raise HTTPException(status.HTTP_409_CONFLICT, "Subject already added at this level")
-    session.refresh(subject)
-    return TutorSubjectRead.model_validate(subject)
+def add_offer_rows(session: Session, tutor_id: UUID, data: OfferIn) -> TutorOffer:
+    """Adds an offer to the session without committing (registration uses it inside its own transaction)."""
+    offer = TutorOffer(tutor_id=tutor_id, level=data.level, price=data.price)
+    session.add(offer)
+    session.flush()
+    _write_children(session, offer.id, data)
+    return offer
 
 
-def remove_subject(session: Session, user: User, subject_id: UUID) -> None:
-    subject = session.get(TutorSubject, subject_id)
-    if subject is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Subject not found")
-    profile = get_profile_by_user_id(session, user.id)
-    if profile is None or subject.tutor_profile_id != profile.id:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only remove your own subjects")
-    session.delete(subject)
+def _write_children(session: Session, offer_id: UUID, data: OfferIn) -> None:
+    for subject in data.subjects:
+        session.add(TutorOfferSubject(offer_id=offer_id, subject=subject))
+    for window in data.windows:
+        session.add(TutorOfferWindow(offer_id=offer_id, **window.model_dump()))
+
+
+def _own_offer(session: Session, user: User, offer_id: UUID) -> TutorOffer:
+    offer = session.get(TutorOffer, offer_id)
+    if offer is None or not offer.is_active:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Offer not found")
+    if offer.tutor_id != user.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only change your own offers")
+    return offer
+
+
+def list_my_offers(session: Session, user: User) -> list[OfferRead]:
+    return _offers_for(session, [user.id])[user.id]
+
+
+def create_offer(session: Session, user: User, data: OfferIn) -> OfferRead:
+    offer = add_offer_rows(session, user.id, data)
+    session.commit()
+    return get_offer(session, offer.id)
+
+
+def update_offer(session: Session, user: User, offer_id: UUID, data: OfferIn) -> OfferRead:
+    """Replaces the offer's subjects, level, windows and price. Accepted bookings keep their own copy
+    of what was agreed, so they are unaffected (spec 1 R0.3)."""
+    offer = _own_offer(session, user, offer_id)
+    offer.level = data.level
+    offer.price = data.price
+    session.add(offer)
+    session.exec(delete(TutorOfferSubject).where(TutorOfferSubject.offer_id == offer.id))
+    session.exec(delete(TutorOfferWindow).where(TutorOfferWindow.offer_id == offer.id))
+    _write_children(session, offer.id, data)
+    session.commit()
+    return get_offer(session, offer.id)
+
+
+def remove_offer(session: Session, user: User, offer_id: UUID) -> None:
+    offer = _own_offer(session, user, offer_id)
+    active_offers = session.exec(
+        select(func.count()).select_from(TutorOffer)
+        .where(TutorOffer.tutor_id == user.id, TutorOffer.is_active == True)  # noqa: E712
+    ).one()
+    if active_offers <= 1:
+        raise HTTPException(status.HTTP_409_CONFLICT, "You need at least one offer")
+    offer.is_active = False  # bookings may still point at it (spec 1 R0.4)
+    session.add(offer)
     session.commit()
 
 
@@ -150,12 +196,26 @@ def list_approved_tutors(
     if area:
         stmt = stmt.where(TutorProfile.area.icontains(area.strip(), autoescape=True))
     if subject or level:
-        teaches_filter = select(TutorSubject.id).where(TutorSubject.tutor_profile_id == TutorProfile.id)
+        offer_filter = select(TutorOffer.id).where(
+            TutorOffer.tutor_id == TutorProfile.user_id, TutorOffer.is_active == True,  # noqa: E712
+        )
         if subject:
-            teaches_filter = teaches_filter.where(func.lower(TutorSubject.subject) == subject.strip().lower())
+            offer_filter = offer_filter.where(
+                select(TutorOfferSubject.id).where(
+                    TutorOfferSubject.offer_id == TutorOffer.id,
+                    func.lower(TutorOfferSubject.subject) == subject.strip().lower(),
+                ).exists()
+            )
         if level:
-            teaches_filter = teaches_filter.where(TutorSubject.level == level)
-        stmt = stmt.where(teaches_filter.exists())
+            offer_filter = offer_filter.where(TutorOffer.level == level)
+        stmt = stmt.where(offer_filter.exists())
+    if sort == "price":
+        lowest = (
+            select(func.min(TutorOffer.price))
+            .where(TutorOffer.tutor_id == TutorProfile.user_id, TutorOffer.is_active == True)  # noqa: E712
+            .scalar_subquery()
+        )
+        stmt = stmt.order_by(lowest.asc().nulls_last())
     if sort == "rating":
         # Best average first; ties go to the tutor with more ratings; unrated tutors last.
         stats = review_service.rating_stats_subquery()

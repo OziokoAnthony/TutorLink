@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.core.security import create_access_token, get_password_hash, verify_password
+from app.domains.auth import photos
 from app.domains.auth.models import (
     LoginRequest,
     MeResponse,
@@ -42,7 +43,7 @@ def get_user_by_email(session: Session, email: str) -> User | None:
 
 
 def build_me(session: Session, user: User) -> MeResponse:
-    me = MeResponse(user=UserRead.model_validate(user))
+    me = MeResponse(user=UserRead.model_validate(user, update={"photo_url": photos.url_for(user)}))
     if user.role == UserRole.parent:
         profile = session.exec(select(ParentProfile).where(ParentProfile.user_id == user.id)).first()
         if profile:
@@ -69,7 +70,9 @@ def register(session: Session, data: RegisterRequest) -> MeResponse:
                                       address=data.address))
         else:
             session.add(TutorProfile(user_id=user.id, full_name=data.full_name, phone=data.phone,
-                                     bio=data.bio, area=data.area, rate_per_session=data.rate_per_session))
+                                     bio=data.bio, area=data.area))
+            for offer in data.offers:
+                tutor_service.add_offer_rows(session, user.id, offer)
         session.commit()
     except IntegrityError as exc:
         session.rollback()
@@ -92,3 +95,14 @@ def login(session: Session, data: LoginRequest) -> TokenResponse:
             headers={"WWW-Authenticate": "Bearer"},
         )
     return TokenResponse(access_token=create_access_token(str(user.id), user.role.value))
+
+
+def remove_photo(session: Session, user_id: UUID) -> None:
+    user = session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    photos.remove_photo(session, user)
+    notifications.notify(session, user.id, "Please upload a new profile picture",
+                         "Your profile picture was removed by TutorLink. Please upload a new one.",
+                         "/dashboard")
+    session.commit()

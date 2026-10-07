@@ -5,29 +5,38 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
 from app.db.session import get_session
+from app.domains.auth.router import admin_router as admin_users_router
 from app.domains.auth.router import router as auth_router
-from app.domains.billing.router import router as billing_router
+from app.domains.bookings.router import admin_router as admin_bookings_router
+from app.domains.bookings.router import router as bookings_router
+from app.domains.bookings.router import tutor_router as tutor_schedule_router
+from app.domains.fees.router import router as fees_router
+from app.domains.files.router import router as files_router
+from app.domains.lessons.router import admin_router as admin_lessons_router
+from app.domains.lessons.router import router as lessons_router
+from app.domains.notifications.router import router as notifications_router
+from app.domains.payments.router import admin_router as admin_withdrawals_router
+from app.domains.payments.router import banks_router
+from app.domains.payments.router import router as wallet_router
+from app.domains.payouts.router import admin_router as admin_payouts_router
+from app.domains.payouts.router import router as earnings_router
 from app.domains.reviews.router import router as reviews_router
-from app.domains.schedules.router import router as schedules_router
-from app.domains.schedules.router import tutor_router as tutor_schedule_router
-from app.domains.sessions.router import admin_router as admin_sessions_router
-from app.domains.sessions.router import router as sessions_router
 from app.domains.tutors.router import admin_router as admin_tutors_router
 from app.domains.tutors.router import router as tutors_router
 from app.domains.webhooks.router import router as webhooks_router
 
 api_router = APIRouter()
 
-api_router.include_router(auth_router)
-api_router.include_router(tutors_router)
-api_router.include_router(tutor_schedule_router)
-api_router.include_router(reviews_router)
-api_router.include_router(admin_tutors_router)
-api_router.include_router(schedules_router)
-api_router.include_router(sessions_router)
-api_router.include_router(admin_sessions_router)
-api_router.include_router(billing_router)
-api_router.include_router(webhooks_router)
+for router in (
+    auth_router, admin_users_router,
+    tutors_router, tutor_schedule_router, reviews_router, admin_tutors_router,
+    bookings_router, admin_bookings_router,
+    lessons_router, admin_lessons_router,
+    wallet_router, banks_router, admin_withdrawals_router,
+    earnings_router, admin_payouts_router,
+    fees_router, notifications_router, files_router, webhooks_router,
+):
+    api_router.include_router(router)
 
 
 @api_router.get("/health", tags=["system"])

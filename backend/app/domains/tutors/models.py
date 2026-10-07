@@ -1,13 +1,14 @@
-from datetime import datetime
+from datetime import datetime, time
 from decimal import Decimal
 from enum import Enum
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
+from pydantic import StringConstraints, model_validator
 from sqlmodel import Field, SQLModel
 
-from app.db.base import BaseUUIDModel, pg_enum, utcnow
+from app.db.base import BaseUUIDModel, pg_enum
 
 
 class VettingStatus(str, Enum):
@@ -22,7 +23,7 @@ class EducationLevel(str, Enum):
     senior_secondary = "senior_secondary"
 
 
-# Shared by tutor_subjects.level and schedules.level (one PostgreSQL type).
+# Shared by tutor_offers.level and bookings.level (one PostgreSQL type).
 education_level_enum = pg_enum(EducationLevel, "education_level")
 
 
@@ -36,7 +37,6 @@ class TutorProfile(BaseUUIDModel, table=True):
     phone: str | None = None
     bio: str | None = Field(default=None, sa_type=sa.Text)
     area: str
-    rate_per_session: Decimal = Field(max_digits=10, decimal_places=2)
     vetting_status: VettingStatus = Field(
         default=VettingStatus.pending,
         sa_type=pg_enum(VettingStatus, "vetting_status"),
@@ -47,38 +47,93 @@ class TutorProfile(BaseUUIDModel, table=True):
     vetted_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
 
 
-class TutorSubject(SQLModel, table=True):
-    """Spec defines no updated_at here, so this table doesn't use BaseUUIDModel."""
+class TutorOffer(BaseUUIDModel, table=True):
+    """Something a tutor teaches: one or more subjects at one level, when, and one price per lesson
+    (spec 1 R0). Removing an offer only deactivates it, since bookings may point at it."""
 
-    __tablename__ = "tutor_subjects"
-    __table_args__ = (sa.UniqueConstraint("tutor_profile_id", "subject", "level"),)
+    __tablename__ = "tutor_offers"
+
+    tutor_id: UUID = Field(foreign_key="users.id", index=True)
+    level: EducationLevel = Field(sa_type=education_level_enum)
+    price: Decimal = Field(max_digits=10, decimal_places=2)
+    is_active: bool = Field(default=True, sa_column_kwargs={"server_default": sa.true()})
+
+
+class TutorOfferSubject(SQLModel, table=True):
+    __tablename__ = "tutor_offer_subjects"
+    __table_args__ = (sa.UniqueConstraint("offer_id", "subject"),)
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    tutor_profile_id: UUID = Field(foreign_key="tutor_profiles.id")
+    offer_id: UUID = Field(foreign_key="tutor_offers.id")
     subject: str
-    level: EducationLevel = Field(sa_type=education_level_enum)
-    created_at: datetime = Field(default_factory=utcnow, sa_type=sa.DateTime(timezone=True))
+
+
+class TutorOfferWindow(SQLModel, table=True):
+    """A weekly time the tutor can teach this offer."""
+
+    __tablename__ = "tutor_offer_windows"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    offer_id: UUID = Field(foreign_key="tutor_offers.id", index=True)
+    day_of_week: int = Field(sa_type=sa.SmallInteger)  # 0=Monday ... 6=Sunday
+    start_time: time
+    end_time: time
 
 
 # ---------- DTOs ----------
+
+class WeeklyTime(SQLModel):
+    """A weekly time range, used for offer windows and booking slots."""
+
+    day_of_week: int = Field(ge=0, le=6)
+    start_time: time
+    end_time: time
+
+    @model_validator(mode="after")
+    def check_times(self) -> "WeeklyTime":
+        if self.end_time <= self.start_time:
+            raise ValueError("end_time must be after start_time")
+        return self
+
+
+def clean_subjects(subjects: list[str]) -> list[str]:
+    """Trimmed, de-duplicated (case-insensitively), in the order given."""
+    seen, cleaned = set(), []
+    for subject in subjects:
+        name = subject.strip()
+        if name and name.lower() not in seen:
+            seen.add(name.lower())
+            cleaned.append(name)
+    if not cleaned:
+        raise ValueError("at least one subject is required")
+    return cleaned
+
+
+class OfferIn(SQLModel):
+    subjects: list[Annotated[str, StringConstraints(max_length=100)]] = Field(min_length=1, max_length=10)
+    level: EducationLevel
+    windows: list[WeeklyTime] = Field(min_length=1, max_length=21)
+    price: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
+
+    @model_validator(mode="after")
+    def clean(self) -> "OfferIn":
+        self.subjects = clean_subjects(self.subjects)
+        return self
+
+
+class OfferRead(SQLModel):
+    id: UUID
+    subjects: list[str]
+    level: EducationLevel
+    windows: list[WeeklyTime]
+    price: Decimal
+
 
 class TutorProfileUpsert(SQLModel):
     full_name: str = Field(min_length=1, max_length=200)
     phone: str | None = Field(default=None, max_length=30)
     bio: str | None = None
     area: str = Field(min_length=1, max_length=120)
-    rate_per_session: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
-
-
-class TutorSubjectCreate(SQLModel):
-    subject: str = Field(min_length=1, max_length=100)
-    level: EducationLevel
-
-
-class TutorSubjectRead(SQLModel):
-    id: UUID
-    subject: str
-    level: EducationLevel
 
 
 class TutorProfileRead(SQLModel):
@@ -90,13 +145,14 @@ class TutorProfileRead(SQLModel):
     phone: str | None
     bio: str | None
     area: str
-    rate_per_session: Decimal
     vetting_status: VettingStatus
     vetting_note: str | None
     vetted_at: datetime | None
     created_at: datetime
     updated_at: datetime
-    subjects: list[TutorSubjectRead] = []
+    photo_url: str | None = None
+    offers: list[OfferRead] = []
+    price_from: Decimal | None = None  # lowest offer price
     average_rating: Decimal | None = None  # 1.00-5.00, None until first rating
     rating_count: int = 0
 
@@ -109,8 +165,9 @@ class TutorPublic(SQLModel):
     full_name: str
     bio: str | None
     area: str
-    rate_per_session: Decimal
-    subjects: list[TutorSubjectRead] = []
+    photo_url: str | None = None
+    offers: list[OfferRead] = []
+    price_from: Decimal | None = None
     average_rating: Decimal | None = None  # 1.00-5.00, None until first rating
     rating_count: int = 0
 

@@ -10,7 +10,7 @@ def register(client, **overrides):
 
 
 def test_register_parent_returns_201_with_parent_profile(client):
-    response = register(client, phone="08012345678", address="12 Admiralty Way, Lekki")
+    response = register(client, phone="08012345678", address="123 Ikegbunam Street, Abakpa")
     assert response.status_code == 201
     body = response.json()
     assert body["user"]["role"] == "parent"
@@ -18,16 +18,21 @@ def test_register_parent_returns_201_with_parent_profile(client):
     assert body["tutor_profile"] is None
 
 
-def test_register_tutor_returns_201_with_pending_vetting(client):
-    response = register(client, role="tutor", area="Yaba", rate_per_session="4500.00")
+def test_register_tutor_returns_201_with_pending_vetting_and_offers(client):
+    response = register(client, role="tutor", area="Yaba",
+                        offers=[helpers.offer(subjects=["Mathematics", "Physics"], price="4500.00")])
     assert response.status_code == 201
     profile = response.json()["tutor_profile"]
     assert profile["vetting_status"] == "pending"
     assert profile["area"] == "Yaba"
+    assert profile["offers"][0]["subjects"] == ["Mathematics", "Physics"]
+    assert profile["offers"][0]["price"] == "4500.00"  # one price, whatever the number of subjects
 
 
-def test_register_tutor_without_area_or_rate_is_422(client):
-    assert register(client, role="tutor").status_code == 422
+def test_register_tutor_without_area_or_offer_is_422(client):
+    assert register(client, role="tutor", offers=[helpers.offer()]).status_code == 422
+    assert register(client, role="tutor", area="Yaba").status_code == 422
+    assert register(client, role="tutor", area="Yaba", offers=[]).status_code == 422
 
 
 def test_register_as_admin_is_rejected(client):
@@ -84,7 +89,7 @@ def test_me_with_invalid_token_is_401(client):
 def test_password_hash_never_in_any_response(client):
     responses = [
         register(client, email="parent@example.com"),
-        register(client, email="tutor@example.com", role="tutor", area="Ikeja", rate_per_session="3000"),
+        register(client, email="tutor@example.com", role="tutor", area="Ikeja", offers=[helpers.offer()]),
     ]
     headers = helpers.login(client, "parent@example.com")
     responses.append(client.post("/v1/auth/login", json={"email": "parent@example.com", "password": PASSWORD}))

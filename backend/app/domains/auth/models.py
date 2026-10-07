@@ -1,5 +1,4 @@
 from datetime import datetime
-from decimal import Decimal
 from enum import Enum
 from uuid import UUID
 
@@ -9,7 +8,7 @@ from sqlmodel import Field, SQLModel
 
 from app.db.base import BaseUUIDModel, pg_enum
 from app.domains.reviews.models import TutorToRate
-from app.domains.tutors.models import TutorProfileRead
+from app.domains.tutors.models import OfferIn, TutorProfileRead
 
 
 class UserRole(str, Enum):
@@ -27,6 +26,7 @@ class User(BaseUUIDModel, table=True):
     password_hash: str
     role: UserRole = Field(sa_type=pg_enum(UserRole, "user_role"))
     is_active: bool = Field(default=True, sa_column_kwargs={"server_default": sa.true()})
+    photo_key: str | None = None  # profile picture in storage (spec 4 R1b)
 
 
 class ParentProfile(BaseUUIDModel, table=True):
@@ -48,17 +48,17 @@ class RegisterRequest(SQLModel):
     phone: str | None = Field(default=None, max_length=30)
     # Parent-only
     address: str | None = None
-    # Tutor-only (area and rate_per_session are required for tutors)
+    # Tutor-only (area and at least one offer are required for tutors)
     bio: str | None = None
     area: str | None = Field(default=None, max_length=120)
-    rate_per_session: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=2)
+    offers: list[OfferIn] = Field(default=[], max_length=20)
 
     @model_validator(mode="after")
     def check_role_fields(self) -> "RegisterRequest":
         if self.role == UserRole.admin:
             raise ValueError("role must be 'parent' or 'tutor'")
-        if self.role == UserRole.tutor and (not self.area or self.rate_per_session is None):
-            raise ValueError("tutors must provide area and rate_per_session")
+        if self.role == UserRole.tutor and (not self.area or not self.offers):
+            raise ValueError("tutors must provide area and at least one offer")
         return self
 
 
@@ -78,6 +78,7 @@ class UserRead(SQLModel):
     role: UserRole
     is_active: bool
     created_at: datetime
+    photo_url: str | None = None
 
 
 class ParentProfileRead(SQLModel):
