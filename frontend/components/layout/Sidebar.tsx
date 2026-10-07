@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/types'
 
-const LINKS: Record<Role, { href: string; label: string }[]> = {
+export const LINKS: Record<Role, { href: string; label: string }[]> = {
   parent: [
     { href: '/dashboard/parent', label: 'Overview' },
     { href: '/dashboard/parent/bookings', label: 'My Bookings' },
@@ -22,6 +22,11 @@ const LINKS: Record<Role, { href: string; label: string }[]> = {
   ],
   admin: [
     { href: '/admin/tutors', label: 'Vet Tutors' },
+    { href: '/admin/payouts', label: 'Tutor Payouts' },
+    { href: '/admin/problems', label: 'Problems' },
+    { href: '/admin/refunds', label: 'Refunds' },
+    { href: '/admin/withdrawals', label: 'Withdrawals' },
+    { href: '/admin/fees', label: 'Fees' },
   ],
 }
 

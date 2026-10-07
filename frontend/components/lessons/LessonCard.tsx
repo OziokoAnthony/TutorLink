@@ -10,7 +10,9 @@ export default function LessonCard({ lesson, viewer, actions }: {
   viewer: 'parent' | 'tutor' | 'admin'
   actions?: ReactNode
 }) {
-  const who = viewer === 'parent' ? `Tutor: ${lesson.tutor_name ?? ''}` : `Parent: ${lesson.parent_name ?? ''}`
+  const who = viewer === 'parent' ? `Tutor: ${lesson.tutor_name ?? ''}`
+    : viewer === 'tutor' ? `Parent: ${lesson.parent_name ?? ''}`
+    : `Parent: ${lesson.parent_name ?? ''} • Tutor: ${lesson.tutor_name ?? ''}`
   return (
     <Card>
       <CardContent className="space-y-3 pt-6">
