@@ -4,7 +4,9 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
+from app.domains.payments.models import VirtualAccount
 from tests import helpers
 
 
@@ -199,3 +201,17 @@ def test_account_number_on_request_when_not_yet_created(client, parent):
     response = client.post("/v1/wallet/me/account-number", headers=parent["headers"])
     assert response.status_code == 200 and response.json()["bank_name"] == "Test Bank"
     assert wallet(client, parent)["virtual_account"]["account_number"] == response.json()["account_number"]
+
+
+def test_no_two_parents_share_an_account_number(client, db, paystack, parent):
+    """Spec 1 R3.1: each parent's account number is theirs alone, and the database refuses a repeat."""
+    other = helpers.register_parent(client)
+    numbers = [client.post("/v1/wallet/me/account-number", headers=p["headers"]).json()["account_number"]
+               for p in (parent, other)]
+    assert numbers[0] != numbers[1]
+    third = helpers.register_parent(client)
+    db.add(VirtualAccount(parent_id=third["id"], customer_code="CUS_REPEAT", account_number=numbers[0],
+                          account_name="TUTORLINK/PARENT", bank_name="Test Bank"))
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()

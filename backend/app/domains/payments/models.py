@@ -52,7 +52,7 @@ class VirtualAccount(BaseUUIDModel, table=True):
 
     parent_id: UUID = Field(foreign_key="users.id", unique=True)
     customer_code: str = Field(unique=True)
-    account_number: str
+    account_number: str = Field(unique=True)  # no two parents ever share an account number
     account_name: str
     bank_name: str
 
