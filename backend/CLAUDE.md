@@ -74,6 +74,14 @@ Alembic migration per spec or build step in `alembic/versions/`.
   accepts, and `helpers.google_register` / `register_tutor` sign up through it.
 - **Password reset (spec 4 R0.7).** `password_reset_tokens` stores only a SHA-256 of each link's
   token; a link works once, for an hour, and `/auth/forgot-password` answers the same for any email.
+- **Tutor onboarding (spec 4 R2, R3).** `app/domains/onboarding/` holds the checklist
+  (`GET /onboarding`) and NIN verification (`POST /onboarding/nin`). Dojah is called only in
+  `app/core/dojah.py`; tests answer it with `helpers.dojah` (a `FakeDojah`: `dojah.add(first, surname)`
+  registers a NIN record). `nin_verifications` never holds the full NIN, the NIN record's name, its photo
+  or the selfie: only last 4 digits and `security.hash_nin` (keyed by `SECRET_KEY`). A verified NIN sets
+  `tutor_profiles.nin_verified_at`, which locks the tutor's name except for admins.
+  `onboarding.missing_for_approval` is the one list of what approval needs; `helpers.approved_tutor`
+  goes through it (picture, NIN, then vetting), and `helpers.verified_tutor` stops before vetting.
 - **Errors.** Raise `HTTPException` with a plain-English `detail` the frontend can show as is:
   404 when it doesn't exist, 403 for the wrong role or someone else's resource, 409 for a state
   conflict, 422 for invalid input.

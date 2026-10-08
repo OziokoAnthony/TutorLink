@@ -14,6 +14,7 @@ from fastapi import HTTPException
 from PIL import Image
 
 from app.core.clock import WAT
+from app.core.dojah import NinRecord
 from app.core.config import settings
 from app.scripts.create_admin import create_admin as create_admin_user
 
@@ -40,6 +41,32 @@ def google_token(email: str, given_name: str | None = "Anthony", family_name: st
                "picture": "https://lh3.googleusercontent.com/a/photo", "iat": now, "exp": now + expires_in}
     payload.update(claims)
     return jwt.encode(payload, key or GOOGLE_KEY, algorithm="RS256", headers={"kid": "test"})
+
+
+class FakeDojah:
+    """Dojah's NIN lookup (spec 4 R3): `records` maps NIN -> the NIN record; an unknown NIN isn't found.
+    `selfie_matches` decides the selfie check. The conftest `dojah` fixture installs one as `helpers.dojah`."""
+
+    def __init__(self):
+        self.records: dict[str, NinRecord] = {}
+        self.selfie_matches = True
+        self.lookups: list[str] = []
+
+    def add(self, first_name: str, surname: str, middle_name: str = "", nin: str | None = None) -> str:
+        nin = nin or f"{uuid4().int % 10**11:011d}"
+        self.records[nin] = NinRecord(first_name=first_name.upper(), middle_name=middle_name.upper(),
+                                      surname=surname.upper(), selfie_matches=True, reference=f"DJ-{nin[-4:]}")
+        return nin
+
+    def lookup_nin(self, nin: str, selfie_jpeg: bytes) -> NinRecord | None:
+        self.lookups.append(nin)
+        record = self.records.get(nin)
+        if record is None:
+            return None
+        return NinRecord(**{**record.__dict__, "selfie_matches": self.selfie_matches})
+
+
+dojah: FakeDojah = FakeDojah()
 
 
 class FakeClock:
@@ -191,7 +218,7 @@ def register_tutor(client, email: str | None = None, full_name: str = "Tunde Tut
     assert response.status_code == 201, response.text
     user = response.json()["user"]
     tutor = {"id": user["id"], "email": email, "work_email": user["work_email"],
-             "headers": login(client, user["work_email"])}
+             "first_name": first_name, "surname": surname, "headers": login(client, user["work_email"])}
     tutor["offer_id"] = client.get("/v1/tutors/profile/offers", headers=tutor["headers"]).json()[0]["id"]
     return tutor
 
@@ -207,9 +234,26 @@ def vet(client, admin_headers: dict, tutor: dict, status: str = "approved", note
                         json={"status": status, "note": note})
 
 
-def approved_tutor(client, admin_headers: dict, **kwargs) -> dict:
-    """An approved tutor with one offer: senior-secondary Mathematics, any day 08:00-20:00, ₦5,000."""
+def check_nin(client, tutor: dict, nin: str, selfie: bytes | None = None):
+    return client.post("/v1/onboarding/nin", headers=tutor["headers"], data={"nin": nin},
+                       files={"selfie": ("selfie.png", selfie if selfie is not None else image_bytes(), "image/png")})
+
+
+def verified_tutor(client, **kwargs) -> dict:
+    """A tutor who completed their profile (picture and offer) and verified their NIN (spec 4 R3).
+    Their NIN record in `dojah` matches their name; `tutor["nin"]` is the NIN."""
     tutor = register_tutor(client, **kwargs)
+    assert upload_photo(client, tutor["headers"]).status_code == 200
+    tutor["nin"] = dojah.add(tutor["first_name"], tutor["surname"])
+    response = check_nin(client, tutor, tutor["nin"])
+    assert response.status_code == 200 and response.json()["verified"], response.text
+    return tutor
+
+
+def approved_tutor(client, admin_headers: dict, **kwargs) -> dict:
+    """An approved tutor with one offer: senior-secondary Mathematics, any day 08:00-20:00, ₦5,000.
+    They have a profile picture and a verified NIN, as approval requires (spec 4 R2.3)."""
+    tutor = verified_tutor(client, **kwargs)
     assert vet(client, admin_headers, tutor).status_code == 200
     return tutor
 

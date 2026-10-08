@@ -46,6 +46,7 @@ function makeSchema(withGoogle: boolean) {
       role: z.literal('tutor'),
       phone,
       first_name: z.string().trim().min(1, 'Enter your first name').max(100),
+      middle_name: z.string().trim().max(100).optional().or(z.literal('')),
       surname: z.string().trim().min(1, 'Enter your surname').max(100),
       area: z.string().trim().min(2, 'Enter the area you cover').max(120),
       bio: z.string().trim().max(2000).optional().or(z.literal('')),
@@ -56,7 +57,7 @@ type Schema = ReturnType<typeof makeSchema>
 type RegisterValues = z.input<Schema>
 type RegisterOutput = z.output<Schema>
 type Role = RegisterValues['role']
-type FieldName = 'email' | 'password' | 'full_name' | 'address' | 'first_name' | 'surname' | 'area' | 'bio' | 'phone'
+type FieldName = 'email' | 'password' | 'full_name' | 'address' | 'first_name' | 'middle_name' | 'surname' | 'area' | 'bio' | 'phone'
 
 export default function RegisterPage() {
   return (
@@ -135,7 +136,8 @@ function Register() {
     const profile = values.role === 'parent'
       ? { role: values.role, full_name: values.full_name, phone: values.phone || undefined, address: values.address || undefined }
       : {
-          role: values.role, first_name: values.first_name, surname: values.surname, phone: values.phone || undefined,
+          role: values.role, first_name: values.first_name, middle_name: values.middle_name || undefined,
+          surname: values.surname, phone: values.phone || undefined,
           area: values.area, bio: values.bio || undefined, offers: [offer],
         }
     try {
@@ -218,14 +220,23 @@ function Register() {
                     <Input id="full_name" autoComplete="name" {...register('full_name')} aria-invalid={!!fieldErrors.full_name} />
                   </FormField>
                 ) : (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <FormField id="first_name" label="First name" error={fieldErrors.first_name?.message}>
-                      <Input id="first_name" autoComplete="given-name" {...register('first_name')} aria-invalid={!!fieldErrors.first_name} />
-                    </FormField>
-                    <FormField id="surname" label="Surname" error={fieldErrors.surname?.message}>
-                      <Input id="surname" autoComplete="family-name" {...register('surname')} aria-invalid={!!fieldErrors.surname} />
-                    </FormField>
-                  </div>
+                  <fieldset className="space-y-3">
+                    <legend className="text-sm text-muted-foreground">
+                      Enter your name <strong className="text-foreground">exactly as it appears on your NIN record</strong>.
+                      We check it against your NIN, and it can&apos;t be changed once verified.
+                    </legend>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <FormField id="first_name" label="First name" error={fieldErrors.first_name?.message}>
+                        <Input id="first_name" autoComplete="given-name" {...register('first_name')} aria-invalid={!!fieldErrors.first_name} />
+                      </FormField>
+                      <FormField id="middle_name" label="Middle name" hint="Only if your NIN record has one." error={fieldErrors.middle_name?.message}>
+                        <Input id="middle_name" autoComplete="additional-name" {...register('middle_name')} aria-invalid={!!fieldErrors.middle_name} />
+                      </FormField>
+                      <FormField id="surname" label="Surname" error={fieldErrors.surname?.message}>
+                        <Input id="surname" autoComplete="family-name" {...register('surname')} aria-invalid={!!fieldErrors.surname} />
+                      </FormField>
+                    </div>
+                  </fieldset>
                 )}
                 {!google && (
                   <>

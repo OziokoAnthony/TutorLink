@@ -52,6 +52,7 @@ export interface TutorProfile {
   full_name: string
   // Only on the tutor's own profile and admin views; the public listing has full_name only.
   first_name?: string
+  middle_name?: string | null
   surname?: string
   phone?: string
   bio?: string
@@ -59,10 +60,46 @@ export interface TutorProfile {
   photo_url: string | null
   vetting_status: VettingStatus
   vetting_note?: string
+  // Tutor's own profile and admin views only (spec 4 R3): when the NIN was verified, which locks the
+  // name, and the latest NIN check.
+  nin_verified_at?: string | null
+  nin_check?: NinCheck | null
   offers: Offer[]
   price_from: number | null
   average_rating: number | null
   rating_count: number
+}
+
+/** One NIN check with Dojah (spec 4 R3). Never includes the name on the NIN record. */
+export interface NinCheck {
+  verified: boolean
+  nin_last4: string
+  nin_found: boolean
+  /** null when the NIN wasn't found */
+  name_matches: boolean | null
+  selfie_matches: boolean | null
+  checked_at: string
+}
+
+export interface NinResult extends NinCheck {
+  message: string
+  attempts_left: number
+}
+
+export type OnboardingStepKey = 'profile' | 'nin' | 'review'
+
+export interface OnboardingStep {
+  key: OnboardingStepKey
+  done: boolean
+  todo: string[]
+}
+
+/** The tutor's checklist (spec 4 R2.1). */
+export interface Onboarding {
+  steps: OnboardingStep[]
+  vetting_status: VettingStatus
+  nin_attempts_left: number
+  nin_retry_at: string | null
 }
 
 export interface UserMe {

@@ -58,8 +58,10 @@ class ProfileFields(SQLModel):
 
     role: UserRole
     full_name: str | None = Field(default=None, min_length=1, max_length=200)  # parents
-    # Tutors give their names separately; full_name is built from them and their work email from both.
+    # Tutors give their names separately, exactly as on their NIN record (spec 4 R3.1); full_name is built
+    # from first name and surname, and so is their work email.
     first_name: str | None = Field(default=None, max_length=100)
+    middle_name: str | None = Field(default=None, max_length=100)  # only if the NIN record has one
     surname: str | None = Field(default=None, max_length=100)
     phone: str | None = Field(default=None, max_length=30)
     # Parent-only
@@ -76,6 +78,7 @@ class ProfileFields(SQLModel):
             if not self.area or not self.offers:
                 raise ValueError("tutors must provide area and at least one offer")
             self.first_name, self.surname = clean_name_part(self.first_name), clean_name_part(self.surname)
+            self.middle_name = clean_name_part(self.middle_name) or None
             if not self.first_name or not self.surname:
                 raise ValueError("tutors must provide first_name and surname")
             self.full_name = f"{self.first_name} {self.surname}"

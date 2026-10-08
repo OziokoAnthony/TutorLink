@@ -15,6 +15,7 @@ from sqlalchemy.engine import make_url
 from sqlmodel import Session, SQLModel
 
 from app.core import clock as clock_module
+from app.core import dojah as dojah_client
 from app.core import google as google_client
 from app.core import paystack as paystack_client
 from app.core import security
@@ -123,6 +124,15 @@ def google(monkeypatch):
     monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", helpers.GOOGLE_CLIENT_ID)
     monkeypatch.setattr(google_client, "signing_key", lambda token: helpers.GOOGLE_KEY.public_key())
     monkeypatch.setattr(google_client, "fetch_photo", fake.fetch_photo)
+    return fake
+
+
+@pytest.fixture(autouse=True)
+def dojah(monkeypatch):
+    """A fake Dojah: NIN lookups are answered by helpers.dojah, never over the network (spec 4 R3)."""
+    fake = helpers.FakeDojah()
+    monkeypatch.setattr(helpers, "dojah", fake)
+    monkeypatch.setattr(dojah_client, "lookup_nin", fake.lookup_nin)
     return fake
 
 

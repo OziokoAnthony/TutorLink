@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     # Google sign-in (spec 4 R1): the OAuth Client ID that Google ID tokens must be issued for.
     GOOGLE_CLIENT_ID: str = ""
 
+    # Dojah NIN verification (spec 4 R3). Sandbox until going live: https://api.dojah.io
+    DOJAH_APP_ID: str = ""
+    DOJAH_SECRET_KEY: str = ""
+    DOJAH_BASE_URL: str = "https://sandbox.dojah.io"
+
     # Cloudflare R2 for uploaded files. While unset, files are kept under LOCAL_STORAGE_DIR (development only).
     R2_ACCOUNT_ID: str = ""
     R2_ACCESS_KEY_ID: str = ""

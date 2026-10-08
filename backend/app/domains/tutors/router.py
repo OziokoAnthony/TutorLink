@@ -15,6 +15,7 @@ from app.domains.tutors.models import (
     EducationLevel,
     OfferIn,
     OfferRead,
+    TutorName,
     TutorProfileRead,
     TutorProfileUpsert,
     TutorPublic,
@@ -82,3 +83,10 @@ def vet_tutor(tutor_id: UUID, data: VetRequest, admin: User = Depends(admin_only
 @admin_router.get("/tutors/pending", response_model=list[TutorProfileRead])
 def list_pending(admin: User = Depends(admin_only), session: Session = Depends(get_session)):
     return service.list_pending_tutors(session)
+
+
+@admin_router.patch("/tutors/{tutor_id}/name", response_model=TutorProfileRead)
+def rename_tutor(tutor_id: UUID, data: TutorName, admin: User = Depends(admin_only),
+                 session: Session = Depends(get_session)):
+    """Changes a tutor's name, including a NIN-verified one the tutor can't change (spec 4 R3.5)."""
+    return service.admin_rename(session, tutor_id, data)

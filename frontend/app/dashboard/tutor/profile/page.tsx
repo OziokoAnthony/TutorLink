@@ -24,6 +24,7 @@ import type { Offer, TutorProfile } from '@/types'
 
 const profileSchema = z.object({
   first_name: z.string().trim().min(1, 'Enter your first name').max(100),
+  middle_name: z.string().trim().max(100).optional().or(z.literal('')),
   surname: z.string().trim().min(1, 'Enter your surname').max(100),
   phone: z.string().trim().regex(/^\+?[0-9 ]{7,20}$/, 'Enter a valid phone number').optional().or(z.literal('')),
   bio: z.string().trim().max(2000).optional().or(z.literal('')),
@@ -117,6 +118,7 @@ export default function TutorProfilePage() {
     if (profile) {
       reset({
         first_name: profile.first_name ?? '',
+        middle_name: profile.middle_name ?? '',
         surname: profile.surname ?? '',
         phone: profile.phone ?? '',
         bio: profile.bio ?? '',
@@ -127,7 +129,9 @@ export default function TutorProfilePage() {
 
   async function onSubmit(values: ProfileValues) {
     try {
-      await upsertProfile({ ...values, phone: values.phone || undefined, bio: values.bio || undefined })
+      await upsertProfile({
+        ...values, middle_name: values.middle_name || undefined, phone: values.phone || undefined, bio: values.bio || undefined,
+      })
       toast.success('Profile saved')
       await refresh()
     } catch (e) {
@@ -136,6 +140,8 @@ export default function TutorProfilePage() {
   }
 
   if (!user) return <LoadingSpinner />
+  // Verified against the NIN record, so only an admin can change it (spec 4 R3.5).
+  const nameLocked = Boolean(profile?.nin_verified_at)
 
   return (
     <>
@@ -169,12 +175,22 @@ export default function TutorProfilePage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 sm:grid-cols-2" noValidate>
-              <FormField id="first_name" label="First name" error={errors.first_name?.message}>
-                <Input id="first_name" {...register('first_name')} aria-invalid={!!errors.first_name} />
-              </FormField>
-              <FormField id="surname" label="Surname" error={errors.surname?.message}>
-                <Input id="surname" {...register('surname')} aria-invalid={!!errors.surname} />
-              </FormField>
+              <p className="text-sm text-muted-foreground sm:col-span-2">
+                {nameLocked
+                  ? "Your name is verified against your NIN record and can't be changed. Contact TutorLink support if it needs correcting."
+                  : 'Your name must match your NIN record exactly, including any middle name.'}
+              </p>
+              <div className="grid gap-4 sm:col-span-2 sm:grid-cols-3">
+                <FormField id="first_name" label="First name" error={errors.first_name?.message}>
+                  <Input id="first_name" readOnly={nameLocked} {...register('first_name')} aria-invalid={!!errors.first_name} />
+                </FormField>
+                <FormField id="middle_name" label="Middle name" error={errors.middle_name?.message}>
+                  <Input id="middle_name" readOnly={nameLocked} {...register('middle_name')} aria-invalid={!!errors.middle_name} />
+                </FormField>
+                <FormField id="surname" label="Surname" error={errors.surname?.message}>
+                  <Input id="surname" readOnly={nameLocked} {...register('surname')} aria-invalid={!!errors.surname} />
+                </FormField>
+              </div>
               <FormField id="phone" label="Phone (optional)" error={errors.phone?.message}>
                 <Input id="phone" type="tel" {...register('phone')} aria-invalid={!!errors.phone} />
               </FormField>

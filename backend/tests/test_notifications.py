@@ -9,7 +9,7 @@ def sent_to(outbox, email: str) -> list[str]:
 
 
 def test_tutor_registration_and_vetting_emails(client, admin_headers, outbox):
-    approved = helpers.register_tutor(client)
+    approved = helpers.verified_tutor(client)
     rejected = helpers.register_tutor(client)
     helpers.vet(client, admin_headers, approved, "approved")
     helpers.vet(client, admin_headers, rejected, "rejected", note="Missing documents")

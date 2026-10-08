@@ -9,6 +9,7 @@ export interface ProfileInput {
   // Parents give a full name; tutors give first name and surname, which make their work email.
   full_name?: string
   first_name?: string
+  middle_name?: string // tutors: only if their NIN record has one (spec 4 R3.1)
   surname?: string
   phone?: string
   address?: string

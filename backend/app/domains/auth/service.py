@@ -100,7 +100,8 @@ def _create_account(session: Session, data: ProfileFields, email: str, password:
             session.add(ParentProfile(user_id=user.id, full_name=data.full_name, phone=data.phone,
                                       address=data.address))
         else:
-            session.add(TutorProfile(user_id=user.id, first_name=data.first_name, surname=data.surname,
+            session.add(TutorProfile(user_id=user.id, first_name=data.first_name, middle_name=data.middle_name,
+                                     surname=data.surname,
                                      full_name=data.full_name, phone=data.phone, bio=data.bio, area=data.area))
             for offer in data.offers:
                 tutor_service.add_offer_rows(session, user.id, offer)

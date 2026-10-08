@@ -8,14 +8,38 @@ import {
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import Avatar from '@/components/shared/Avatar'
 import EmptyState from '@/components/shared/EmptyState'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
 import PageHeader from '@/components/shared/PageHeader'
 import { useToast } from '@/hooks/useToast'
 import { errorMessage } from '@/lib/api'
-import { formatNaira, levelLabel, slotText } from '@/lib/format'
+import { formatDateTime, formatNaira, levelLabel, slotText } from '@/lib/format'
 import { getPendingTutors, vetTutor } from '@/lib/tutors'
-import type { TutorProfile } from '@/types'
+import type { NinCheck, TutorProfile } from '@/types'
+
+function CheckLine({ label, passed }: { label: string; passed: boolean | null }) {
+  const [text, colour] = passed === null ? ['not checked', 'text-muted-foreground'] : passed ? ['passed', 'text-emerald-700'] : ['failed', 'text-red-700']
+  return <li>{label}: <span className={colour}>{text}</span></li>
+}
+
+/** The result of each NIN check (spec 4 R3.9). The NIN record's name is never sent, only whether it matched. */
+function NinSummary({ check, verifiedAt }: { check?: NinCheck | null; verifiedAt?: string | null }) {
+  if (!check) return <span className="text-muted-foreground">Not checked yet</span>
+  return (
+    <div className="space-y-1 text-sm">
+      <p className={verifiedAt ? 'font-medium text-emerald-700' : 'font-medium text-red-700'}>
+        {verifiedAt ? 'Verified' : 'Not verified'} • NIN ending {check.nin_last4}
+      </p>
+      <ul className="text-xs">
+        <CheckLine label="NIN exists" passed={check.nin_found} />
+        <CheckLine label="Name matches" passed={check.name_matches} />
+        <CheckLine label="Selfie matches" passed={check.selfie_matches} />
+      </ul>
+      <p className="text-xs text-muted-foreground">{formatDateTime(check.checked_at)}</p>
+    </div>
+  )
+}
 
 export default function AdminVetTutorsPage() {
   const toast = useToast()
@@ -45,7 +69,7 @@ export default function AdminVetTutorsPage() {
 
   return (
     <>
-      <PageHeader title="Vet tutors" description="Approve tutors before parents can see and book them." />
+      <PageHeader title="Vet tutors" description="Approve tutors before parents can see and book them. Approval needs a verified NIN." />
       {tutors === null ? <LoadingSpinner /> : tutors.length === 0 ? (
         <EmptyState message="No tutors pending review." />
       ) : (
@@ -53,7 +77,8 @@ export default function AdminVetTutorsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
+                <TableHead className="min-w-[200px]">Name</TableHead>
+                <TableHead className="min-w-[180px]">NIN</TableHead>
                 <TableHead>Area</TableHead>
                 <TableHead className="min-w-[220px]">Offers</TableHead>
                 <TableHead className="min-w-[200px]">Bio</TableHead>
@@ -63,7 +88,16 @@ export default function AdminVetTutorsPage() {
             <TableBody>
               {tutors.map((t) => (
                 <TableRow key={t.user_id}>
-                  <TableCell className="font-medium">{t.full_name}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar name={t.full_name} photoUrl={t.photo_url} />
+                      <div>
+                        <p className="font-medium">{[t.first_name, t.middle_name, t.surname].filter(Boolean).join(' ') || t.full_name}</p>
+                        {!t.photo_url && <p className="text-xs text-muted-foreground">No profile picture</p>}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell><NinSummary check={t.nin_check} verifiedAt={t.nin_verified_at} /></TableCell>
                   <TableCell>{t.area}</TableCell>
                   <TableCell>
                     {t.offers.length === 0 ? <span className="text-muted-foreground">None yet</span> : (
@@ -80,7 +114,8 @@ export default function AdminVetTutorsPage() {
                   <TableCell className="max-w-xs text-sm text-muted-foreground">{t.bio || '—'}</TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-2">
-                      <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={busyId === t.user_id}
+                      <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={busyId === t.user_id || !t.nin_verified_at}
+                        title={t.nin_verified_at ? undefined : 'Approval needs a verified NIN'}
                         onClick={() => vet(t, 'approved')}>Approve</Button>
                       <Button size="sm" variant="destructive" disabled={busyId === t.user_id}
                         onClick={() => setRejecting(t)}>Reject</Button>

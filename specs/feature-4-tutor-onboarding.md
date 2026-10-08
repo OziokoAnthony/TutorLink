@@ -34,7 +34,7 @@ identity checked against the national NIN database, certificates authenticated, 
 7. Admin accounts can't sign in with Google. They keep using password only.
 8. Tutors who registered before this (with email and password) keep their work email and password. Nothing changes for them.
 
-### R1b. Profile pictures (parents and tutors) (built; the tutor NIN gate in R1b.2 comes with R3)
+### R1b. Profile pictures (parents and tutors) (built)
 *Built together with spec 1, since booking requests require a parent picture.*
 
 1. Parents and tutors each have one profile picture: JPG, PNG or WebP, at most 5 MB, resized to 512×512 and stored in R2.
@@ -48,13 +48,13 @@ identity checked against the national NIN database, certificates authenticated, 
 5. Users can change their picture anytime. Admins can remove an inappropriate picture, and the user is then asked to upload a new one.
 6. The admin vetting page shows the tutor's profile picture next to the NIN-verified name.
 
-### R2. Onboarding checklist (tutor)
+### R2. Onboarding checklist (tutor) (built 2026-10-08 with Profile, NIN and review; Certificates and Quiz join it, and the R2.3 approval check, with R4 and R5)
 1. A new tutor sees a checklist: Profile (profile picture, and at least one offer with subjects, available times and price per lesson, spec 1 R0) → NIN → Certificates → Quiz → Waiting for admin review.
 2. A tutor stays `pending` and hidden from `/tutors` until approved (existing rule 2).
 3. The admin can approve only when NIN is verified, at least one certificate is verified, and the quiz is passed. Rejecting is always allowed.
 4. Approval makes the tutor a **Verified tutor**: listed on `/tutors` with a "Verified tutor" badge, able to receive booking requests and apply for jobs. **Passing the quiz is mandatory**: no tutor is approved without a passed attempt.
 
-### R3. NIN verification (Dojah)
+### R3. NIN verification (Dojah) (built 2026-10-08)
 1. Tutors register with their name **exactly as it appears on their NIN record**, in separate fields: first name, middle name (if the NIN record has one) and surname. The registration form says so.
 2. The tutor enters their 11-digit NIN and takes a selfie in the browser.
 3. The backend calls Dojah's NIN lookup with selfie verification and records whether:
@@ -109,15 +109,15 @@ identity checked against the national NIN database, certificates authenticated, 
 - [x] A parent's Google login for an existing parent email signs into that account. For a new email it requires the parent profile fields.
 - [x] A Google email already used by an account of the other role gets 409.
 - [x] "Forgot password" answers the same for known and unknown emails. A tutor's email contains their work email and a reset link; the link sets a new password once, expires after 1 hour, and the old password stops working.
-- [ ] A parent without a profile picture gets 409 on booking request and job post. A tutor without one can't start the NIN step.
+- [x] A parent without a profile picture gets 409 on booking request and job post. A tutor without one can't start the NIN step.
 - [x] A picture over 5 MB or not JPG/PNG/WebP is rejected.
 - [x] A parent's picture is shown to tutors on that parent's job posts, booking requests and bookings, and isn't returned to unauthenticated users.
 - [ ] Approving a tutor without verified NIN, a verified certificate and a passed quiz is a 409, naming what's missing.
-- [ ] No API response or database column contains a full NIN, selfie or NIN photo.
+- [x] No API response or database column contains a full NIN, selfie or NIN photo.
 - [ ] NIN verification fails when any name part differs from the NIN record (spelling, missing middle name, swapped order), passes when only capital letters or spacing differ, and the tutor can't start certificates or the exam until it passes.
-- [ ] A name-mismatch response doesn't include the NIN record's name.
-- [ ] A verified tutor can't change their name. A NIN already verified on another account is rejected.
-- [ ] A 4th NIN attempt within 24 hours is a 429. Dojah is faked in tests.
+- [x] A name-mismatch response doesn't include the NIN record's name.
+- [x] A verified tutor can't change their name. A NIN already verified on another account is rejected.
+- [x] A 4th NIN attempt within 24 hours is a 429. Dojah is faked in tests.
 - [ ] Quiz questions sent to the browser contain no correct-answer field. An answer submitted after 30 minutes isn't scored.
 - [ ] A tutor can take attempts 1-6. A 7th attempt within 24 hours of the 6th is a 429. After 24 hours, 6 more are allowed.
 - [ ] 14/20 passes and 13/20 fails.

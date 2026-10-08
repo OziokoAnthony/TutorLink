@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import hashlib
+import hmac
 import secrets
 
 import jwt
@@ -35,6 +36,14 @@ def verify_password(plain_password: str, password_hash: str | None) -> bool:
 def hash_token(token: str) -> str:
     """SHA-256 of a random one-time token, e.g. a password reset link's. Only the hash is stored."""
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def hash_nin(nin: str) -> str:
+    """A one-way, keyed hash of a NIN, so one NIN verifies one account (spec 4 R3.6) without storing it.
+    Keyed because there are only 10^11 NINs: a plain hash could be reversed by trying them all.
+    Changing SECRET_KEY changes every hash, so already-verified NINs could then verify again."""
+    key = hmac.new(settings.SECRET_KEY.encode(), b"tutorlink-nin", hashlib.sha256).digest()
+    return hmac.new(key, nin.encode(), hashlib.sha256).hexdigest()
 
 
 def generate_token() -> str:
