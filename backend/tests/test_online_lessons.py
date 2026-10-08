@@ -227,3 +227,14 @@ def test_recordings_are_deleted_after_90_days_unless_a_problem_is_open(client, d
     assert helpers.lessons(client, other_parent)[0]["has_recording"]
     files = [p for p in storage._local_path("recordings").rglob("*") if p.is_file()]
     assert len(files) == 1  # only the disputed lesson's recording is left
+
+
+def test_a_refused_upload_is_deleted_from_storage(client, tutor, online_lesson):
+    upload = request_upload(client, tutor, online_lesson).json()
+    put_file(client, upload)
+    stored = next(p for p in storage._local_path("recordings").rglob("*") if p.is_file())
+    stored.write_bytes(b"")  # what's stored isn't a usable video after all
+    response = client.post(f"/v1/lessons/{online_lesson['id']}/recording/complete", headers=tutor["headers"])
+    assert response.status_code == 422
+    assert not stored.exists()
+    assert request_upload(client, tutor, online_lesson).status_code == 200  # they can try again

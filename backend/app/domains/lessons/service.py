@@ -216,6 +216,12 @@ def complete_recording_upload(session: Session, tutor: User, lesson_id: UUID,
         raise HTTPException(status.HTTP_409_CONFLICT, "There's no recording upload waiting for this lesson")
     problem = _stored_recording_problem(lesson)
     if problem is not None:
+        # Don't keep (or pay to store) a file that was refused; the tutor asks for a new link.
+        if storage.head(lesson.recording_key) is not None:
+            _delete_file(lesson.recording_key)
+        lesson.recording_key = lesson.recording_content_type = lesson.recording_size = None
+        session.add(lesson)
+        session.commit()
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, problem)
     size, content_type = storage.head(lesson.recording_key)
     lesson.recording_size = size
