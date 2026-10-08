@@ -9,6 +9,7 @@ export const LINKS: Record<Role, { href: string; label: string }[]> = {
   parent: [
     { href: '/dashboard/parent', label: 'Overview' },
     { href: '/dashboard/parent/bookings', label: 'My Bookings' },
+    { href: '/dashboard/parent/jobs', label: 'My Jobs' },
     { href: '/dashboard/parent/lessons', label: 'Lessons' },
     { href: '/dashboard/parent/wallet', label: 'Payments & Receipts' },
     { href: '/tutors', label: 'Find Tutors' },
@@ -16,6 +17,7 @@ export const LINKS: Record<Role, { href: string; label: string }[]> = {
   tutor: [
     { href: '/dashboard/tutor', label: 'Overview' },
     { href: '/dashboard/tutor/bookings', label: 'Bookings' },
+    { href: '/dashboard/tutor/jobs', label: 'Find Jobs' },
     { href: '/dashboard/tutor/lessons', label: 'Lessons' },
     { href: '/dashboard/tutor/earnings', label: 'Earnings & Receipts' },
     { href: '/dashboard/tutor/profile', label: 'Profile & Offers' },
@@ -37,7 +39,7 @@ export default function Sidebar({ role }: { role: Role }) {
     <aside className="md:w-56 md:shrink-0">
       <nav className="flex gap-1 overflow-x-auto pb-2 md:flex-col md:pb-0">
         {LINKS[role].map((link) => {
-          const active = pathname === link.href
+          const active = pathname === link.href || (link.href.endsWith('/jobs') && pathname.startsWith(link.href + '/'))
           return (
             <Link
               key={link.href}

@@ -239,6 +239,7 @@ def test_job_completes_when_its_booking_ends(client, db, clock, paystack, admin_
     helpers.run_jobs(db, clock)
 
     assert job_status(client, parent, job) == "completed"
+    assert client.put(f"/v1/jobs/{job['id']}", headers=parent["headers"], json=helpers.job_body()).status_code == 409
     notes = client.get("/v1/notifications/me", headers=parent["headers"]).json()
     assert "Job completed" in [n["title"] for n in notes["items"]]
     newcomer = helpers.approved_tutor(client, admin_headers, full_name="Bola Ade")
@@ -262,3 +263,16 @@ def test_balance_matches_the_ledger_after_paying_a_job_booking(client, db, payst
     assert client.get("/v1/wallet/me", headers=parent["headers"]).json()["balance"] == "3400.00"
     assert booking["periods"][0]["amount"] == "6600.00"
     helpers.assert_ledger_matches(client, db, parent)
+
+
+def test_only_the_owning_parent_manages_the_job(client, parent, tutor, job):
+    helpers.apply_to_job(client, tutor, job)
+    application = client.get(f"/v1/jobs/{job['id']}/applications", headers=parent["headers"]).json()[0]
+    other = helpers.register_parent(client)
+    base = f"/v1/jobs/{job['id']}"
+    assert client.get(f"{base}/applications", headers=other["headers"]).status_code == 403
+    assert client.put(base, headers=other["headers"], json=helpers.job_body()).status_code == 403
+    assert client.post(f"{base}/close", headers=other["headers"]).status_code == 403
+    assert client.post(f"{base}/applications/{application['id']}/choose", headers=other["headers"]).status_code == 403
+    assert client.get(f"{base}/applications", headers=tutor["headers"]).status_code == 403
+    assert job_status(client, parent, job) == "open"

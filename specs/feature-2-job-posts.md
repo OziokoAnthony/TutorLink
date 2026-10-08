@@ -50,14 +50,14 @@ New applicant (parent) · chosen (tutor) · job taken (other applicants) · job 
 - Showing jobs to the public or to parents other than the owner.
 
 ## Acceptance criteria
-- [ ] An unapproved or pending tutor gets 403 on job browse and apply.
-- [ ] A job seen by a tutor has no parent fee, parent total, surname or contact fields. A job seen by its parent has no T% or tutor earning fields.
-- [ ] A job without the child's strengths or weaknesses is a 422. Tutors browsing see both, and the parent's first name and picture.
-- [ ] A job with three subjects has one price, and appears in a tutor search for any of the three.
-- [ ] Editing an open job notifies its applicants. Editing an ongoing or completed job is a 409.
-- [ ] Applying twice to the same job is a 409. Applying with a clashing slot is a 409.
-- [ ] Selecting an applicant creates a booking in "awaiting payment" with the job's P and slots, sets the job to `ongoing`, removes it from tutor browse, and notifies the other applicants.
-- [ ] An open job with no applicants is still open after any amount of time.
-- [ ] When the booking is released, the job is `open` again. When the booking ends, the job is `completed`.
-- [ ] The parent can list applicants on their own job and open each applicant's profile.
-- [ ] Only the owning parent can view applicants, edit, close or accept.
+- [x] An unapproved or pending tutor gets 403 on job browse and apply.
+- [x] A job seen by a tutor has no parent fee, parent total, surname or contact fields. A job seen by its parent has no T% or tutor earning fields.
+- [x] A job without the child's strengths or weaknesses is a 422. Tutors browsing see both, and the parent's first name and picture.
+- [x] A job with three subjects has one price, and appears in a tutor search for any of the three.
+- [x] Editing an open job notifies its applicants. Editing an ongoing or completed job is a 409.
+- [x] Applying twice to the same job is a 409. Applying with a clashing slot is a 409.
+- [x] Selecting an applicant creates a booking in "awaiting payment" with the job's P and slots, sets the job to `ongoing`, removes it from tutor browse, and notifies the other applicants.
+- [x] An open job with no applicants is still open after any amount of time.
+- [x] When the booking is released, the job is `open` again. When the booking ends, the job is `completed`.
+- [x] The parent can list applicants on their own job and open each applicant's profile.
+- [x] Only the owning parent can view applicants, edit, close or accept.

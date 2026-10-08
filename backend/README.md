@@ -69,6 +69,14 @@ up, then truncate the tables before each test. Emails and Paystack calls are fak
   with an address at that domain. Parents and admins choose a password and log in with their own email.
 - The same booking or lesson comes back in a different shape for the parent, the tutor and the
   admin, so each side sees only its own fee figures (spec 1, R1).
+- **Job posts (spec 2).** Parents `POST /v1/jobs` with their own price per lesson. Approved tutors
+  browse open jobs (`GET /v1/jobs?subject=&level=&mode=&area=`), apply once
+  (`POST /v1/jobs/{id}/apply`) and can withdraw while the job is open. The parent lists applicants
+  (`GET /v1/jobs/{id}/applications`) and chooses one
+  (`POST /v1/jobs/{id}/applications/{application_id}/choose`), which creates a booking already
+  awaiting payment (`bookings.job_id` points back at the job). The job is then `ongoing`. It becomes
+  `completed` when that booking ends, or `open` again if the booking closes before it was paid.
+  Tutors see the parent's first name and picture only, never their surname or contact details.
 - `GET /health` is an unversioned copy of `GET /v1/health`, for load balancers and container
   healthchecks.
 
