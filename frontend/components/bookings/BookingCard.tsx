@@ -1,17 +1,20 @@
 import type { ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import MeetingLinkEditor from '@/components/bookings/MeetingLinkEditor'
 import Avatar from '@/components/shared/Avatar'
 import { BookingStatusBadge, PeriodStatusBadge } from '@/components/shared/StatusBadge'
 import { BILLING_PERIODS, formatDate, formatDateTime, formatNaira, formatPercent, levelLabel, slotText } from '@/lib/format'
 import type { Booking } from '@/types'
 
 /** A booking as the parent, tutor or admin sees it. Each reader only receives their own money fields. */
-export default function BookingCard({ booking, viewer, actions }: {
+export default function BookingCard({ booking, viewer, actions, onChange }: {
   booking: Booking
   viewer: 'parent' | 'tutor' | 'admin'
   actions?: ReactNode
+  onChange?: (booking: Booking) => void
 }) {
+  const live = ['accepted', 'active', 'paused'].includes(booking.status)
   const other = viewer === 'parent'
     ? { name: booking.tutor_name, photo: booking.tutor_photo_url, role: 'Tutor' }
     : { name: booking.parent_name, photo: booking.parent_photo_url, role: 'Parent' }
@@ -66,6 +69,28 @@ export default function BookingCard({ booking, viewer, actions }: {
             </div>
           )}
         </div>
+
+        {booking.mode === 'online' && live && (
+          <div className="rounded-md border p-3 text-sm">
+            <p className="font-medium">Online lessons</p>
+            {viewer === 'tutor' && onChange ? <MeetingLinkEditor booking={booking} onChange={onChange} />
+              : booking.meeting_link
+                ? <a href={booking.meeting_link} target="_blank" rel="noopener noreferrer" className="break-all font-medium text-primary underline">Join the lesson: {booking.meeting_link}</a>
+                : <p className="text-muted-foreground">{viewer === 'parent'
+                  ? "The tutor's meeting link appears here once the first lessons are paid for."
+                  : 'No meeting link yet.'}</p>}
+            <p className="mt-1 text-xs text-muted-foreground">Lessons are recorded and kept for review.</p>
+          </div>
+        )}
+
+        {booking.mode === 'offline' && live && viewer !== 'parent' && (
+          <div className="rounded-md border p-3 text-sm">
+            <p className="font-medium">Lesson address</p>
+            <p className="text-muted-foreground">{booking.parent_address
+              ?? (booking.status === 'accepted' ? "The parent's address appears here once the first lessons are paid for."
+                : "The parent hasn't added an address. Ask them through TutorLink support.")}</p>
+          </div>
+        )}
 
         {viewer !== 'parent' && (
           <div className="grid gap-3 rounded-md bg-muted/50 p-3 text-sm sm:grid-cols-2">

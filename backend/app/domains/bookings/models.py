@@ -34,6 +34,10 @@ class LessonMode(str, Enum):
     offline = "offline"
 
 
+# What a parent agrees to before booking or posting an online lesson (spec 3 R1.4). Stored with the time.
+RECORDING_CONSENT = "Lessons will be recorded and kept for review."
+
+
 class BillingPeriod(str, Enum):
     daily = "daily"  # each day with lessons is paid on its own
     weekly = "weekly"  # Monday-Sunday
@@ -69,6 +73,10 @@ class Booking(BaseUUIDModel, table=True):
     tutor_fee_rate: Decimal | None = Field(default=None, max_digits=5, decimal_places=4)
     child_strengths: str = Field(sa_type=sa.Text)
     child_weaknesses: str = Field(sa_type=sa.Text)
+    # Online only (spec 3 R1.3, R1.4): the tutor's meeting link, and the parent's consent to recording.
+    meeting_link: str | None = None
+    recording_consent_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
+    recording_consent_text: str | None = Field(default=None, sa_type=sa.Text)
     status: BookingStatus = Field(
         default=BookingStatus.requested,
         sa_type=pg_enum(BookingStatus, "booking_status"),
@@ -132,6 +140,7 @@ class BookingCreate(SQLModel):
     mode: LessonMode
     child_strengths: LongText
     child_weaknesses: LongText
+    recording_consent: bool = False  # required for online lessons (spec 3 R1.4)
 
     @model_validator(mode="after")
     def check(self) -> "BookingCreate":
@@ -139,6 +148,10 @@ class BookingCreate(SQLModel):
         if self.end_date is not None and self.end_date < self.start_date:
             raise ValueError("end_date must be on or after start_date")
         return self
+
+
+class MeetingLinkIn(SQLModel):
+    meeting_link: Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^https://\S+$", max_length=500)]
 
 
 class BookingClose(SQLModel):
@@ -182,6 +195,7 @@ class BookingBase(SQLModel):
     tutor_name: str | None = None
     parent_photo_url: str | None = None
     tutor_photo_url: str | None = None
+    recording_consent_at: datetime | None = None
 
 
 class BookingParentView(BookingBase):
@@ -189,6 +203,7 @@ class BookingParentView(BookingBase):
 
     parent_price_per_lesson: Decimal  # fee included, shown as an amount only (spec 1 R1.2)
     periods: list[PeriodView] = []
+    meeting_link: str | None = None  # once the first period is paid (spec 3 R1.3)
 
 
 class BookingTutorView(BookingBase):
@@ -196,6 +211,8 @@ class BookingTutorView(BookingBase):
 
     tutor_fee_rate: Decimal
     tutor_earning_per_lesson: Decimal
+    meeting_link: str | None = None
+    parent_address: str | None = None  # offline only, once the first period is paid (spec 3 R1.2)
 
 
 class BookingAdminView(BookingBase):
@@ -205,6 +222,8 @@ class BookingAdminView(BookingBase):
     tutor_earning_per_lesson: Decimal
     platform_margin_per_lesson: Decimal
     periods: list[PeriodView] = []
+    meeting_link: str | None = None
+    parent_address: str | None = None
 
 
 class TutorSlotRead(SQLModel):

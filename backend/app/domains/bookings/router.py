@@ -14,6 +14,7 @@ from app.domains.bookings.models import (
     BookingParentView,
     BookingStatus,
     BookingTutorView,
+    MeetingLinkIn,
     TutorAvailability,
 )
 from app.domains.payments.models import AdminDecision, RefundRead, RefundStatus
@@ -58,6 +59,13 @@ def accept(booking_id: UUID, tutor: User = Depends(tutor_only), session: Session
 def decline(booking_id: UUID, data: BookingClose, tutor: User = Depends(tutor_only),
             session: Session = Depends(get_session)):
     return service.decline(session, tutor, booking_id, data)
+
+
+@router.put("/{booking_id}/meeting-link", response_model=BookingTutorView)
+def set_meeting_link(booking_id: UUID, data: MeetingLinkIn, tutor: User = Depends(tutor_only),
+                     session: Session = Depends(get_session)):
+    """Online bookings: the tutor's video call link, shown to the parent once the first period is paid."""
+    return service.set_meeting_link(session, tutor, booking_id, data)
 
 
 @router.post("/{booking_id}/cancel", response_model=BookingParentView)

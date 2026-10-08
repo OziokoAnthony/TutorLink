@@ -142,12 +142,16 @@ export interface Booking {
   tutor_name: string | null
   parent_photo_url: string | null
   tutor_photo_url: string | null
+  recording_consent_at: string | null // online bookings: when the parent agreed to recording
+  // Online: the tutor's link; the parent gets it once the first period is paid
+  meeting_link?: string | null
   // Parent (and admin)
   parent_price_per_lesson?: number
   periods?: Period[]
   // Tutor (and admin)
   tutor_fee_rate?: number
   tutor_earning_per_lesson?: number
+  parent_address?: string | null // offline, once the first period is paid
   // Admin only
   parent_fee_rate?: number
   platform_margin_per_lesson?: number
@@ -162,6 +166,7 @@ export interface BookingInput {
   end_date: string | null
   billing_period: BillingPeriod
   mode: LessonMode
+  recording_consent: boolean // required for online lessons
   child_strengths: string
   child_weaknesses: string
 }
@@ -202,6 +207,8 @@ export interface Lesson {
   parent_name: string | null
   tutor_name: string | null
   issue: Issue | null
+  recording_required: boolean // online: the report needs a recording
+  has_recording: boolean
   parent_price?: number
   tutor_earning?: number
   earning_status?: EarningStatus
@@ -399,6 +406,7 @@ export interface JobInput {
   price: number
   child_strengths: string
   child_weaknesses: string
+  recording_consent: boolean // required for online lessons
 }
 
 export interface MyApplication {

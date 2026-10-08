@@ -52,6 +52,8 @@ export default function TutorBookingsPage() {
     }
   }
 
+  const replace = (booking: Booking) => setBookings((list) => list?.map((b) => (b.id === booking.id ? booking : b)) ?? null)
+
   if (!bookings) return <LoadingSpinner />
   const requests = bookings.filter((b) => b.status === 'requested')
   const current = bookings.filter((b) => ['accepted', 'active', 'paused'].includes(b.status))
@@ -82,7 +84,7 @@ export default function TutorBookingsPage() {
       {current.length === 0 ? <EmptyState message="No current bookings." /> : (
         <div className="space-y-4">
           {current.map((b) => (
-            <BookingCard key={b.id} booking={b} viewer="tutor" actions={
+            <BookingCard key={b.id} booking={b} viewer="tutor" onChange={replace} actions={
               <Button size="sm" variant="outline" onClick={() => setAction({ booking: b, kind: 'end' })}>Stop renewing</Button>
             } />
           ))}

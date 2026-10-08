@@ -33,13 +33,13 @@ An offline lesson's report has no recording requirement. It is topic covered plu
 - Recording offline lessons.
 
 ## Acceptance criteria
-- [ ] An online lesson report without a completed recording returns 422. With one, it succeeds.
-- [ ] An upload URL request for a 3 GB file or a `.exe` is rejected.
-- [ ] A viewing link is returned to the lesson's parent, its tutor and an admin, and returns 403 for any other parent or tutor.
-- [ ] Viewing links are issued with a 15-minute expiry.
-- [ ] The tutor gets the address (offline) or the parent gets the meeting link (online) only after the first payment.
-- [ ] Recordings older than 90 days with no open problem are deleted by the cleanup job.
-- [ ] An online booking request without recording consent is rejected.
+- [x] An online lesson report without a completed recording returns 422. With one, it succeeds.
+- [x] An upload URL request for a 3 GB file or a `.exe` is rejected.
+- [x] A viewing link is returned to the lesson's parent, its tutor and an admin, and returns 403 for any other parent or tutor.
+- [x] Viewing links are issued with a 15-minute expiry.
+- [x] The tutor gets the address (offline) or the parent gets the meeting link (online) only after the first payment.
+- [x] Recordings older than 90 days with no open problem are deleted by the cleanup job.
+- [x] An online booking request without recording consent is rejected.
 
 ## Assumptions
 - A Cloudflare R2 bucket and API token are provided. Until then, tests use a fake storage backend.

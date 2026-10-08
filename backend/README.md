@@ -125,6 +125,30 @@ account number) the first time one of their bookings is accepted. Paystack repor
 Dedicated accounts and Transfers must be enabled on the Paystack account. `PAYSTACK_DVA_BANK` picks
 the bank for account numbers: `test-bank` in test mode.
 
+## Online lessons and recordings (Cloudflare R2)
+
+Every booking and job is `online` or `offline`. Booking or posting an online lesson needs
+`recording_consent: true`, and the time and text of the consent are stored. The tutor sets the
+video call link with `PUT /v1/bookings/{id}/meeting-link` (https only). The parent sees it, and for
+offline lessons the tutor sees the parent's address, only once the first period is paid.
+
+An online lesson's report needs its recording first. Video never passes through the API:
+
+1. `POST /v1/lessons/{id}/recording/upload` with `filename`, `content_type` and `size` returns a
+   signed `upload_url`. It accepts MP4, WebM or MOV at most 2 GB, and the link is valid for 1 hour.
+2. The browser `PUT`s the file to `upload_url` with that exact `Content-Type` and size.
+3. `POST /v1/lessons/{id}/recording/complete` checks the stored file's type and size. The report
+   checks them again.
+
+`GET /v1/lessons/{id}/recording` returns a viewing link that expires after 15 minutes, for the
+lesson's parent, its tutor and admins only. The background jobs delete recordings 90 days after the
+lesson, unless a problem on that lesson is still open.
+
+With R2 configured, uploads go to the bucket through presigned URLs, so the bucket needs a CORS rule
+allowing `PUT` (and `GET` for playback) from the frontend's origin with the `Content-Type` header.
+Without R2, files go to `LOCAL_STORAGE_DIR` through the signed `/v1/files/...` routes (development
+and tests only).
+
 ## Notifications and emails (Resend)
 
 Every notification is stored for the in-app list (`GET /v1/notifications/me`) and emailed once the

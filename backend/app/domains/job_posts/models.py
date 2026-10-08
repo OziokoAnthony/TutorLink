@@ -62,9 +62,14 @@ class JobPost(BaseUUIDModel, table=True):
     other_requirements: str | None = Field(default=None, sa_type=sa.Text)
     child_strengths: str = Field(sa_type=sa.Text)
     child_weaknesses: str = Field(sa_type=sa.Text)
+    recording_consent_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))  # online only
+    recording_consent_text: str | None = Field(default=None, sa_type=sa.Text)
     status: JobStatus = Field(default=JobStatus.open, sa_type=pg_enum(JobStatus, "job_status"),
                               sa_column_kwargs={"server_default": JobStatus.open.value})
-    booking_id: UUID | None = Field(default=None, foreign_key="bookings.id")  # while ongoing or completed
+    # While ongoing or completed. bookings.job_id points back here, so this key is created separately
+    # (use_alter) to break the cycle between the two tables.
+    booking_id: UUID | None = Field(default=None, sa_column=sa.Column(
+        sa.Uuid, sa.ForeignKey("bookings.id", use_alter=True, name="fk_job_posts_booking_id_bookings")))
     closed_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
 
 
@@ -115,6 +120,7 @@ class JobIn(SQLModel):
     price: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
     child_strengths: LongText
     child_weaknesses: LongText
+    recording_consent: bool = False  # required for online lessons (spec 3 R1.4)
 
     @model_validator(mode="after")
     def check(self) -> "JobIn":

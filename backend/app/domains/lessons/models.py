@@ -82,6 +82,12 @@ class Lesson(BaseUUIDModel, table=True):
     payable_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
     payout_due_at: datetime = Field(sa_type=sa.DateTime(timezone=True))  # 48 h after the period's last lesson
     payout_id: UUID | None = Field(default=None, foreign_key="payouts.id", index=True)
+    # Online lessons (spec 3 R2): the recording the tutor uploads straight to storage before reporting.
+    recording_key: str | None = None  # set when an upload link is issued
+    recording_content_type: str | None = None
+    recording_size: int | None = Field(default=None, sa_type=sa.BigInteger)
+    recording_uploaded_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
+    recording_deleted_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
 
 
 class LessonIssue(BaseUUIDModel, table=True):
@@ -104,6 +110,26 @@ class LessonIssue(BaseUUIDModel, table=True):
 class LessonReport(SQLModel):
     topic_covered: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
     homework: Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)] | None = None
+
+
+class RecordingUploadIn(SQLModel):
+    filename: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+    content_type: str
+    size: int = Field(gt=0)
+
+
+class RecordingUpload(SQLModel):
+    """Where the browser PUTs the file, with exactly this Content-Type header and size."""
+
+    upload_url: str
+    method: str = "PUT"
+    content_type: str
+    expires_at: datetime
+
+
+class RecordingLink(SQLModel):
+    url: str
+    expires_at: datetime
 
 
 class IssueCreate(SQLModel):
@@ -169,6 +195,8 @@ class LessonBase(SQLModel):
     parent_name: str | None = None
     tutor_name: str | None = None
     issue: IssueRead | None = None
+    recording_required: bool = False  # online lesson: the report needs a recording (spec 3 R2.1)
+    has_recording: bool = False  # uploaded and not yet deleted: GET /lessons/{id}/recording gives a link
 
 
 class LessonParentView(LessonBase):

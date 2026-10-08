@@ -41,6 +41,12 @@ export async function declineBooking(id: string, note?: string): Promise<Booking
   return toBooking(data)
 }
 
+/** Tutor: the video call link for an online booking. */
+export async function setMeetingLink(id: string, meetingLink: string): Promise<Booking> {
+  const { data } = await api.put(`/bookings/${id}/meeting-link`, { meeting_link: meetingLink })
+  return toBooking(data)
+}
+
 /** Parent cancels: lessons at least 48 h away are refunded (agreed price, fee excluded) after admin approval. */
 export async function cancelBooking(id: string, note?: string): Promise<Booking> {
   const { data } = await api.post(`/bookings/${id}/cancel`, { note: note || null })

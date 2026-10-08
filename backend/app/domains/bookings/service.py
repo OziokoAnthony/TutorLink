@@ -15,10 +15,11 @@ from app.core import clock
 from app.core.clock import WAT, at_wat, money, today_wat
 from app.domains.auth import photos
 from app.domains.auth import service as auth_service
-from app.domains.auth.models import User, UserRole
+from app.domains.auth.models import ParentProfile, User, UserRole
 from app.domains.bookings import schedule
 from app.domains.bookings.models import (
     HOLDS_SLOTS,
+    RECORDING_CONSENT,
     Booking,
     BookingAdminView,
     BookingClose,
@@ -28,6 +29,8 @@ from app.domains.bookings.models import (
     BookingSlot,
     BookingStatus,
     BookingTutorView,
+    LessonMode,
+    MeetingLinkIn,
     PeriodStatus,
     PeriodView,
     TutorAvailability,
@@ -86,8 +89,14 @@ def _views(session: Session, bookings: list[Booking], view):
     people = [b.parent_id for b in bookings] + [b.tutor_id for b in bookings]
     names = auth_service.full_names(session, people)
     pictures = photos.urls_for(session, people)
+    addresses = {} if view is BookingParentView or not bookings else dict(session.exec(
+        select(ParentProfile.user_id, ParentProfile.address)
+        .where(ParentProfile.user_id.in_([b.parent_id for b in bookings]))).all())
     result = []
     for b in bookings:
+        # The meeting link (online) and the parent's address (offline) are shared only once the first
+        # period is paid (spec 3 R1.2, R1.3). The tutor always sees the link they set.
+        paid = any(p.status == PeriodStatus.paid for p in periods[b.id])
         parent_rate, tutor_rate = _rates(session, b)
         parent_price = fees_service.parent_price(b.price, parent_rate)
         earning = fees_service.tutor_earning(b.price, tutor_rate)
@@ -99,6 +108,8 @@ def _views(session: Session, bookings: list[Booking], view):
             "tutor_fee_rate": tutor_rate, "tutor_earning_per_lesson": earning,
             "parent_fee_rate": parent_rate, "platform_margin_per_lesson": money(parent_price - earning),
             "periods": [PeriodView.model_validate(p) for p in periods[b.id]],
+            "meeting_link": b.meeting_link if paid or view is not BookingParentView else None,
+            "parent_address": addresses.get(b.parent_id) if paid and b.mode == LessonMode.offline else None,
         }
         # Each view model only declares the fields its reader may see; the rest are dropped here.
         result.append(view.model_validate(b, update={k: v for k, v in extra.items() if k in view.model_fields}))
@@ -227,6 +238,7 @@ def request_booking(session: Session, parent: User, data: BookingCreate, now: da
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "start_date can't be in the past")
     if schedule.plan_period(data.slots, data.billing_period, data.start_date, data.end_date) is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "There are no lessons between these dates")
+    consent_at = check_recording_consent(data.mode, data.recording_consent, now)
     _check_no_clash(data.slots, _taken_slots(session, tutor.id))
 
     booking = Booking(
@@ -234,6 +246,7 @@ def request_booking(session: Session, parent: User, data: BookingCreate, now: da
         subjects=[offered[s.lower()] for s in data.subjects], level=offer.level, mode=data.mode,
         billing_period=data.billing_period, start_date=data.start_date, end_date=data.end_date,
         price=offer.price, child_strengths=data.child_strengths, child_weaknesses=data.child_weaknesses,
+        recording_consent_at=consent_at, recording_consent_text=RECORDING_CONSENT if consent_at else None,
         created_at=now, updated_at=now,
     )
     session.add(booking)
@@ -298,7 +311,7 @@ def _take(session: Session, booking: Booking, slots, now: datetime) -> None:
 def book_from_job(session: Session, *, parent_id: UUID, tutor_id: UUID, job_id: UUID, subjects: list[str],
                   level, mode, billing_period, start_date, end_date, price: Decimal, child_strengths: str,
                   child_weaknesses: str, slots: list[WeeklyTime], now: datetime,
-                  on_created: Callable[[Booking], None]) -> Booking:
+                  recording_consent_at: datetime | None, on_created: Callable[[Booking], None]) -> Booking:
     """A parent chose a job applicant: the booking starts already taken, awaiting payment (spec 2 R3.2).
     The caller has locked and checked the job; this checks the tutor's time, calls `on_created` once the
     booking row exists (so the job's changes commit with it), then commits."""
@@ -307,7 +320,10 @@ def book_from_job(session: Session, *, parent_id: UUID, tutor_id: UUID, job_id: 
     booking = Booking(
         parent_id=parent_id, tutor_id=tutor_id, job_id=job_id, subjects=subjects, level=level, mode=mode,
         billing_period=billing_period, start_date=max(start_date, today_wat(now)), end_date=end_date, price=price,
-        child_strengths=child_strengths, child_weaknesses=child_weaknesses, created_at=now, updated_at=now,
+        child_strengths=child_strengths, child_weaknesses=child_weaknesses,
+        recording_consent_at=recording_consent_at,
+        recording_consent_text=RECORDING_CONSENT if recording_consent_at else None,
+        created_at=now, updated_at=now,
     )
     session.add(booking)
     session.flush()
@@ -317,6 +333,35 @@ def book_from_job(session: Session, *, parent_id: UUID, tutor_id: UUID, job_id: 
     on_created(booking)
     _take(session, booking, rows, now)
     return booking
+
+
+def check_recording_consent(mode: LessonMode, consent: bool, now: datetime) -> datetime | None:
+    """Online lessons are recorded, so the parent must agree first (spec 3 R1.4). Returns when they agreed."""
+    if mode != LessonMode.online:
+        return None
+    if not consent:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            f"Please agree to recording for online lessons: \"{RECORDING_CONSENT}\"")
+    return now
+
+
+def set_meeting_link(session: Session, tutor: User, booking_id: UUID, data: MeetingLinkIn) -> BookingTutorView:
+    """The tutor's video call link for an online booking (spec 3 R1.3)."""
+    booking = _get(session, booking_id, lock=True)
+    if booking.tutor_id != tutor.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only change your own bookings")
+    if booking.mode != LessonMode.online:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Only online bookings have a meeting link")
+    if booking.status not in HOLDS_SLOTS:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Booking is {booking.status.value}")
+    changed = booking.meeting_link is not None and booking.meeting_link != data.meeting_link
+    booking.meeting_link = data.meeting_link
+    session.add(booking)
+    if changed:
+        notifications.notify(session, booking.parent_id, "Meeting link changed",
+                             "Your tutor changed the link for your online lessons.", "/dashboard/parent/bookings")
+    session.commit()
+    return _views(session, [booking], BookingTutorView)[0]
 
 
 def parent_view(session: Session, booking: Booking) -> BookingParentView:

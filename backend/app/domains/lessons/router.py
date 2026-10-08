@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
-from app.core.deps import require_roles
+from app.core.deps import get_current_user, require_roles
 from app.db.session import get_session
 from app.domains.auth.models import User, UserRole
 from app.domains.lessons import service
@@ -16,6 +16,9 @@ from app.domains.lessons.models import (
     LessonReport,
     LessonStatus,
     LessonTutorView,
+    RecordingLink,
+    RecordingUpload,
+    RecordingUploadIn,
 )
 
 router = APIRouter(prefix="/lessons", tags=["lessons"])
@@ -49,6 +52,25 @@ def my_tutor_lessons(filters: LessonFilters = Depends(), tutor: User = Depends(t
 def submit_report(lesson_id: UUID, data: LessonReport, tutor: User = Depends(tutor_only),
                   session: Session = Depends(get_session)):
     return service.submit_report(session, tutor, lesson_id, data)
+
+
+@router.post("/{lesson_id}/recording/upload", response_model=RecordingUpload)
+def recording_upload(lesson_id: UUID, data: RecordingUploadIn, tutor: User = Depends(tutor_only),
+                     session: Session = Depends(get_session)):
+    """Online lessons: a short-lived link to PUT the recording to (MP4, WebM or MOV, at most 2 GB)."""
+    return service.request_recording_upload(session, tutor, lesson_id, data)
+
+
+@router.post("/{lesson_id}/recording/complete", response_model=LessonTutorView)
+def recording_complete(lesson_id: UUID, tutor: User = Depends(tutor_only), session: Session = Depends(get_session)):
+    """Call after the upload finishes; the stored file is checked before the report can be sent."""
+    return service.complete_recording_upload(session, tutor, lesson_id)
+
+
+@router.get("/{lesson_id}/recording", response_model=RecordingLink)
+def recording(lesson_id: UUID, user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    """A viewing link that expires after 15 minutes: the lesson's parent, its tutor and admins only."""
+    return service.recording_link(session, user, lesson_id)
 
 
 @router.post("/{lesson_id}/problem", response_model=LessonParentView)
