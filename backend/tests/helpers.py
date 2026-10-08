@@ -250,10 +250,36 @@ def verified_tutor(client, **kwargs) -> dict:
     return tutor
 
 
+PDF = b"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
+
+
+def upload_certificate(client, tutor: dict, type: str = "Degree", data: bytes = PDF, filename: str = "degree.pdf",
+                       **fields):
+    """A certificate upload (spec 4 R4.1). WAEC/NECO also need exam_number, exam_year and checker_pin."""
+    form = {"type": type, "institution": "University of Lagos", "year": "2018", **fields}
+    return client.post("/v1/certificates", headers=tutor["headers"], data=form,
+                       files={"file": (filename, data, "application/octet-stream")})
+
+
+def review_certificate(client, admin_headers: dict, certificate_id: str, status: str = "verified",
+                       note: str | None = None):
+    return client.patch(f"/v1/admin/certificates/{certificate_id}", headers=admin_headers,
+                        json={"status": status, "note": note})
+
+
+def certified_tutor(client, admin_headers: dict, **kwargs) -> dict:
+    """A verified tutor (`verified_tutor`) with a Degree certificate an admin verified (spec 4 R4)."""
+    tutor = verified_tutor(client, **kwargs)
+    response = upload_certificate(client, tutor)
+    assert response.status_code == 201, response.text
+    assert review_certificate(client, admin_headers, response.json()["id"]).status_code == 200
+    return tutor
+
+
 def approved_tutor(client, admin_headers: dict, **kwargs) -> dict:
     """An approved tutor with one offer: senior-secondary Mathematics, any day 08:00-20:00, ₦5,000.
-    They have a profile picture and a verified NIN, as approval requires (spec 4 R2.3)."""
-    tutor = verified_tutor(client, **kwargs)
+    They have a profile picture, a verified NIN and a verified certificate, as approval requires (spec 4 R2.3)."""
+    tutor = certified_tutor(client, admin_headers, **kwargs)
     assert vet(client, admin_headers, tutor).status_code == 200
     return tutor
 

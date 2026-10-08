@@ -13,6 +13,7 @@ from sqlmodel import Field, SQLModel
 
 from app.db.base import BaseUUIDModel, pg_enum
 from app.domains.bookings.models import BillingPeriod, LessonMode, LongText
+from app.domains.certificates.models import CertificateType, certificate_type_enum
 from app.domains.tutors.models import EducationLevel, WeeklyTime, clean_subjects, education_level_enum
 
 
@@ -27,19 +28,6 @@ class ApplicationStatus(str, Enum):
     applied = "applied"
     withdrawn = "withdrawn"  # by the tutor, or automatically when an edit made it clash (R1.3)
     chosen = "chosen"
-
-
-class CertificateType(str, Enum):
-    """Certificate types a tutor can upload (spec 4 R3); a job can ask for one as a minimum."""
-
-    waec = "WAEC"
-    neco = "NECO"
-    nabteb = "NABTEB"
-    nce = "NCE"
-    degree = "Degree"
-    pgde = "PGDE"
-    trcn = "TRCN"
-    other = "Other"
 
 
 # ---------- Tables ----------
@@ -58,7 +46,7 @@ class JobPost(BaseUUIDModel, table=True):
     price: Decimal = Field(max_digits=10, decimal_places=2)  # P, set by the parent
     qualifications: str = Field(sa_type=sa.Text)
     min_certificate: CertificateType | None = Field(default=None,
-                                                    sa_type=pg_enum(CertificateType, "certificate_type"))
+                                                    sa_type=certificate_type_enum)
     other_requirements: str | None = Field(default=None, sa_type=sa.Text)
     child_strengths: str = Field(sa_type=sa.Text)
     child_weaknesses: str = Field(sa_type=sa.Text)

@@ -31,7 +31,7 @@ def test_parent_requests_a_booking_and_tutor_is_notified(client, parent, tutor):
     as_tutor = client.get(f"/v1/bookings/{booking['id']}", headers=tutor["headers"]).json()
     assert as_tutor["child_strengths"] == helpers.STRENGTHS and as_tutor["child_weaknesses"] == helpers.WEAKNESSES
     notes = client.get("/v1/notifications/me", headers=tutor["headers"]).json()
-    assert notes["unread_count"] == 1 and notes["items"][0]["title"] == "New booking request"
+    assert notes["items"][0]["title"] == "New booking request" and not notes["items"][0]["read_at"]
 
 
 @pytest.mark.parametrize("field", ["strengths", "weaknesses"])

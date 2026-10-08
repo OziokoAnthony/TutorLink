@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import FormField from '@/components/shared/FormField'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
+import CertificatesSection from '@/components/tutors/CertificatesSection'
 import SelfieCamera from '@/components/tutors/SelfieCamera'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
@@ -19,6 +20,7 @@ import type { NinResult, Onboarding, OnboardingStepKey } from '@/types'
 const STEP_TITLES: Record<OnboardingStepKey, string> = {
   profile: 'Profile',
   nin: 'Verify your NIN',
+  certificates: 'Certificates',
   review: 'Waiting for admin review',
 }
 
@@ -81,7 +83,7 @@ function NinForm({ attemptsLeft, retryAt, onDone }: { attemptsLeft: number; retr
   )
 }
 
-/** The tutor's onboarding checklist (spec 4 R2.1): Profile → NIN → waiting for admin review. */
+/** The tutor's onboarding checklist (spec 4 R2.1): Profile → NIN → Certificates → waiting for admin review. */
 export default function OnboardingChecklist() {
   const { refresh } = useAuth()
   const toast = useToast()
@@ -102,7 +104,15 @@ export default function OnboardingChecklist() {
   }
 
   if (!onboarding) return <LoadingSpinner />
+  const done = Object.fromEntries(onboarding.steps.map((s) => [s.key, s.done])) as Record<OnboardingStepKey, boolean>
   const current = onboarding.steps.find((s) => !s.done)?.key
+  // Certificates are checked against the NIN-verified name, so they open once the NIN is verified (R3.4).
+  const open: Record<OnboardingStepKey, boolean> = {
+    profile: !done.profile,
+    nin: done.profile && !done.nin,
+    certificates: done.nin,
+    review: done.profile && done.nin && done.certificates,
+  }
 
   return (
     <Card className="mb-6">
@@ -119,17 +129,23 @@ export default function OnboardingChecklist() {
                 : <Circle className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-label="To do" />}
               <div className="min-w-0 flex-1 space-y-2">
                 <p className={step.key === current ? 'font-medium' : 'text-muted-foreground'}>{STEP_TITLES[step.key]}</p>
-                {step.key === 'profile' && !step.done && (
+                {step.key === 'profile' && open.profile && (
                   <ul className="list-disc pl-5 text-sm">
                     {step.todo.map((t) => (
                       <li key={t}><Link href="/dashboard/tutor/profile" className="underline">{t}</Link></li>
                     ))}
                   </ul>
                 )}
-                {step.key === 'nin' && !step.done && current === 'nin' && (
+                {step.key === 'nin' && open.nin && (
                   <NinForm attemptsLeft={onboarding.nin_attempts_left} retryAt={onboarding.nin_retry_at} onDone={afterNinCheck} />
                 )}
-                {step.key === 'review' && current === 'review' && (
+                {step.key === 'certificates' && open.certificates && (
+                  <>
+                    {step.todo.length > 0 && <p className="text-sm text-muted-foreground">{step.todo.join('. ')}.</p>}
+                    <CertificatesSection onChange={load} />
+                  </>
+                )}
+                {step.key === 'review' && open.review && (
                   <p className="text-sm text-muted-foreground">
                     {step.todo.length ? `Still needed: ${step.todo.join(', ')}.` : 'An admin is reviewing your profile. We’ll email you once you’re approved.'}
                   </p>

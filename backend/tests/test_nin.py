@@ -28,7 +28,7 @@ def steps(client, tutor) -> dict:
 def test_checklist_starts_with_profile_then_nin_then_review(client):
     tutor = helpers.register_tutor(client)
     checklist = client.get("/v1/onboarding", headers=tutor["headers"]).json()
-    assert [s["key"] for s in checklist["steps"]] == ["profile", "nin", "review"]
+    assert [s["key"] for s in checklist["steps"]] == ["profile", "nin", "certificates", "review"]
     assert checklist["steps"][0] == {"key": "profile", "done": False, "todo": ["Add a profile picture"]}
     assert checklist["vetting_status"] == "pending" and checklist["nin_attempts_left"] == 3
 
@@ -61,8 +61,8 @@ def test_rejecting_is_always_allowed(client, admin_headers, tutor):
     assert helpers.vet(client, admin_headers, tutor, "rejected", "Incomplete").status_code == 200
 
 
-def test_verified_tutor_can_be_approved_and_is_listed(client, admin_headers):
-    tutor = helpers.verified_tutor(client)
+def test_verified_and_certified_tutor_can_be_approved_and_is_listed(client, admin_headers):
+    tutor = helpers.certified_tutor(client, admin_headers)
     assert steps(client, tutor)["nin"]["done"]
     assert helpers.vet(client, admin_headers, tutor).status_code == 200
     assert client.get(f"/v1/tutors/{tutor['id']}").status_code == 200

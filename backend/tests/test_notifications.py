@@ -9,12 +9,13 @@ def sent_to(outbox, email: str) -> list[str]:
 
 
 def test_tutor_registration_and_vetting_emails(client, admin_headers, outbox):
-    approved = helpers.verified_tutor(client)
+    approved = helpers.certified_tutor(client, admin_headers)
     rejected = helpers.register_tutor(client)
     helpers.vet(client, admin_headers, approved, "approved")
     helpers.vet(client, admin_headers, rejected, "rejected", note="Missing documents")
 
     assert sent_to(outbox, approved["email"]) == ["We received your application",
+                                                  "Your Degree certificate is verified",
                                                   "You're approved! Welcome to TutorLink"]
     assert sent_to(outbox, rejected["email"]) == ["We received your application",
                                                   "Update on your TutorLink application"]
@@ -44,9 +45,10 @@ def test_marking_notifications_read(client, admin_headers):
     tutor = helpers.approved_tutor(client, admin_headers)
     helpers.requested_booking(client, parent, tutor)
     helpers.requested_booking(client, helpers.register_parent(client), tutor, start_date=helpers.days_ahead(4))
-    items = client.get("/v1/notifications/me", headers=tutor["headers"]).json()["items"]
+    mine = client.get("/v1/notifications/me", headers=tutor["headers"]).json()
+    items = mine["items"]
     assert client.post(f"/v1/notifications/{items[0]['id']}/read", headers=tutor["headers"]).status_code == 204
-    assert client.get("/v1/notifications/me", headers=tutor["headers"]).json()["unread_count"] == 1
+    assert client.get("/v1/notifications/me", headers=tutor["headers"]).json()["unread_count"] == mine["unread_count"] - 1
     client.post("/v1/notifications/me/read-all", headers=tutor["headers"])
     assert client.get("/v1/notifications/me", headers=tutor["headers"]).json()["unread_count"] == 0
     # Someone else's notification can't be touched.

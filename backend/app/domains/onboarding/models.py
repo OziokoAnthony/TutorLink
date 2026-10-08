@@ -52,7 +52,7 @@ class NinResult(NinCheckRead):
     attempts_left: int  # in the current 24 hours
 
 
-StepKey = Literal["profile", "nin", "review"]
+StepKey = Literal["profile", "nin", "certificates", "review"]
 
 
 class OnboardingStep(SQLModel):
@@ -62,7 +62,7 @@ class OnboardingStep(SQLModel):
 
 
 class Onboarding(SQLModel):
-    """The tutor's checklist (R2.1), in order. Certificates (R4) and the quiz (R5) join it when built."""
+    """The tutor's checklist (R2.1), in order. The quiz (R5) joins it when built."""
 
     steps: list[OnboardingStep]
     vetting_status: str

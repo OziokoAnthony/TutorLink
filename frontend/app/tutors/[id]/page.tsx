@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AvailabilityView from '@/components/tutors/AvailabilityView'
 import BookingForm from '@/components/tutors/BookingForm'
+import VerificationBadges from '@/components/tutors/VerificationBadges'
 import Avatar from '@/components/shared/Avatar'
 import ReviewList from '@/components/reviews/ReviewList'
 import { RatingSummary } from '@/components/reviews/StarRating'
@@ -56,6 +57,7 @@ export default function TutorProfilePage({ params }: { params: { id: string } })
             <div className="space-y-2">
               <h1 className="text-2xl font-bold tracking-tight">{tutor.full_name}</h1>
               <p className="flex items-center gap-1 text-muted-foreground"><MapPin className="h-4 w-4" aria-hidden />{tutor.area}</p>
+              <VerificationBadges tutor={tutor} />
               <RatingSummary average={tutor.average_rating} count={tutor.rating_count} />
             </div>
           </div>

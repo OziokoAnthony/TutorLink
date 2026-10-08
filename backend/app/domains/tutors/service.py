@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from app.db.base import utcnow
 from app.domains.auth import photos as photos_service
 from app.domains.auth.models import User
+from app.domains.certificates import service as certificates_service
 from app.domains.notifications import service as notifications
 from app.domains.onboarding import service as onboarding_service
 from app.domains.reviews import service as review_service
@@ -78,9 +79,12 @@ def _build(session: Session, profiles: list[TutorProfile], read_model):
     ratings = review_service.rating_stats(session, user_ids)
     # Tutors and admins see the latest NIN check (spec 4 R3.9); the public never does.
     nin_checks = onboarding_service.latest_checks(session, user_ids) if read_model is TutorProfileRead else {}
+    badges = certificates_service.verified_types(session, user_ids) if read_model is TutorPublic else {}
     return [
         read_model.model_validate(p, update={
             **({"nin_check": nin_checks.get(p.user_id)} if read_model is TutorProfileRead else {}),
+            **({"nin_verified": p.nin_verified_at is not None, "verified_certificates": badges.get(p.user_id, [])}
+               if read_model is TutorPublic else {}),
             "offers": offers[p.user_id],
             "price_from": min((o.price for o in offers[p.user_id]), default=None),
             "photo_url": photos.get(p.user_id),

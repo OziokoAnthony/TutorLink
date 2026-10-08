@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
@@ -69,7 +70,7 @@ export default function AdminVetTutorsPage() {
 
   return (
     <>
-      <PageHeader title="Vet tutors" description="Approve tutors before parents can see and book them. Approval needs a verified NIN." />
+      <PageHeader title="Vet tutors" description="Approve tutors before parents can see and book them. Approval needs a verified NIN and a verified certificate." />
       {tutors === null ? <LoadingSpinner /> : tutors.length === 0 ? (
         <EmptyState message="No tutors pending review." />
       ) : (
@@ -97,7 +98,10 @@ export default function AdminVetTutorsPage() {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell><NinSummary check={t.nin_check} verifiedAt={t.nin_verified_at} /></TableCell>
+                  <TableCell>
+                    <NinSummary check={t.nin_check} verifiedAt={t.nin_verified_at} />
+                    <Link href={`/admin/certificates?tutor_id=${t.user_id}`} className="mt-1 block text-xs font-medium underline">Certificates</Link>
+                  </TableCell>
                   <TableCell>{t.area}</TableCell>
                   <TableCell>
                     {t.offers.length === 0 ? <span className="text-muted-foreground">None yet</span> : (

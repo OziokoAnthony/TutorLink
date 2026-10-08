@@ -64,10 +64,43 @@ export interface TutorProfile {
   // name, and the latest NIN check.
   nin_verified_at?: string | null
   nin_check?: NinCheck | null
+  // Public listing and profile only: the badges (spec 4 R4.4).
+  nin_verified?: boolean
+  verified_certificates?: CertificateType[]
   offers: Offer[]
   price_from: number | null
   average_rating: number | null
   rating_count: number
+}
+
+export type CertificateStatus = 'pending' | 'verified' | 'rejected'
+
+/** A tutor's certificate (spec 4 R4). The checker PIN never comes back, only whether one is held. */
+export interface Certificate {
+  id: string
+  type: CertificateType
+  institution: string
+  year: number
+  file_name: string
+  /** Short-lived link to the private file */
+  file_url: string
+  exam_number: string | null
+  exam_year: number | null
+  has_checker_pin: boolean
+  status: CertificateStatus
+  review_note: string | null
+  reviewed_at: string | null
+  created_at: string
+}
+
+/** What the admin reviews: the certificate next to the tutor's NIN-verified name, and the PIN while held. */
+export interface AdminCertificate extends Certificate {
+  tutor_id: string
+  tutor_first_name: string
+  tutor_middle_name: string | null
+  tutor_surname: string
+  tutor_nin_verified: boolean
+  checker_pin: string | null
 }
 
 /** One NIN check with Dojah (spec 4 R3). Never includes the name on the NIN record. */
@@ -86,7 +119,7 @@ export interface NinResult extends NinCheck {
   attempts_left: number
 }
 
-export type OnboardingStepKey = 'profile' | 'nin' | 'review'
+export type OnboardingStepKey = 'profile' | 'nin' | 'certificates' | 'review'
 
 export interface OnboardingStep {
   key: OnboardingStepKey

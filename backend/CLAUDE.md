@@ -81,7 +81,12 @@ Alembic migration per spec or build step in `alembic/versions/`.
   or the selfie: only last 4 digits and `security.hash_nin` (keyed by `SECRET_KEY`). A verified NIN sets
   `tutor_profiles.nin_verified_at`, which locks the tutor's name except for admins.
   `onboarding.missing_for_approval` is the one list of what approval needs; `helpers.approved_tutor`
-  goes through it (picture, NIN, then vetting), and `helpers.verified_tutor` stops before vetting.
+  goes through it (picture, NIN, a verified certificate, then vetting). `helpers.verified_tutor` stops
+  after the NIN, `helpers.certified_tutor` after the certificate.
+- **Certificates (spec 4 R4).** `app/domains/certificates/`: files are private in storage and reach only
+  their tutor and admins as short-lived links. A WAEC/NECO checker PIN is stored with `security.encrypt`
+  and erased when an admin reviews the certificate. `CertificateType` is shared with job posts'
+  minimum certificate (one `certificate_type` enum).
 - **Errors.** Raise `HTTPException` with a plain-English `detail` the frontend can show as is:
   404 when it doesn't exist, 403 for the wrong role or someone else's resource, 409 for a state
   conflict, 422 for invalid input.

@@ -12,6 +12,8 @@ from app.core import clock, dojah
 from app.core.security import hash_nin
 from app.domains.auth import photos
 from app.domains.auth.models import User
+from app.domains.certificates import service as certificates
+from app.domains.certificates.models import CertificateStatus
 from app.domains.onboarding.models import (
     NinCheckRead,
     NinResult,
@@ -66,15 +68,29 @@ def _retry_at(attempts: list[datetime]) -> datetime | None:
     return attempts[-NIN_ATTEMPTS] + NIN_WINDOW if len(attempts) >= NIN_ATTEMPTS else None
 
 
+def certificates_todo(session: Session, user: User) -> list[str]:
+    """What the Certificates step still needs: one certificate an admin verified (R2.3, R4.3)."""
+    statuses = certificates.statuses_of(session, user.id)
+    if CertificateStatus.verified in statuses:
+        return []
+    if CertificateStatus.pending in statuses:
+        return ["Wait for an admin to check your certificate"]
+    if CertificateStatus.rejected in statuses:
+        return ["Upload a replacement for your rejected certificate"]
+    return ["Upload at least one certificate"]
+
+
 def get_onboarding(session: Session, user: User) -> Onboarding:
     profile = _profile(session, user)
     attempts = _recent_attempts(session, user.id, clock.now())
     todo = profile_todo(session, user)
+    certs = certificates_todo(session, user)
     nin_done = profile.nin_verified_at is not None
     return Onboarding(
         steps=[
             OnboardingStep(key="profile", done=not todo, todo=todo),
             OnboardingStep(key="nin", done=nin_done, todo=[] if nin_done else ["Verify your NIN with a selfie"]),
+            OnboardingStep(key="certificates", done=not certs, todo=certs),
             OnboardingStep(key="review", done=profile.vetting_status == VettingStatus.approved,
                            todo=missing_for_approval(session, profile)),
         ],
@@ -85,10 +101,12 @@ def get_onboarding(session: Session, user: User) -> Onboarding:
 
 
 def missing_for_approval(session: Session, profile: TutorProfile) -> list[str]:
-    """What stops an admin approving this tutor (R2.3). Certificates (R4) and the quiz (R5) join when built."""
+    """What stops an admin approving this tutor (R2.3). The quiz (R5) joins when built."""
     missing = []
     if profile.nin_verified_at is None:
         missing.append("NIN not verified")
+    if not certificates.has_verified(session, profile.user_id):
+        missing.append("no verified certificate")
     return missing
 
 

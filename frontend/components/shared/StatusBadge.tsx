@@ -1,11 +1,11 @@
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import {
-  APPLICATION_STATUS_LABEL, BOOKING_STATUS_LABEL, JOB_STATUS_LABEL, EARNING_STATUS_LABEL, LESSON_STATUS_LABEL, PERIOD_STATUS_LABEL, REFUND_STATUS_LABEL,
+  APPLICATION_STATUS_LABEL, BOOKING_STATUS_LABEL, CERTIFICATE_STATUS_LABEL, JOB_STATUS_LABEL, EARNING_STATUS_LABEL, LESSON_STATUS_LABEL, PERIOD_STATUS_LABEL, REFUND_STATUS_LABEL,
   TRANSFER_STATUS_LABEL, VETTING_STATUS_LABEL,
 } from '@/lib/format'
 import type {
-  ApplicationStatus, BookingStatus, JobStatus, EarningStatus, LessonStatus, PeriodStatus, RefundStatus, TransferStatus, VettingStatus,
+  ApplicationStatus, BookingStatus, CertificateStatus, JobStatus, EarningStatus, LessonStatus, PeriodStatus, RefundStatus, TransferStatus, VettingStatus,
 } from '@/types'
 
 type Tone = 'yellow' | 'green' | 'red' | 'blue' | 'gray'
@@ -33,6 +33,7 @@ const REFUND_TONE: Record<RefundStatus, Tone> = { pending: 'yellow', approved: '
 const JOB_TONE: Record<JobStatus, Tone> = { open: 'blue', ongoing: 'yellow', completed: 'green', closed: 'gray' }
 const APPLICATION_TONE: Record<ApplicationStatus, Tone> = { applied: 'blue', withdrawn: 'gray', chosen: 'green' }
 const VETTING_TONE: Record<VettingStatus, Tone> = { pending: 'yellow', approved: 'green', rejected: 'red' }
+const CERTIFICATE_TONE: Record<CertificateStatus, Tone> = { pending: 'yellow', verified: 'green', rejected: 'red' }
 
 function ToneBadge({ tone, children }: { tone: Tone; children: string }) {
   return <Badge variant="outline" className={cn('font-medium', TONE_CLASS[tone])}>{children}</Badge>
@@ -72,4 +73,8 @@ export function JobStatusBadge({ status }: { status: JobStatus }) {
 
 export function ApplicationStatusBadge({ status }: { status: ApplicationStatus }) {
   return <ToneBadge tone={APPLICATION_TONE[status]}>{APPLICATION_STATUS_LABEL[status]}</ToneBadge>
+}
+
+export function CertificateStatusBadge({ status }: { status: CertificateStatus }) {
+  return <ToneBadge tone={CERTIFICATE_TONE[status]}>{CERTIFICATE_STATUS_LABEL[status]}</ToneBadge>
 }

@@ -1,5 +1,5 @@
 import type {
-  ApplicationStatus, BillingPeriod, BookingStatus, CertificateType, JobStatus, EarningStatus, IssueKind, Level, LessonStatus, PeriodStatus, RefundStatus,
+  ApplicationStatus, BillingPeriod, BookingStatus, CertificateStatus, CertificateType, JobStatus, EarningStatus, IssueKind, Level, LessonStatus, PeriodStatus, RefundStatus,
   TransferStatus, VettingStatus, WeeklyTime,
 } from '@/types'
 
@@ -143,3 +143,10 @@ export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus, string> = {
 }
 
 export const CERTIFICATES: CertificateType[] = ['WAEC', 'NECO', 'NABTEB', 'NCE', 'Degree', 'PGDE', 'TRCN', 'Other']
+
+/** WAEC and NECO results are confirmed on the exam body's site with the tutor's result-checker PIN (spec 4 R4.2). */
+export const CHECKER_CERTIFICATES: CertificateType[] = ['WAEC', 'NECO']
+
+export const CERTIFICATE_STATUS_LABEL: Record<CertificateStatus, string> = {
+  pending: 'Waiting for review', verified: 'Verified', rejected: 'Not accepted',
+}

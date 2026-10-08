@@ -48,7 +48,7 @@ identity checked against the national NIN database, certificates authenticated, 
 5. Users can change their picture anytime. Admins can remove an inappropriate picture, and the user is then asked to upload a new one.
 6. The admin vetting page shows the tutor's profile picture next to the NIN-verified name.
 
-### R2. Onboarding checklist (tutor) (built 2026-10-08 with Profile, NIN and review; Certificates and Quiz join it, and the R2.3 approval check, with R4 and R5)
+### R2. Onboarding checklist (tutor) (built 2026-10-08 with Profile, NIN, Certificates and review; the Quiz joins it, and the R2.3 approval check, with R5)
 1. A new tutor sees a checklist: Profile (profile picture, and at least one offer with subjects, available times and price per lesson, spec 1 R0) → NIN → Certificates → Quiz → Waiting for admin review.
 2. A tutor stays `pending` and hidden from `/tutors` until approved (existing rule 2).
 3. The admin can approve only when NIN is verified, at least one certificate is verified, and the quiz is passed. Rejecting is always allowed.
@@ -68,7 +68,7 @@ identity checked against the national NIN database, certificates authenticated, 
 8. At most **3 attempts per 24 hours** per tutor, because each lookup costs money.
 9. The admin vetting page shows the verified name and the result of each check.
 
-### R4. Certificates (upload + admin review)
+### R4. Certificates (upload + admin review) (built 2026-10-08)
 1. The tutor uploads one or more certificates:
    - files: PDF, JPG or PNG, at most 10 MB, stored privately in R2
    - type: WAEC, NECO, NABTEB, NCE, Degree, PGDE, TRCN, Other
@@ -123,8 +123,8 @@ identity checked against the national NIN database, certificates authenticated, 
 - [ ] 14/20 passes and 13/20 fails.
 - [ ] A generated question whose independent check gives a different answer is not added to the bank. Claude is faked in tests.
 - [ ] The submit response contains the score and pass/fail but no correct answers.
-- [ ] A WAEC/NECO checker PIN is unreadable in the database and gone after review.
-- [ ] Certificate files are only reachable by the tutor who uploaded them and by admins.
+- [x] A WAEC/NECO checker PIN is unreadable in the database and gone after review.
+- [x] Certificate files are only reachable by the tutor who uploaded them and by admins.
 
 ## Assumptions
 - An Anthropic API key (for exam generation), a Google OAuth Client ID, a Dojah account (app ID + secret key, sandbox first) and the R2 bucket from spec 3 are provided.

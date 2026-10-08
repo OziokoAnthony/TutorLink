@@ -9,6 +9,7 @@ from pydantic import StringConstraints, model_validator
 from sqlmodel import Field, SQLModel
 
 from app.db.base import BaseUUIDModel, pg_enum
+from app.domains.certificates.models import CertificateType
 from app.domains.onboarding.models import NinCheckRead
 
 
@@ -190,7 +191,7 @@ class TutorProfileRead(SQLModel):
 
 
 class TutorPublic(SQLModel):
-    """Public listing shape: no contact or vetting details."""
+    """Public listing shape: no contact or vetting details, only the badges (spec 4 R4.4)."""
 
     id: UUID
     user_id: UUID
@@ -198,6 +199,8 @@ class TutorPublic(SQLModel):
     bio: str | None
     area: str
     photo_url: str | None = None
+    nin_verified: bool = False
+    verified_certificates: list[CertificateType] = []  # types only: no files or numbers
     offers: list[OfferRead] = []
     price_from: Decimal | None = None
     average_rating: Decimal | None = None  # 1.00-5.00, None until first rating
