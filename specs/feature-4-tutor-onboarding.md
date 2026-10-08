@@ -34,7 +34,7 @@ identity checked against the national NIN database, certificates authenticated, 
 7. Admin accounts can't sign in with Google. They keep using password only.
 8. Tutors who registered before this (with email and password) keep their work email and password. Nothing changes for them.
 
-### R1b. Profile pictures (parents and tutors)
+### R1b. Profile pictures (parents and tutors) (built; the tutor NIN gate in R1b.2 comes with R3)
 *Built together with spec 1, since booking requests require a parent picture.*
 
 1. Parents and tutors each have one profile picture: JPG, PNG or WebP, at most 5 MB, resized to 512×512 and stored in R2.
@@ -111,7 +111,7 @@ identity checked against the national NIN database, certificates authenticated, 
 - [x] "Forgot password" answers the same for known and unknown emails. A tutor's email contains their work email and a reset link; the link sets a new password once, expires after 1 hour, and the old password stops working.
 - [ ] A parent without a profile picture gets 409 on booking request and job post. A tutor without one can't start the NIN step.
 - [x] A picture over 5 MB or not JPG/PNG/WebP is rejected.
-- [ ] A parent's picture is shown to tutors on that parent's job posts, booking requests and bookings, and isn't returned to unauthenticated users.
+- [x] A parent's picture is shown to tutors on that parent's job posts, booking requests and bookings, and isn't returned to unauthenticated users.
 - [ ] Approving a tutor without verified NIN, a verified certificate and a passed quiz is a 409, naming what's missing.
 - [ ] No API response or database column contains a full NIN, selfie or NIN photo.
 - [ ] NIN verification fails when any name part differs from the NIN record (spelling, missing middle name, swapped order), passes when only capital letters or spacing differ, and the tutor can't start certificates or the exam until it passes.

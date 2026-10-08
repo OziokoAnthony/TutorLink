@@ -52,3 +52,17 @@ def test_admin_removes_an_inappropriate_photo_and_user_is_asked_for_a_new_one(cl
     titles = [n["title"] for n in client.get("/v1/notifications/me", headers=parent["headers"]).json()["items"]]
     assert "Please upload a new profile picture" in titles
     assert client.delete(f"/v1/admin/users/{parent['id']}/photo", headers=parent["headers"]).status_code == 403
+
+
+def test_parent_photo_is_not_returned_to_unauthenticated_users(client, admin_headers):
+    """R1b.4: a parent's picture reaches only the parent, admins and that parent's tutors."""
+    parent = helpers.register_parent(client)
+    tutor = helpers.approved_tutor(client, admin_headers)
+    booking = helpers.requested_booking(client, parent, tutor)
+    job = helpers.post_job(client, parent)
+    assert client.get(f"/v1/bookings/{booking['id']}").status_code == 401
+    assert client.get(f"/v1/jobs/{job['id']}").status_code == 401
+    assert "parent_photo_url" not in client.get("/v1/tutors").text
+    url = client.get("/v1/auth/me", headers=parent["headers"]).json()["user"]["photo_url"]
+    unsigned = url.split("?")[0].replace("http://localhost:8000", "")
+    assert client.get(unsigned).status_code in (403, 422)
