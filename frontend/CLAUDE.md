@@ -9,9 +9,10 @@ it calls the FastAPI backend in `../backend/` at `NEXT_PUBLIC_API_URL` (`http://
 The product is specified in `../specs/`, one approved spec per feature, built in order:
 
 1. `feature-1-bookings-and-payments.md`: offers, booking requests, prepaid bank-transfer payments, hidden fees, lessons, problems and refunds, tutor payouts. **Built.**
-2. `feature-2-job-posts.md`
+2. `feature-2-job-posts.md`: parents post jobs with their own price, approved tutors apply, choosing one books them. **Built.**
 3. `feature-3-online-lessons.md`
 4. `feature-4-tutor-onboarding.md`
+5. `feature-5-international.md` (draft: location, NGN/USD, job visibility by country)
 
 Read the spec before changing a feature it covers, and check the backend's request and response
 models (`../backend/app/domains/*/models.py`) or `/docs` for the exact API shape.

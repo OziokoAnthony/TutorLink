@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import Choice from '@/components/shared/Choice'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
@@ -17,7 +18,6 @@ import { useToast } from '@/hooks/useToast'
 import { errorMessage, errorStatus } from '@/lib/api'
 import { requestBooking } from '@/lib/bookings'
 import { BILLING_PERIODS, DAYS, formatNaira, levelLabel, slotText, toISODate } from '@/lib/format'
-import { cn } from '@/lib/utils'
 import type { BillingPeriod, LessonMode, TutorAvailability, TutorProfile, WeeklyTime } from '@/types'
 
 const CLASH_MESSAGE = 'This tutor is already booked at one of those times. Please choose another time.'
@@ -31,23 +31,6 @@ function fitsWindow(slot: WeeklyTime, windows: WeeklyTime[]) {
 function overlaps(a: WeeklyTime, b: WeeklyTime) {
   return a.day_of_week === b.day_of_week
     && toMinutes(a.start_time) < toMinutes(b.end_time) && toMinutes(a.end_time) > toMinutes(b.start_time)
-}
-
-function Choice<T extends string>({ value, options, onChange, label }: {
-  value: T; options: { value: T; label: string; hint?: string }[]; onChange: (v: T) => void; label: string
-}) {
-  return (
-    <div role="radiogroup" aria-label={label} className="grid gap-2 sm:grid-cols-3">
-      {options.map((o) => (
-        <button key={o.value} type="button" role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)}
-          className={cn('rounded-md border px-3 py-2 text-left text-sm transition-colors',
-            value === o.value ? 'border-primary bg-primary/5 font-medium' : 'hover:bg-muted')}>
-          {o.label}
-          {o.hint && <span className="block text-xs font-normal text-muted-foreground">{o.hint}</span>}
-        </button>
-      ))}
-    </div>
-  )
 }
 
 /** "Request a booking" modal: offer, subjects, weekly times, dates, billing period, mode, about the child. */

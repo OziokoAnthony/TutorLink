@@ -55,7 +55,8 @@ class Booking(BaseUUIDModel, table=True):
 
     parent_id: UUID = Field(foreign_key="users.id", index=True)
     tutor_id: UUID = Field(foreign_key="users.id", index=True)
-    offer_id: UUID | None = Field(default=None, foreign_key="tutor_offers.id")
+    offer_id: UUID | None = Field(default=None, foreign_key="tutor_offers.id")  # direct bookings
+    job_id: UUID | None = Field(default=None, foreign_key="job_posts.id")  # bookings made from a job (spec 2 R3.2)
     subjects: list[str] = Field(sa_type=ARRAY(sa.String))
     level: EducationLevel = Field(sa_type=education_level_enum)
     mode: LessonMode = Field(sa_type=pg_enum(LessonMode, "lesson_mode"))
@@ -161,6 +162,7 @@ class BookingBase(SQLModel):
     id: UUID
     parent_id: UUID
     tutor_id: UUID
+    job_id: UUID | None = None
     subjects: list[str]
     level: EducationLevel
     mode: LessonMode

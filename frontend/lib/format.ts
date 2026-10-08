@@ -1,5 +1,5 @@
 import type {
-  BillingPeriod, BookingStatus, EarningStatus, IssueKind, Level, LessonStatus, PeriodStatus, RefundStatus,
+  ApplicationStatus, BillingPeriod, BookingStatus, CertificateType, JobStatus, EarningStatus, IssueKind, Level, LessonStatus, PeriodStatus, RefundStatus,
   TransferStatus, VettingStatus, WeeklyTime,
 } from '@/types'
 
@@ -130,3 +130,13 @@ export const ISSUE_KIND_LABEL: Record<IssueKind, string> = {
 export const VETTING_STATUS_LABEL: Record<VettingStatus, string> = {
   pending: 'Under review', approved: 'Approved', rejected: 'Not approved',
 }
+
+export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
+  open: 'Open', ongoing: 'Tutor chosen', completed: 'Completed', closed: 'Closed',
+}
+
+export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus, string> = {
+  applied: 'Applied', withdrawn: 'Withdrawn', chosen: 'Chosen',
+}
+
+export const CERTIFICATES: CertificateType[] = ['WAEC', 'NECO', 'NABTEB', 'NCE', 'Degree', 'PGDE', 'TRCN', 'Other']

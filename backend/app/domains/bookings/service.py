@@ -3,6 +3,7 @@
 Functions that depend on the time take `now`, so the background jobs and the tests can move the clock.
 """
 
+from collections.abc import Callable
 from datetime import datetime, time, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -33,6 +34,7 @@ from app.domains.bookings.models import (
     TutorSlotRead,
 )
 from app.domains.fees import service as fees_service
+from app.domains.job_posts import sync as job_sync
 from app.domains.lessons.models import EarningStatus, Lesson, LessonStatus
 from app.domains.notifications import service as notifications
 from app.domains.payments import service as payments
@@ -260,7 +262,13 @@ def accept(session: Session, tutor: User, booking_id: UUID, now: datetime | None
         raise HTTPException(status.HTTP_409_CONFLICT, "This request can no longer be accepted")
     slots = _slots(session, [booking.id])[booking.id]
     _check_no_clash(slots, _taken_slots(session, tutor.id, exclude=booking.id))
+    _take(session, booking, slots, now)
+    return _views(session, [booking], BookingTutorView)[0]
 
+
+def _take(session: Session, booking: Booking, slots, now: datetime) -> None:
+    """The booking is taken: fee rates are frozen, the first period becomes payable and the parent is
+    told what to pay (spec 1 R2.5, R2.6). Commits, then pays the period if the balance covers it."""
     fees = fees_service.current(session)
     booking.parent_fee_rate = fees.parent_fee_rate
     booking.tutor_fee_rate = fees.tutor_fee_rate
@@ -285,7 +293,39 @@ def accept(session: Session, tutor: User, booking_id: UUID, now: datetime | None
     session.commit()
     pay_due_periods(session, booking.parent_id, now)
     session.refresh(booking)
-    return _views(session, [booking], BookingTutorView)[0]
+
+
+def book_from_job(session: Session, *, parent_id: UUID, tutor_id: UUID, job_id: UUID, subjects: list[str],
+                  level, mode, billing_period, start_date, end_date, price: Decimal, child_strengths: str,
+                  child_weaknesses: str, slots: list[WeeklyTime], now: datetime,
+                  on_created: Callable[[Booking], None]) -> Booking:
+    """A parent chose a job applicant: the booking starts already taken, awaiting payment (spec 2 R3.2).
+    The caller has locked and checked the job; this checks the tutor's time, calls `on_created` once the
+    booking row exists (so the job's changes commit with it), then commits."""
+    session.exec(select(User.id).where(User.id == tutor_id).with_for_update()).one()  # serialise clash checks
+    _check_no_clash(slots, _taken_slots(session, tutor_id))
+    booking = Booking(
+        parent_id=parent_id, tutor_id=tutor_id, job_id=job_id, subjects=subjects, level=level, mode=mode,
+        billing_period=billing_period, start_date=max(start_date, today_wat(now)), end_date=end_date, price=price,
+        child_strengths=child_strengths, child_weaknesses=child_weaknesses, created_at=now, updated_at=now,
+    )
+    session.add(booking)
+    session.flush()
+    rows = [BookingSlot(booking_id=booking.id, **slot.model_dump()) for slot in slots]
+    session.add_all(rows)
+    session.flush()
+    on_created(booking)
+    _take(session, booking, rows, now)
+    return booking
+
+
+def parent_view(session: Session, booking: Booking) -> BookingParentView:
+    return _views(session, [booking], BookingParentView)[0]
+
+
+def taken_slots(session: Session, tutor_id: UUID) -> list[BookingSlot]:
+    """The tutor's weekly times held by accepted, active or paused bookings (spec 1 R2.2)."""
+    return _taken_slots(session, tutor_id)
 
 
 def decline(session: Session, tutor: User, booking_id: UUID, data: BookingClose,
@@ -296,7 +336,7 @@ def decline(session: Session, tutor: User, booking_id: UUID, data: BookingClose,
         raise HTTPException(status.HTTP_403_FORBIDDEN, "This request isn't for you")
     if booking.status != BookingStatus.requested:
         raise HTTPException(status.HTTP_409_CONFLICT, "Only a pending request can be declined")
-    _close(booking, BookingStatus.declined, now, data.note)
+    _close(session, booking, BookingStatus.declined, now, data.note)
     session.add(booking)
     notifications.notify(session, booking.parent_id, "Booking declined",
                          "The tutor can't take your booking request. You can book another tutor.",
@@ -307,10 +347,12 @@ def decline(session: Session, tutor: User, booking_id: UUID, data: BookingClose,
 
 # ---------- Ending ----------
 
-def _close(booking: Booking, new_status: BookingStatus, now: datetime, note: str | None = None) -> None:
+def _close(session: Session, booking: Booking, new_status: BookingStatus, now: datetime,
+           note: str | None = None) -> None:
     booking.status = new_status
     booking.closed_at = now
     booking.close_note = note
+    job_sync.booking_closed(session, booking)  # its job reopens or completes (spec 2 R3.4, R3.5)
 
 
 def _void_unpaid_periods(session: Session, booking: Booking) -> None:
@@ -354,7 +396,7 @@ def cancel(session: Session, parent: User, booking_id: UUID, data: BookingClose,
             notifications.notify(session, admin_id, "Refund to approve",
                                  f"A parent cancelled a booking: {len(refunded)} lesson(s), "
                                  f"{notifications.naira(refund.amount)} to refund.", "/admin/refunds", email=False)
-    _close(booking, BookingStatus.cancelled, now, data.note)
+    _close(session, booking, BookingStatus.cancelled, now, data.note)
     session.add(booking)
     kept = len(_future_lessons(session, booking, now))
     notifications.notify(
@@ -376,10 +418,10 @@ def end(session: Session, user: User, booking_id: UUID, data: BookingClose, now:
     if booking.status == BookingStatus.requested:
         if user.id == booking.tutor_id:
             return decline(session, user, booking_id, data, now)
-        _close(booking, BookingStatus.cancelled, now, data.note)
+        _close(session, booking, BookingStatus.cancelled, now, data.note)
     elif booking.status == BookingStatus.accepted:
         _void_unpaid_periods(session, booking)
-        _close(booking, BookingStatus.ended, now, data.note)
+        _close(session, booking, BookingStatus.ended, now, data.note)
     elif booking.status in (BookingStatus.active, BookingStatus.paused):
         _void_unpaid_periods(session, booking)
         last_paid = session.exec(select(BookingPeriod).where(BookingPeriod.booking_id == booking.id,
@@ -388,7 +430,7 @@ def end(session: Session, user: User, booking_id: UUID, data: BookingClose, now:
         booking.end_date = last_paid.ends_on if last_paid else today_wat(now)
         booking.close_note = data.note
         if last_paid is None or last_paid.last_lesson_end_at <= now:
-            _close(booking, BookingStatus.ended, now, data.note)
+            _close(session, booking, BookingStatus.ended, now, data.note)
     else:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Booking is already {booking.status.value}")
     session.add(booking)
@@ -527,7 +569,7 @@ def expire_requests(session: Session, now: datetime) -> int:
     rows = session.exec(select(Booking).where(Booking.status == BookingStatus.requested,
                                               Booking.created_at <= now - REQUEST_TTL).with_for_update()).all()
     for booking in rows:
-        _close(booking, BookingStatus.expired, now)
+        _close(session, booking, BookingStatus.expired, now)
         session.add(booking)
         notifications.notify(session, booking.parent_id, "Booking request expired",
                              "The tutor didn't answer within 72 hours. You can book another tutor.", "/tutors")
@@ -586,7 +628,7 @@ def handle_missed_deadlines(session: Session, now: datetime) -> int:
         booking = _get(session, period.booking_id, lock=True)
         if booking.status == BookingStatus.accepted:
             period.status = PeriodStatus.expired
-            _close(booking, BookingStatus.released, now)
+            _close(session, booking, BookingStatus.released, now)
             text = "The first payment wasn't made in time, so the booking was released."
         else:
             period.status = PeriodStatus.missed
@@ -610,7 +652,7 @@ def end_finished_bookings(session: Session, now: datetime) -> int:
                                                 Booking.paused_at <= now - PAUSE_LIMIT).with_for_update()).all()
     for booking in paused:
         _void_unpaid_periods(session, booking)
-        _close(booking, BookingStatus.ended, now, "Ended after 7 days without payment")
+        _close(session, booking, BookingStatus.ended, now, "Ended after 7 days without payment")
         session.add(booking)
         for user_id in (booking.parent_id, booking.tutor_id):
             notifications.notify(session, user_id, "Booking ended",
@@ -626,7 +668,7 @@ def end_finished_bookings(session: Session, now: datetime) -> int:
         if schedule.plan_period(slots, booking.billing_period, latest.ends_on + timedelta(days=1),
                                 booking.end_date) is not None:
             continue
-        _close(booking, BookingStatus.ended, now, booking.close_note)
+        _close(session, booking, BookingStatus.ended, now, booking.close_note)
         session.add(booking)
         for user_id in (booking.parent_id, booking.tutor_id):
             notifications.notify(session, user_id, "Booking completed", "All lessons of the booking are done.",

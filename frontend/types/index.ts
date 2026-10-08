@@ -15,6 +15,9 @@ export type IssueKind = 'tutor_absent' | 'late_or_left_early' | 'agreement_broke
 export type IssueResolution = 'refund' | 'reschedule' | 'reject'
 export type TransferStatus = 'pending' | 'processing' | 'paid' | 'failed' | 'rejected'
 export type RefundStatus = 'pending' | 'approved' | 'rejected'
+export type JobStatus = 'open' | 'ongoing' | 'completed' | 'closed'
+export type ApplicationStatus = 'applied' | 'withdrawn' | 'chosen'
+export type CertificateType = 'WAEC' | 'NECO' | 'NABTEB' | 'NCE' | 'Degree' | 'PGDE' | 'TRCN' | 'Other'
 export type EntryKind = 'deposit' | 'period_payment' | 'refund' | 'withdrawal' | 'withdrawal_reversal'
 
 /** A weekly time range: 0 = Monday ... 6 = Sunday, times as "HH:MM:SS" (or "HH:MM" when sent). */
@@ -119,6 +122,7 @@ export interface Booking {
   id: string
   parent_id: string
   tutor_id: string
+  job_id: string | null // set when the booking came from a job post
   subjects: string[]
   level: Level
   mode: LessonMode
@@ -375,4 +379,70 @@ export interface AppNotification {
 export interface NotificationList {
   unread_count: number
   items: AppNotification[]
+}
+
+// ---------- Job posts (spec 2) ----------
+
+/** What a parent sends to post or edit a job. */
+export interface JobInput {
+  subjects: string[]
+  level: Level
+  mode: LessonMode
+  area: string | null
+  slots: WeeklyTime[]
+  start_date: string
+  end_date: string | null
+  billing_period: BillingPeriod
+  qualifications: string
+  min_certificate: CertificateType | null
+  other_requirements: string | null
+  price: number
+  child_strengths: string
+  child_weaknesses: string
+}
+
+export interface MyApplication {
+  id: string
+  job_id: string
+  note: string | null
+  status: ApplicationStatus
+  withdrawn_reason: string | null
+  created_at: string
+}
+
+/** One shape for both readers; fields a reader may not see are simply absent. */
+export interface Job extends JobInput {
+  id: string
+  status: JobStatus
+  created_at: string
+  // Parent
+  parent_price_per_lesson?: number
+  booking_id?: string | null
+  applicant_count?: number
+  // Tutor
+  tutor_fee_rate?: number
+  tutor_earning_per_lesson?: number
+  parent_first_name?: string
+  parent_photo_url?: string | null
+  my_application?: MyApplication | null
+}
+
+/** A tutor who applied, as the parent sees them. */
+export interface Applicant {
+  id: string
+  tutor_id: string
+  tutor_name: string | null
+  tutor_photo_url: string | null
+  average_rating: number | null
+  rating_count: number
+  note: string | null
+  status: ApplicationStatus
+  created_at: string
+}
+
+export interface JobFiltersValue {
+  subject?: string
+  level?: Level
+  mode?: LessonMode
+  area?: string
 }
