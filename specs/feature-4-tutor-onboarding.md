@@ -14,9 +14,10 @@ identity checked against the national NIN database, certificates authenticated, 
 ### R0. Tutor work email (built 2026-10-07)
 1. Tutors register with first name and surname as separate fields.
 2. On registration each tutor is assigned a work email: initial of the surname, a dot, the first name, `@tutorlink.com`. Anthony Ozioko → `o.anthony@tutorlink.com`; a second Anthony Ozioko gets `o.anthony2@tutorlink.com`.
-3. The work email is the tutor's **only** login, shown once after registration and sent to their personal email. It doesn't change if they change their name.
-4. Their personal email stays on the account, and every notification goes there.
-5. Parents and admins are excluded: they log in with their own email.
+3. The tutor doesn't choose a password: TutorLink generates one. The work email and the password are sent to the tutor's personal email, and the work email is also shown once after registration. The work email is the tutor's **only** login. It doesn't change if they change their name.
+4. Their personal email stays on the account, and every notification goes there. The work email is only for logging in: no email is ever sent to it.
+5. Any user can change their password from their profile (current password + new password). Tutors use this to replace the generated one.
+6. Parents and admins are excluded: they choose their own password and log in with their own email.
 
 > **Open question for R1:** Google sign-in conflicts with R0.3 for tutors. Decide whether tutors use Google at all before building R1.
 
@@ -91,10 +92,15 @@ identity checked against the national NIN database, certificates authenticated, 
 - Google sign-in for admins.
 
 ## Acceptance criteria
+- [x] R0: A tutor registering as Anthony Ozioko gets `o.anthony@tutorlink.com`; the next one gets `o.anthony2@tutorlink.com`.
+- [x] R0: A tutor can't send a password at registration (422). The generated password and the work email are emailed to their personal email, and they work together to log in.
+- [x] R0: Logging in with a tutor's personal email fails and, only when the password is right, names the work email.
+- [x] R0: No email is ever sent to a work email. Changing name keeps the work email.
+- [x] R0: A user changes their password with the current one; a wrong current password is a 422.
 - [ ] A forged, expired, wrong-audience or unverified-email Google token gets 401.
 - [ ] A Google login for an existing email signs into that account. For a new email it requires a role and profile.
 - [ ] A parent without a profile picture gets 409 on booking request and job post. A tutor without one can't start the NIN step.
-- [ ] A picture over 5 MB or not JPG/PNG/WebP is rejected.
+- [x] A picture over 5 MB or not JPG/PNG/WebP is rejected.
 - [ ] A parent's picture is shown to tutors on that parent's job posts, booking requests and bookings, and isn't returned to unauthenticated users.
 - [ ] Approving a tutor without verified NIN, a verified certificate and a passed quiz is a 409, naming what's missing.
 - [ ] No API response or database column contains a full NIN, selfie or NIN photo.

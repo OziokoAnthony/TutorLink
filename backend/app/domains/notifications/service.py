@@ -105,13 +105,16 @@ def mark_read(session: Session, user_id: UUID, notification_id: UUID | None) -> 
 
 # ---------- Account emails (email only) ----------
 
-def tutor_application_received(to: str, name: str, work_email: str) -> None:
+def tutor_application_received(to: str, name: str, work_email: str, password: str) -> None:
+    """Sends the tutor their login: work email and generated password. Their work email never gets mail."""
     send_email(
         to,
         "We received your application",
         _wrap(name, "<p>Thanks for applying to tutor on TutorLink. We'll review your profile and get back to you soon.</p>"
-                    f"<p>Your TutorLink email is <strong>{escape(work_email)}</strong>. Use it with your password "
-                    "every time you log in. We'll keep sending messages to this address.</p>"),
+                    "<p>Log in to TutorLink with:</p>"
+                    f"<p>Email: <strong>{escape(work_email)}</strong><br>Password: <strong>{escape(password)}</strong></p>"
+                    "<p>You can change your password in your profile once you've logged in. "
+                    "Your TutorLink email is only for logging in: we'll keep sending messages to this address.</p>"),
     )
 
 

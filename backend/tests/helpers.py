@@ -5,6 +5,7 @@ import hmac
 import io
 import json
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -151,11 +152,12 @@ def offer(subjects=("Mathematics",), level: str = "senior_secondary", price: str
 
 def register_tutor(client, email: str | None = None, full_name: str = "Tunde Tutor", area: str = "Lekki",
                    offers: list | None = None, **offer_kwargs) -> dict:
-    """`full_name` is split into first name (first word) and surname (the rest)."""
+    """`full_name` is split into first name (first word) and surname (the rest). The tutor logs in with
+    the work email and PASSWORD (the `tutor_password` fixture stands in for the generated password)."""
     email = email or unique_email("tutor")
     first_name, _, surname = full_name.partition(" ")
     response = client.post("/v1/auth/register", json={
-        "email": email, "password": PASSWORD, "role": "tutor", "first_name": first_name, "surname": surname,
+        "email": email, "role": "tutor", "first_name": first_name, "surname": surname,
         "area": area, "offers": offers or [offer(**offer_kwargs)],
     })
     assert response.status_code == 201, response.text
@@ -239,6 +241,18 @@ def lessons(client, user: dict, role: str = "parent") -> list[dict]:
     response = client.get(path, headers=user["headers"])
     assert response.status_code == 200, response.text
     return response.json()
+
+
+def assert_ledger_matches(client, db, parent: dict):
+    """Spec 1 R3.4: the balance shown to the parent always equals the sum of their ledger entries."""
+    from sqlmodel import func, select
+
+    from app.domains.payments.models import WalletEntry
+
+    total = db.exec(select(func.coalesce(func.sum(WalletEntry.amount), 0))
+                    .where(WalletEntry.parent_id == parent["id"])).one()
+    balance = client.get("/v1/wallet/me", headers=parent["headers"]).json()["balance"]
+    assert Decimal(balance) == Decimal(total)
 
 
 def run_jobs(db, clock: FakeClock):

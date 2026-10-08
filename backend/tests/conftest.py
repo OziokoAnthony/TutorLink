@@ -18,6 +18,7 @@ from app.core import clock as clock_module
 from app.core import paystack as paystack_client
 from app.core import security
 from app.core.config import settings
+from app.domains.auth import service as auth_service
 from app.db import models  # noqa: F401  (registers every table for TRUNCATE)
 from app.db.session import get_session
 from app.domains.notifications import service as notifications
@@ -102,6 +103,13 @@ def test_settings(monkeypatch, tmp_path):
         monkeypatch.setattr(settings, name, "")
     monkeypatch.setattr(settings, "LOCAL_STORAGE_DIR", str(tmp_path / "storage"))
     monkeypatch.setattr(settings, "RUN_SCHEDULER", False)
+
+
+@pytest.fixture(autouse=True)
+def tutor_password(monkeypatch):
+    """Tutors are emailed a generated password; tests get the known helpers.PASSWORD instead."""
+    monkeypatch.setattr(auth_service, "generate_password", lambda: helpers.PASSWORD)
+    return helpers.PASSWORD
 
 
 @pytest.fixture(autouse=True)

@@ -5,9 +5,10 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from app.core.security import create_access_token, get_password_hash, verify_password
+from app.core.security import create_access_token, generate_password, get_password_hash, verify_password
 from app.domains.auth import photos, work_email
 from app.domains.auth.models import (
+    ChangePasswordRequest,
     LoginRequest,
     MeResponse,
     ParentProfile,
@@ -68,7 +69,9 @@ def register(session: Session, data: RegisterRequest) -> MeResponse:
     if get_user_by_email(session, email):
         raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
 
-    user = User(email=email, password_hash=get_password_hash(data.password), role=data.role)
+    # Tutors get a generated password, emailed with their work email (spec 4 R0.3).
+    password = generate_password() if data.role == UserRole.tutor else data.password
+    user = User(email=email, password_hash=get_password_hash(password), role=data.role)
     if data.role == UserRole.tutor:
         user.work_email = work_email.next_work_email(session, data.first_name, data.surname)
     try:
@@ -94,7 +97,7 @@ def register(session: Session, data: RegisterRequest) -> MeResponse:
 
     session.refresh(user)
     if user.role == UserRole.tutor:
-        notifications.tutor_application_received(user.email, data.full_name, user.work_email)
+        notifications.tutor_application_received(user.email, data.full_name, user.work_email, password)
     return build_me(session, user)
 
 
@@ -116,6 +119,14 @@ def login(session: Session, data: LoginRequest) -> TokenResponse:
             headers={"WWW-Authenticate": "Bearer"},
         )
     return TokenResponse(access_token=create_access_token(str(user.id), user.role.value))
+
+
+def change_password(session: Session, user: User, data: ChangePasswordRequest) -> None:
+    if not verify_password(data.current_password, user.password_hash):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Your current password is incorrect")
+    user.password_hash = get_password_hash(data.new_password)
+    session.add(user)
+    session.commit()
 
 
 def remove_photo(session: Session, user_id: UUID) -> None:

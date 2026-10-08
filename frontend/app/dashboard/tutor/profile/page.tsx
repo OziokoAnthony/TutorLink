@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { RatingSummary } from '@/components/reviews/StarRating'
+import ChangePasswordCard from '@/components/shared/ChangePasswordCard'
 import FormField from '@/components/shared/FormField'
 import PhotoUploader from '@/components/shared/PhotoUploader'
 import OfferFields, { EMPTY_OFFER, offerProblem } from '@/components/tutors/OfferFields'
@@ -192,6 +193,7 @@ export default function TutorProfilePage() {
           </CardContent>
         </Card>
         {profile && <OffersSection />}
+        <ChangePasswordCard description="Replace the password we emailed you when you registered." />
       </div>
     </>
   )

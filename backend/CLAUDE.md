@@ -62,8 +62,10 @@ Alembic migration per spec or build step in `alembic/versions/`.
 - **Tutor work emails.** Each tutor is assigned `users.work_email` at registration
   (`app/domains/auth/work_email.py`: surname initial + "." + first name @ `TUTOR_EMAIL_DOMAIN`,
   e.g. `o.anthony@tutorlink.com`, numbered on a clash). It is the tutor's only login and never
-  changes, even when they rename themselves. `users.email` stays their personal address, where every
-  email is sent. Parents and admins log in with `users.email`.
+  changes, even when they rename themselves. Tutors don't choose a password: `security.generate_password()`
+  makes one, and both are emailed to `users.email`, their personal address, where every email is sent
+  (nothing is ever sent to the work email). Tests pin the generated password to `helpers.PASSWORD`
+  (`tutor_password` fixture). Parents and admins choose a password and log in with `users.email`.
 - **Errors.** Raise `HTTPException` with a plain-English `detail` the frontend can show as is:
   404 when it doesn't exist, 403 for the wrong role or someone else's resource, 409 for a state
   conflict, 422 for invalid input.

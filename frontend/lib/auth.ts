@@ -5,7 +5,7 @@ import type { ParentProfile, Role, TutorToRate, UserMe } from '@/types'
 
 export interface RegisterInput {
   email: string
-  password: string
+  password?: string // parents only: tutors are emailed a generated password
   role: 'parent' | 'tutor'
   // Parents give a full name; tutors give first name and surname, which make their work email.
   full_name?: string
@@ -63,6 +63,10 @@ function toUserMe(data: RawMe): UserMe {
 export async function getMe(): Promise<UserMe> {
   const { data } = await api.get<RawMe>('/auth/me')
   return toUserMe(data)
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await api.put('/auth/me/password', { current_password: currentPassword, new_password: newPassword })
 }
 
 /** JPG, PNG or WebP up to 5 MB; the backend crops it to a square. */

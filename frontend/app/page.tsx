@@ -11,12 +11,12 @@ const STEPS = [
   {
     icon: CalendarCheck,
     title: 'Book',
-    text: 'Book a weekly slot that suits your family. Lessons recur every week.',
+    text: 'Request weekly lesson times that suit your family. The tutor accepts, and lessons recur every week.',
   },
   {
     icon: Wallet,
-    title: 'Pay confirmed lessons',
-    text: 'Confirm each lesson after it happens. Your monthly invoice only includes confirmed lessons.',
+    title: 'Pay before lessons',
+    text: 'Pay by bank transfer into your own TutorLink account number. If a lesson goes wrong, report it and we can refund it.',
   },
 ]
 
@@ -26,11 +26,11 @@ export default function LandingPage() {
       <section className="border-b bg-gradient-to-b from-accent/60 to-background">
         <div className="mx-auto max-w-4xl px-4 py-20 text-center md:py-28">
           <h1 className="text-balance text-4xl font-bold tracking-tight md:text-5xl">
-            Find a vetted home tutor. Pay only for lessons that happened.
+            Find a vetted home tutor. Pay by bank transfer, protected if a lesson goes wrong.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
             TutorLink connects Nigerian parents with checked, qualified tutors for weekly home lessons,
-            billed monthly for the lessons you confirm.
+            paid daily, weekly or monthly before they happen.
           </p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <Button size="lg" asChild><Link href="/tutors">Find a Tutor</Link></Button>

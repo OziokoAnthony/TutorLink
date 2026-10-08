@@ -55,6 +55,30 @@ def test_only_admins_see_the_full_account_number(client, db, clock, paystack, pa
     assert client.get("/v1/admin/payouts/due", headers=tutor["headers"]).status_code == 403
 
 
+def test_weekly_earnings_are_due_48_hours_after_the_weeks_last_lesson(client, db, clock, paystack, parent, tutor,
+                                                                     admin_headers):
+    """Spec 1 R6.2: a weekly booking with Monday and Wednesday lessons; both earnings are due 48 hours
+    after Wednesday's lesson, not 48 hours after each one."""
+    monday = helpers.days_ahead(3)
+    monday += timedelta(days=-monday.weekday() % 7)
+    slots = [{"day_of_week": day, "start_time": "15:00", "end_time": "16:00"} for day in (0, 2)]
+    booking = helpers.paid_booking(client, paystack, parent, tutor, start_date=monday, slots=slots,
+                                   billing_period="weekly")
+    week = sorted((l for l in helpers.lessons(client, parent) if l["booking_id"] == booking["id"]),
+                  key=lambda l: l["starts_at"])[:2]
+    assert [datetime.fromisoformat(l["starts_at"]).weekday() for l in week] == [0, 2]
+    for lesson in week:
+        clock.set(datetime.fromisoformat(lesson["ends_at"]) + timedelta(minutes=5))
+        assert helpers.report(client, tutor, lesson["id"]).status_code == 200
+    clock.travel(hours=24, minutes=1)
+    helpers.run_jobs(db, clock)
+
+    due = client.get("/v1/admin/payouts/due", headers=admin_headers).json()
+    assert len(due) == 1 and due[0]["lesson_count"] == 2 and due[0]["amount"] == "9200.00"
+    last_ends = datetime.fromisoformat(week[-1]["ends_at"])
+    assert datetime.fromisoformat(due[0]["due_at"]) == last_ends + timedelta(hours=48)
+
+
 def test_payout_due_48_hours_after_the_periods_last_lesson(client, db, clock, paystack, parent, tutor, admin_headers):
     lesson = payable_lesson(client, db, clock, paystack, parent, tutor)
     due = client.get("/v1/admin/payouts/due", headers=admin_headers).json()

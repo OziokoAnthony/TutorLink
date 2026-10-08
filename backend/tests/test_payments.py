@@ -4,9 +4,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlmodel import func, select
 
-from app.domains.payments.models import WalletEntry
 from tests import helpers
 
 
@@ -28,10 +26,7 @@ def booking_status(client, parent, booking) -> str:
     return client.get(f"/v1/bookings/{booking['id']}", headers=parent["headers"]).json()["status"]
 
 
-def assert_ledger_matches(client, db, parent):
-    total = db.exec(select(func.coalesce(func.sum(WalletEntry.amount), 0))
-                    .where(WalletEntry.parent_id == parent["id"])).one()
-    assert Decimal(wallet(client, parent)["balance"]) == Decimal(total)
+assert_ledger_matches = helpers.assert_ledger_matches
 
 
 def test_full_flow_request_accept_transfer_pay_lessons(client, db, paystack, parent, tutor):

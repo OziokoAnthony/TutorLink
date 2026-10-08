@@ -62,9 +62,11 @@ up, then truncate the tables before each test. Emails and Paystack calls are fak
   admin approves it.
 - **Tutor work emails.** Registration assigns each tutor a work email: initial of the surname, a
   dot, the first name, at `TUTOR_EMAIL_DOMAIN` (`o.anthony@tutorlink.com`; the next Anthony Ozioko
-  gets `o.anthony2@…`). It's returned as `user.work_email`, emailed to the tutor, and is their only
-  login: logging in with their personal email gets a 401 naming the work email. Nobody can register
-  with an address at that domain. Parents and admins log in with their own email.
+  gets `o.anthony2@…`). It's returned as `user.work_email` and is their only login: logging in with
+  their personal email gets a 401 naming the work email. Tutors don't send a `password` when they
+  register: TutorLink generates one and emails it, with the work email, to their personal email
+  (nothing is ever sent to the work email). `PUT /auth/me/password` changes it. Nobody can register
+  with an address at that domain. Parents and admins choose a password and log in with their own email.
 - The same booking or lesson comes back in a different shape for the parent, the tutor and the
   admin, so each side sees only its own fee figures (spec 1, R1).
 - `GET /health` is an unversioned copy of `GET /v1/health`, for load balancers and container

@@ -28,6 +28,8 @@ def test_parent_requests_a_booking_and_tutor_is_notified(client, parent, tutor):
     assert booking["status"] == "requested"
     assert booking["price"] == "5000.00"
     assert booking["child_strengths"] == helpers.STRENGTHS
+    as_tutor = client.get(f"/v1/bookings/{booking['id']}", headers=tutor["headers"]).json()
+    assert as_tutor["child_strengths"] == helpers.STRENGTHS and as_tutor["child_weaknesses"] == helpers.WEAKNESSES
     notes = client.get("/v1/notifications/me", headers=tutor["headers"]).json()
     assert notes["unread_count"] == 1 and notes["items"][0]["title"] == "New booking request"
 
@@ -208,7 +210,8 @@ def test_fees_are_admin_only(client, parent):
 
 # ---------- Cancelling and ending ----------
 
-def test_cancel_with_48_hours_notice_requests_refund_of_agreed_price(client, paystack, parent, tutor, admin_headers):
+def test_cancel_with_48_hours_notice_requests_refund_of_agreed_price(client, db, paystack, parent, tutor,
+                                                                    admin_headers):
     booking = helpers.paid_booking(client, paystack, parent, tutor)  # first lesson in 3 days
     response = client.post(f"/v1/bookings/{booking['id']}/cancel", headers=parent["headers"], json={})
     assert response.status_code == 200 and response.json()["status"] == "cancelled"
@@ -219,6 +222,7 @@ def test_cancel_with_48_hours_notice_requests_refund_of_agreed_price(client, pay
     approved = client.post(f"/v1/admin/refunds/{refund['id']}/approve", headers=admin_headers, json={})
     assert approved.json()["status"] == "approved"
     assert client.get("/v1/wallet/me", headers=parent["headers"]).json()["balance"] == "5000.00"
+    helpers.assert_ledger_matches(client, db, parent)
 
 
 def test_cancel_with_less_than_48_hours_notice_refunds_nothing(client, paystack, clock, parent, tutor, admin_headers):

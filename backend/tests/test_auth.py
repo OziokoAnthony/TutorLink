@@ -7,6 +7,7 @@ def register(client, **overrides):
             "full_name": "Ada Parent"}
     if overrides.get("role") == "tutor":
         body = {**body, "full_name": None, "first_name": "Anthony", "surname": "Ozioko"}
+        del body["password"]
     body.update(overrides)
     return client.post("/v1/auth/register", json=body)
 

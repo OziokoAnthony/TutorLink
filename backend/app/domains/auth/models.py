@@ -44,7 +44,8 @@ class ParentProfile(BaseUUIDModel, table=True):
 
 class RegisterRequest(SQLModel):
     email: EmailStr
-    password: str = Field(min_length=8, max_length=72)  # bcrypt only uses the first 72 bytes
+    # Parents choose a password. Tutors don't: TutorLink generates one and emails it with their work email.
+    password: str | None = Field(default=None, min_length=8, max_length=72)  # bcrypt only uses the first 72 bytes
     role: UserRole
     full_name: str | None = Field(default=None, min_length=1, max_length=200)  # parents
     # Tutors give their names separately; full_name is built from them and their work email from both.
@@ -63,20 +64,30 @@ class RegisterRequest(SQLModel):
         if self.role == UserRole.admin:
             raise ValueError("role must be 'parent' or 'tutor'")
         if self.role == UserRole.tutor:
+            if self.password is not None:
+                raise ValueError("tutors don't choose a password: we email one to them with their TutorLink email")
             if not self.area or not self.offers:
                 raise ValueError("tutors must provide area and at least one offer")
             self.first_name, self.surname = clean_name_part(self.first_name), clean_name_part(self.surname)
             if not self.first_name or not self.surname:
                 raise ValueError("tutors must provide first_name and surname")
             self.full_name = f"{self.first_name} {self.surname}"
-        elif not self.full_name or not self.full_name.strip():
-            raise ValueError("full_name is required")
+        else:
+            if not self.full_name or not self.full_name.strip():
+                raise ValueError("full_name is required")
+            if self.password is None:
+                raise ValueError("password is required")
         return self
 
 
 class LoginRequest(SQLModel):
     email: EmailStr
     password: str
+
+
+class ChangePasswordRequest(SQLModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=72)
 
 
 class TokenResponse(SQLModel):

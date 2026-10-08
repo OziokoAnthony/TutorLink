@@ -130,7 +130,7 @@ def resolve(client, admin_headers, lesson, **body):
     return client.post(f"/v1/admin/lessons/{lesson['id']}/resolve", headers=admin_headers, json=body)
 
 
-def test_refund_returns_the_agreed_price_without_the_fee_and_voids_the_earning(client, clock, parent, tutor,
+def test_refund_returns_the_agreed_price_without_the_fee_and_voids_the_earning(client, db, clock, parent, tutor,
                                                                               admin_headers, lesson):
     clock.set(ends(lesson) + timedelta(hours=1))
     problem(client, parent, lesson)
@@ -140,6 +140,7 @@ def test_refund_returns_the_agreed_price_without_the_fee_and_voids_the_earning(c
     assert wallet["balance"] == "5000.00"  # paid 5,500; the 10% fee isn't refunded
     assert wallet["entries"][0]["kind"] == "refund"
     assert state(client, tutor, "tutor")["earning_status"] == "void"
+    helpers.assert_ledger_matches(client, db, parent)
 
 
 def test_reschedule_moves_the_lesson_and_clears_the_report(client, clock, parent, tutor, admin_headers, lesson):
@@ -181,3 +182,10 @@ def test_resolving_is_admin_only(client, clock, parent, lesson):
 def test_tutor_view_hides_parent_price_and_parent_view_hides_earning(client, parent, tutor, lesson):
     assert "tutor_earning" not in state(client, parent) and "earning_status" not in state(client, parent)
     assert "parent_price" not in state(client, tutor, "tutor")
+
+
+def test_parents_no_longer_confirm_lessons(client, parent, lesson):
+    """Spec 1 R4.1: paying confirms the lessons; the old parent confirm step is gone."""
+    assert lesson["status"] == "confirmed"
+    response = client.post(f"/v1/lessons/{lesson['id']}/confirm", headers=parent["headers"], json={})
+    assert response.status_code in (404, 405)

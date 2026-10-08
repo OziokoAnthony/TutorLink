@@ -114,27 +114,27 @@ Booking requested (tutor) · taken or declined (parent) · payment due with acco
 - Moving money between parents.
 
 ## Acceptance criteria
-- [ ] Parent, tutor and admin responses for the same booking match the R1 visibility table. A test checks that every parent-facing response has no tutor fee or earning fields, and every tutor-facing response has no parent fee or parent total fields.
-- [ ] Changing S% or T% doesn't change the amounts of an already-accepted booking.
-- [ ] Booking request → accept → transfer webhook → balance credited → first period paid → lessons created. All covered by one test.
-- [ ] A tutor can't finish registration without at least one offer. An offer with two subjects has one price.
-- [ ] A booking slot outside the offer's availability windows is a 422.
-- [ ] Editing an offer's price or times after a booking is accepted doesn't change that booking.
-- [ ] With S = 10% and T = 8%, a ₦5,000 lesson shows ₦5,500 to the parent and ₦4,600 to the tutor.
-- [ ] A booking request without the child's strengths or weaknesses is a 422. The tutor sees both on the request.
-- [ ] An accepted booking not paid 24 hours before its first lesson is released, and its slots can be booked again.
-- [ ] Paying a period creates its lessons already confirmed. There is no parent confirm endpoint.
-- [ ] A lesson's earning becomes payable 24 hours after its report if no problem is reported. A lesson with no report 24 hours after it ends is flagged and its earning held.
-- [ ] Cancelling with 48 or more hours' notice creates a refund request for those lessons. Cancelling with less refunds nothing.
-- [ ] A weekly booking's earnings are due for payout 48 hours after the week's last lesson.
-- [ ] An unanswered request expires after 72 hours.
-- [ ] A duplicate or forged deposit webhook doesn't credit the balance twice or at all.
-- [ ] The balance equals the sum of ledger entries after every operation tested.
-- [ ] An approved refund credits P per lesson (not P × (1 + S%)) to the balance, and the tutor earning becomes void.
-- [ ] Earnings under an open problem report never appear as payable.
-- [ ] An earning can't be paid twice, and a failed transfer makes it payable again.
-- [ ] Tutor bank account number is absent from every non-admin response except the tutor's own last 4 digits.
-- [ ] `POST /invoices/{id}/pay` and card checkout are gone from the backend and frontend.
+- [x] Parent, tutor and admin responses for the same booking match the R1 visibility table. A test checks that every parent-facing response has no tutor fee or earning fields, and every tutor-facing response has no parent fee or parent total fields.
+- [x] Changing S% or T% doesn't change the amounts of an already-accepted booking.
+- [x] Booking request → accept → transfer webhook → balance credited → first period paid → lessons created. All covered by one test.
+- [x] A tutor can't finish registration without at least one offer. An offer with two subjects has one price.
+- [x] A booking slot outside the offer's availability windows is a 422.
+- [x] Editing an offer's price or times after a booking is accepted doesn't change that booking.
+- [x] With S = 10% and T = 8%, a ₦5,000 lesson shows ₦5,500 to the parent and ₦4,600 to the tutor.
+- [x] A booking request without the child's strengths or weaknesses is a 422. The tutor sees both on the request.
+- [x] An accepted booking not paid 24 hours before its first lesson is released, and its slots can be booked again.
+- [x] Paying a period creates its lessons already confirmed. There is no parent confirm endpoint.
+- [x] A lesson's earning becomes payable 24 hours after its report if no problem is reported. A lesson with no report 24 hours after it ends is flagged and its earning held.
+- [x] Cancelling with 48 or more hours' notice creates a refund request for those lessons. Cancelling with less refunds nothing.
+- [x] A weekly booking's earnings are due for payout 48 hours after the week's last lesson.
+- [x] An unanswered request expires after 72 hours.
+- [x] A duplicate or forged deposit webhook doesn't credit the balance twice or at all.
+- [x] The balance equals the sum of ledger entries after every operation tested.
+- [x] An approved refund credits P per lesson (not P × (1 + S%)) to the balance, and the tutor earning becomes void.
+- [x] Earnings under an open problem report never appear as payable.
+- [x] An earning can't be paid twice, and a failed transfer makes it payable again.
+- [x] Tutor bank account number is absent from every non-admin response except the tutor's own last 4 digits.
+- [x] `POST /invoices/{id}/pay` and card checkout are gone from the backend and frontend.
 
 ## Assumptions
 - There is no production data. Existing schedules, sessions and invoices are dev or test data, so the old monthly invoice tables can be replaced instead of migrated.

@@ -6,7 +6,7 @@ from sqlmodel import Session
 from app.core.deps import get_current_user, require_roles
 from app.db.session import get_session
 from app.domains.auth import photos, service
-from app.domains.auth.models import LoginRequest, MeResponse, RegisterRequest, TokenResponse, User, UserRole
+from app.domains.auth.models import ChangePasswordRequest, LoginRequest, MeResponse, RegisterRequest, TokenResponse, User, UserRole
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
@@ -27,6 +27,13 @@ def login(data: LoginRequest, session: Session = Depends(get_session)):
 @router.get("/me", response_model=MeResponse)
 def me(user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     return service.build_me(session, user)
+
+
+@router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(data: ChangePasswordRequest, user: User = Depends(get_current_user),
+                    session: Session = Depends(get_session)):
+    """Tutors use this to replace the password emailed to them at registration."""
+    service.change_password(session, user, data)
 
 
 @router.put("/me/photo", response_model=MeResponse)
