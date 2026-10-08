@@ -1,24 +1,28 @@
 import Cookies from 'js-cookie'
 import api, { TOKEN_COOKIE } from '@/lib/api'
-import { toTutorProfile, type RawTutorProfile } from '@/lib/tutors'
+import { toTutorProfile, type OfferInput } from '@/lib/tutors'
 import type { ParentProfile, Role, TutorToRate, UserMe } from '@/types'
 
 export interface RegisterInput {
   email: string
-  password: string
+  password?: string // parents only: tutors are emailed a generated password
   role: 'parent' | 'tutor'
-  full_name: string
+  // Parents give a full name; tutors give first name and surname, which make their work email.
+  full_name?: string
+  first_name?: string
+  surname?: string
   phone?: string
   address?: string
+  // Tutors: area and at least one offer
   area?: string
-  rate_per_session?: number
   bio?: string
+  offers?: OfferInput[]
 }
 
 interface RawMe {
-  user: { id: string; email: string; role: Role }
+  user: { id: string; email: string; work_email: string | null; role: Role; photo_url: string | null }
   parent_profile: ParentProfile | null
-  tutor_profile: RawTutorProfile | null
+  tutor_profile: unknown | null
   tutors_to_rate: TutorToRate[]
 }
 
@@ -28,8 +32,10 @@ export const ROLE_HOME: Record<Role, string> = {
   admin: '/admin/tutors',
 }
 
-export async function register(input: RegisterInput): Promise<void> {
-  await api.post('/auth/register', input)
+/** Creates the account. For a tutor, returns the work email they must log in with. */
+export async function register(input: RegisterInput): Promise<{ work_email: string | null }> {
+  const { data } = await api.post<RawMe>('/auth/register', input)
+  return { work_email: data.user.work_email ?? null }
 }
 
 /** Logs in and stores the JWT cookie. */
@@ -42,15 +48,38 @@ export async function login(email: string, password: string): Promise<void> {
   })
 }
 
-export async function getMe(): Promise<UserMe> {
-  const { data } = await api.get<RawMe>('/auth/me')
+function toUserMe(data: RawMe): UserMe {
   return {
     id: data.user.id,
     email: data.user.email,
+    work_email: data.user.work_email ?? null,
     role: data.user.role,
+    photo_url: data.user.photo_url ?? null,
     profile: data.tutor_profile ? toTutorProfile(data.tutor_profile) : data.parent_profile,
     tutors_to_rate: data.tutors_to_rate ?? [],
   }
+}
+
+export async function getMe(): Promise<UserMe> {
+  const { data } = await api.get<RawMe>('/auth/me')
+  return toUserMe(data)
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await api.put('/auth/me/password', { current_password: currentPassword, new_password: newPassword })
+}
+
+/** JPG, PNG or WebP up to 5 MB; the backend crops it to a square. */
+export async function uploadPhoto(file: File): Promise<UserMe> {
+  const form = new FormData()
+  form.append('file', file)
+  const { data } = await api.put<RawMe>('/auth/me/photo', form)
+  return toUserMe(data)
+}
+
+/** Admin: remove an inappropriate profile picture. */
+export async function removeUserPhoto(userId: string): Promise<void> {
+  await api.delete(`/admin/users/${userId}/photo`)
 }
 
 export function logout(): void {

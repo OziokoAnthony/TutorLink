@@ -4,3 +4,6 @@ __pycache__/
 .env
 .pytest_cache/
 *.db
+
+# Uploaded files while R2 is not configured (development only)
+storage/

@@ -1,140 +1,109 @@
 # TutorLink
 
 Home tutoring platform for Nigerian parents: find vetted tutors, book recurring weekly lessons,
-and pay monthly, only for lessons the parent confirmed.
+and pay ahead by bank transfer. TutorLink pays tutors after the lessons. What the product does is
+specified in [`specs/`](specs/).
 
 | Folder | What | Stack |
 |---|---|---|
 | [`backend/`](backend/) | REST API at `http://localhost:8000/v1` | FastAPI, SQLModel, PostgreSQL 16, Alembic, Paystack, Resend |
 | [`frontend/`](frontend/) | Web app at `http://localhost:3000` | Next.js 14, TypeScript, Tailwind, shadcn/ui |
 
-Each app has its own `README.md` (how to run it) and `CLAUDE.md` (its spec).
+Each app has its own `README.md` (how to run it) and `CLAUDE.md` (how to work on it).
 
 ## Data model (ERD)
 
-PostgreSQL schema, from the SQLModel tables in `backend/app/domains/*/models.py`.
-Every table except `tutor_subjects`, `invoice_items` and `webhook_events` also has `created_at` and `updated_at`.
+PostgreSQL schema, from the SQLModel tables in `backend/app/domains/*/models.py` (key columns only).
+Money is `NUMERIC` naira; times are `timestamptz`, and lesson dates and times are Nigerian local time (WAT).
 
 ```mermaid
 erDiagram
     users ||--o| parent_profiles : "has (parent)"
     users ||--o| tutor_profiles : "has (tutor)"
-    users |o--o{ tutor_profiles : "vets (admin)"
-    tutor_profiles ||--o{ tutor_subjects : teaches
-    users ||--o{ schedules : "books (parent)"
-    users ||--o{ schedules : "is booked (tutor)"
-    schedules ||--o{ sessions : generates
-    users |o--o{ sessions : "logs (tutor)"
-    users |o--o{ sessions : "confirms (parent)"
-    users ||--o{ invoices : "is billed (parent)"
-    invoices ||--|{ invoice_items : contains
-    sessions ||--o| invoice_items : "billed as"
-    users ||--o{ invoice_items : "earns (tutor)"
-    users ||--o{ tutor_reviews : "writes (parent)"
-    users ||--o{ tutor_reviews : "receives (tutor)"
+    users ||--o{ tutor_offers : "offers (tutor)"
+    tutor_offers ||--|{ tutor_offer_subjects : covers
+    tutor_offers ||--|{ tutor_offer_windows : "available in"
+    users ||--o| tutor_bank_accounts : "is paid into (tutor)"
+    users ||--o{ bookings : "requests (parent) / teaches (tutor)"
+    tutor_offers ||--o{ bookings : "booked from"
+    bookings ||--|{ booking_slots : "meets in"
+    bookings ||--o{ booking_periods : "billed in"
+    booking_periods ||--o{ lessons : "pays for"
+    lessons ||--o| lesson_issues : "has problem"
+    payouts ||--o{ lessons : "pays earnings of"
+    users ||--o{ payouts : "receives (tutor)"
+    users ||--o| virtual_accounts : "pays into (parent)"
+    users ||--o{ wallet_entries : "balance of (parent)"
+    booking_periods ||--o| wallet_entries : "paid by"
+    refunds ||--o| wallet_entries : "credited by"
+    withdrawals ||--o{ wallet_entries : "debited by"
+    bookings ||--o{ refunds : "refunded on"
+    users ||--o{ withdrawals : "requests (parent)"
+    users ||--o{ tutor_reviews : "writes (parent) / gets (tutor)"
+    users ||--o{ notifications : receives
 
-    users {
-        uuid id PK
-        string email UK
-        string password_hash
-        user_role role "parent | tutor | admin"
-        bool is_active
-    }
-    parent_profiles {
-        uuid id PK
-        uuid user_id FK,UK
-        string full_name
-        string phone
-        text address
-    }
-    tutor_profiles {
-        uuid id PK
-        uuid user_id FK,UK
-        string full_name
-        string phone
-        text bio
-        string area
-        decimal rate_per_session
-        vetting_status vetting_status "pending | approved | rejected"
-        text vetting_note
-        uuid vetted_by FK "admin user"
-        timestamptz vetted_at
-    }
-    tutor_subjects {
-        uuid id PK
-        uuid tutor_profile_id FK
-        string subject
-        education_level level "primary | junior_secondary | senior_secondary"
-        timestamptz created_at
-    }
-    schedules {
-        uuid id PK
+    tutor_offers {
         uuid tutor_id FK
+        level level
+        decimal price "agreed price P per lesson"
+        bool is_active "false once removed"
+    }
+    bookings {
         uuid parent_id FK
-        smallint day_of_week "0=Mon ... 6=Sun"
-        time start_time
-        time end_time
-        string subject
-        education_level level
-        bool is_active
-    }
-    sessions {
-        uuid id PK
-        uuid schedule_id FK "unique with session_date"
-        date session_date
-        text topic_covered
-        text homework
-        session_status status "scheduled | logged | confirmed | cancelled"
-        uuid logged_by FK
-        timestamptz logged_at
-        uuid confirmed_by FK
-        timestamptz confirmed_at
-    }
-    invoices {
-        uuid id PK
-        uuid parent_id FK "unique with month + year"
-        smallint billing_month
-        smallint billing_year
-        int total_sessions
-        decimal subtotal
-        decimal commission_rate
-        decimal commission_amount
-        decimal total_amount
-        string paystack_reference
-        invoice_status status "pending | paid | failed"
-        timestamptz paid_at
-    }
-    invoice_items {
-        uuid id PK
-        uuid invoice_id FK
-        uuid session_id FK,UK
         uuid tutor_id FK
-        date session_date
-        decimal amount
-        decimal commission_amount
-        timestamptz created_at
+        uuid offer_id FK
+        string_array subjects
+        billing_period billing_period "daily | weekly | monthly"
+        decimal price "P, copied at request time"
+        decimal parent_fee_rate "S, frozen at accept"
+        decimal tutor_fee_rate "T, frozen at accept"
+        booking_status status "requested | accepted | active | paused | ended | declined | expired | released | cancelled"
     }
-    tutor_reviews {
-        uuid id PK
-        uuid tutor_id FK "unique with parent_id"
+    booking_periods {
+        uuid booking_id FK "unique with starts_on"
+        date starts_on
+        date ends_on
+        decimal amount "what the parent pays"
+        timestamptz due_at "24 h before first lesson"
+        period_status status "due | paid | missed | expired | void"
+    }
+    lessons {
+        uuid booking_id FK "unique with starts_at"
+        uuid period_id FK
+        timestamptz starts_at
+        lesson_status status "confirmed | reported | completed | disputed | flagged | refunded | cancelled"
+        decimal price "P"
+        decimal parent_price "P x (1 + S)"
+        decimal tutor_earning "P x (1 - T)"
+        earning_status earning_status "pending | on_hold | payable | paid | void"
+        timestamptz payout_due_at
+        uuid payout_id FK
+    }
+    wallet_entries {
         uuid parent_id FK
-        smallint rating "1-5"
-        text comment
+        entry_kind kind "deposit | period_payment | refund | withdrawal | withdrawal_reversal"
+        decimal amount "signed; balance = sum"
+        string reference UK
+    }
+    platform_fees {
+        int id PK "single row"
+        decimal parent_fee_rate
+        decimal tutor_fee_rate
     }
     webhook_events {
-        uuid id PK
         string event_id UK "Paystack event, for idempotency"
-        string event_type
-        timestamptz processed_at
     }
 ```
 
 Key rules the schema enforces:
-- One profile per user: `parent_profiles.user_id` and `tutor_profiles.user_id` are unique.
-- A schedule is a recurring weekly slot; each lesson is one `sessions` row, unique per `(schedule_id, session_date)`.
-- A session is billed at most once (`invoice_items.session_id` is unique), and a parent gets one invoice per month (`parent_id, billing_month, billing_year`).
+- One profile, bank account and dedicated account number per user (`user_id` / `tutor_id` / `parent_id` unique).
+- A booking copies its price, subjects and slots when requested and freezes both fee rates when accepted,
+  so later offer or fee changes never touch it.
+- One period per booking start date, one lesson per booking start time; a lesson exists only for a paid period.
+- A parent's balance is the sum of their `wallet_entries`; each entry's `reference` is unique, so a deposit
+  or payment is never applied twice. `webhook_events` does the same for Paystack events.
+- A lesson's earning is paid at most once (`lessons.payout_id`).
 - One review per parent per tutor (`tutor_id, parent_id`), rating 1-5.
-- `webhook_events` is standalone: it records processed Paystack events so a webhook is never applied twice.
 
 ## Run everything locally
 

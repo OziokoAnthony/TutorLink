@@ -1,18 +1,25 @@
-"""Transactional emails via Resend. Internal only: no router.
+"""Notifications: an in-app list per user, plus emails via Resend.
 
-Every function here is fire-and-forget: a failed email is logged and never fails the request.
-Without a real RESEND_API_KEY (e.g. local dev with the .env.example placeholder) emails are
-only logged.
+`notify()` adds the in-app notification to the caller's database session and queues the email; the
+email is only sent once that session commits, so a rolled-back change never emails anyone.
+Emails are fire-and-forget: a failed email is logged and never fails the request. Without a real
+RESEND_API_KEY (e.g. local dev with the .env.example placeholder) emails are only logged.
 """
 
 import logging
 from datetime import date, time
 from decimal import Decimal
 from html import escape
+from uuid import UUID
 
 import resend
+from sqlalchemy import event, func
+from sqlalchemy.orm import Session as OrmSession
+from sqlmodel import Session, select
 
-from app.core.config import settings
+from app.core.config import is_placeholder, settings
+from app.db.base import utcnow
+from app.domains.notifications.models import Notification, NotificationList, NotificationRead
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +31,7 @@ MONTH_NAMES = [
 
 
 def _resend_configured() -> bool:
-    key = settings.RESEND_API_KEY
-    return bool(key) and "xxxx" not in key
+    return not is_placeholder(settings.RESEND_API_KEY)
 
 
 def send_email(to: str, subject: str, html: str) -> None:
@@ -39,31 +45,76 @@ def send_email(to: str, subject: str, html: str) -> None:
         logger.exception("Failed to send email %r to %s", subject, to)
 
 
-# ---------- Formatting helpers ----------
-
-def _naira(amount: Decimal) -> str:
-    return f"₦{amount:,.2f}"
-
-
-def _date(d: date) -> str:
-    return f"{DAY_NAMES[d.weekday()]} {d.day} {MONTH_NAMES[d.month - 1]} {d.year}"
-
-
-def _time(t: time) -> str:
-    return t.strftime("%H:%M")
-
-
 def _wrap(name: str, body: str) -> str:
     return f"<p>Hi {escape(name)},</p>{body}<p>— The TutorLink team</p>"
 
 
-# ---------- One function per email in CLAUDE.md ----------
+# ---------- In-app notifications + email ----------
 
-def tutor_application_received(to: str, name: str) -> None:
+_OUTBOX = "notification_emails"
+
+
+def notify(session: Session, user_id: UUID, title: str, body: str, link: str | None = None,
+           *, email: bool = True) -> None:
+    """Records an in-app notification and, after the caller commits, emails the same message."""
+    session.add(Notification(user_id=user_id, title=title, body=body, link=link))
+    if email:
+        from app.domains.auth.models import User  # auth imports this module
+
+        user = session.get(User, user_id)
+        if user is not None:
+            html = "".join(f"<p>{escape(line)}</p>" for line in body.splitlines() if line.strip())
+            if link:
+                html += f'<p><a href="{escape(settings.FRONTEND_URL + link)}">Open TutorLink</a></p>'
+            session.info.setdefault(_OUTBOX, []).append((user.email, title, html + "<p>— The TutorLink team</p>"))
+
+
+@event.listens_for(OrmSession, "after_commit")
+def _send_queued_emails(orm_session) -> None:
+    for to, subject, html in orm_session.info.pop(_OUTBOX, []):
+        send_email(to, subject, html)
+
+
+@event.listens_for(OrmSession, "after_rollback")
+def _drop_queued_emails(orm_session) -> None:
+    orm_session.info.pop(_OUTBOX, None)
+
+
+def list_mine(session: Session, user_id: UUID, limit: int) -> NotificationList:
+    items = session.exec(
+        select(Notification).where(Notification.user_id == user_id)
+        .order_by(Notification.created_at.desc()).limit(limit)
+    ).all()
+    unread = session.exec(
+        select(func.count()).select_from(Notification)
+        .where(Notification.user_id == user_id, Notification.read_at.is_(None))
+    ).one()
+    return NotificationList(unread_count=unread, items=[NotificationRead.model_validate(n) for n in items])
+
+
+def mark_read(session: Session, user_id: UUID, notification_id: UUID | None) -> None:
+    """Marks one notification (or, with None, all of the user's) as read."""
+    stmt = select(Notification).where(Notification.user_id == user_id, Notification.read_at.is_(None))
+    if notification_id is not None:
+        stmt = stmt.where(Notification.id == notification_id)
+    for notification in session.exec(stmt).all():
+        notification.read_at = utcnow()
+        session.add(notification)
+    session.commit()
+
+
+# ---------- Account emails (email only) ----------
+
+def tutor_application_received(to: str, name: str, work_email: str, password: str) -> None:
+    """Sends the tutor their login: work email and generated password. Their work email never gets mail."""
     send_email(
         to,
         "We received your application",
-        _wrap(name, "<p>Thanks for applying to tutor on TutorLink. We'll review your profile and get back to you soon.</p>"),
+        _wrap(name, "<p>Thanks for applying to tutor on TutorLink. We'll review your profile and get back to you soon.</p>"
+                    "<p>Log in to TutorLink with:</p>"
+                    f"<p>Email: <strong>{escape(work_email)}</strong><br>Password: <strong>{escape(password)}</strong></p>"
+                    "<p>You can change your password in your profile once you've logged in. "
+                    "Your TutorLink email is only for logging in: we'll keep sending messages to this address.</p>"),
     )
 
 
@@ -84,62 +135,15 @@ def tutor_rejected(to: str, name: str, note: str | None) -> None:
     )
 
 
-def schedule_booked(recipients: list[tuple[str, str]], subject: str, day_of_week: int,
-                    start: time, end: time) -> None:
-    day = DAY_NAMES[day_of_week]
-    body = (
-        f"<p>A weekly {escape(subject)} session has been booked for every {day}, "
-        f"{_time(start)}–{_time(end)}.</p>"
-    )
-    for email, name in recipients:
-        send_email(email, f"New session booked: {subject} every {day}", _wrap(name, body))
+# ---------- Formatting for notification text ----------
+
+def naira(amount: Decimal) -> str:
+    return f"₦{amount:,.2f}"
 
 
-def schedule_cancelled(recipients: list[tuple[str, str]], subject: str, day_of_week: int,
-                       start: time) -> None:
-    day = DAY_NAMES[day_of_week]
-    body = f"<p>The weekly {escape(subject)} session on {day}s at {_time(start)} has been cancelled.</p>"
-    for email, name in recipients:
-        send_email(email, "Session cancelled", _wrap(name, body))
+def date_text(d: date) -> str:
+    return f"{DAY_NAMES[d.weekday()]} {d.day} {MONTH_NAMES[d.month - 1]} {d.year}"
 
 
-def session_logged(to: str, name: str, subject: str, session_date: date,
-                   topic_covered: str | None) -> None:
-    topic = f"<p>Topic covered: {escape(topic_covered)}</p>" if topic_covered else ""
-    send_email(
-        to,
-        f"Please confirm your {subject} session on {_date(session_date)}",
-        _wrap(name, f"<p>Your tutor has logged a {escape(subject)} session on {_date(session_date)}.</p>"
-                    f"{topic}<p>Please log in to confirm it.</p>"),
-    )
-
-
-def rate_tutor_prompt(to: str, name: str, tutor_name: str) -> None:
-    """Not in the original CLAUDE.md email table: added with tutor ratings."""
-    send_email(
-        to,
-        f"How was your lesson with {tutor_name}?",
-        _wrap(name, f"<p>You've confirmed your first session with {escape(tutor_name)}. "
-                    "Please take a moment to rate them. Your rating helps other parents choose the "
-                    "best tutor.</p>"),
-    )
-
-
-def invoice_generated(to: str, name: str, month: int, year: int, total_sessions: int,
-                      total_amount: Decimal) -> None:
-    period = f"{MONTH_NAMES[month - 1]} {year}"
-    send_email(
-        to,
-        f"Your TutorLink invoice for {period} is ready",
-        _wrap(name, f"<p>Your invoice for {period} covers {total_sessions} confirmed session(s). "
-                    f"Total due: {_naira(total_amount)}.</p>"),
-    )
-
-
-def payment_received(to: str, name: str, month: int, year: int, amount: Decimal) -> None:
-    period = f"{MONTH_NAMES[month - 1]} {year}"
-    send_email(
-        to,
-        "Payment received — thank you!",
-        _wrap(name, f"<p>We received your payment of {_naira(amount)} for your {period} invoice.</p>"),
-    )
+def time_text(t: time) -> str:
+    return t.strftime("%H:%M")

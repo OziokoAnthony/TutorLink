@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -14,7 +13,7 @@ import LoadingSpinner from '@/components/shared/LoadingSpinner'
 import PageHeader from '@/components/shared/PageHeader'
 import { useToast } from '@/hooks/useToast'
 import { errorMessage } from '@/lib/api'
-import { formatNaira, levelLabel } from '@/lib/format'
+import { formatNaira, levelLabel, slotText } from '@/lib/format'
 import { getPendingTutors, vetTutor } from '@/lib/tutors'
 import type { TutorProfile } from '@/types'
 
@@ -56,8 +55,7 @@ export default function AdminVetTutorsPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Area</TableHead>
-                <TableHead>Subjects</TableHead>
-                <TableHead>Rate</TableHead>
+                <TableHead className="min-w-[220px]">Offers</TableHead>
                 <TableHead className="min-w-[200px]">Bio</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -68,13 +66,17 @@ export default function AdminVetTutorsPage() {
                   <TableCell className="font-medium">{t.full_name}</TableCell>
                   <TableCell>{t.area}</TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {t.subjects.length === 0
-                        ? <span className="text-muted-foreground">None yet</span>
-                        : t.subjects.map((s) => <Badge key={s.id} variant="secondary">{s.subject} • {levelLabel(s.level)}</Badge>)}
-                    </div>
+                    {t.offers.length === 0 ? <span className="text-muted-foreground">None yet</span> : (
+                      <ul className="space-y-1 text-sm">
+                        {t.offers.map((o) => (
+                          <li key={o.id}>
+                            <span className="font-medium">{o.subjects.join(', ')}</span> • {levelLabel(o.level)} • {formatNaira(o.price)}
+                            <span className="block text-xs text-muted-foreground">{o.windows.map(slotText).join(', ')}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">{formatNaira(t.rate_per_session)}</TableCell>
                   <TableCell className="max-w-xs text-sm text-muted-foreground">{t.bio || '—'}</TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-2">

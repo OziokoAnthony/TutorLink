@@ -1,5 +1,4 @@
 from datetime import datetime
-from decimal import Decimal
 from enum import Enum
 from uuid import UUID
 
@@ -9,7 +8,7 @@ from sqlmodel import Field, SQLModel
 
 from app.db.base import BaseUUIDModel, pg_enum
 from app.domains.reviews.models import TutorToRate
-from app.domains.tutors.models import TutorProfileRead
+from app.domains.tutors.models import OfferIn, TutorProfileRead, clean_name_part
 
 
 class UserRole(str, Enum):
@@ -23,10 +22,13 @@ class UserRole(str, Enum):
 class User(BaseUUIDModel, table=True):
     __tablename__ = "users"
 
-    email: str = Field(unique=True)
+    email: str = Field(unique=True)  # personal email: notifications go here; parents and admins log in with it
+    # Tutors only: the address TutorLink assigns them, e.g. o.anthony@tutorlink.com. Their only login.
+    work_email: str | None = Field(default=None, unique=True)
     password_hash: str
     role: UserRole = Field(sa_type=pg_enum(UserRole, "user_role"))
     is_active: bool = Field(default=True, sa_column_kwargs={"server_default": sa.true()})
+    photo_key: str | None = None  # profile picture in storage (spec 4 R1b)
 
 
 class ParentProfile(BaseUUIDModel, table=True):
@@ -42,29 +44,50 @@ class ParentProfile(BaseUUIDModel, table=True):
 
 class RegisterRequest(SQLModel):
     email: EmailStr
-    password: str = Field(min_length=8, max_length=72)  # bcrypt only uses the first 72 bytes
+    # Parents choose a password. Tutors don't: TutorLink generates one and emails it with their work email.
+    password: str | None = Field(default=None, min_length=8, max_length=72)  # bcrypt only uses the first 72 bytes
     role: UserRole
-    full_name: str = Field(min_length=1, max_length=200)
+    full_name: str | None = Field(default=None, min_length=1, max_length=200)  # parents
+    # Tutors give their names separately; full_name is built from them and their work email from both.
+    first_name: str | None = Field(default=None, max_length=100)
+    surname: str | None = Field(default=None, max_length=100)
     phone: str | None = Field(default=None, max_length=30)
     # Parent-only
     address: str | None = None
-    # Tutor-only (area and rate_per_session are required for tutors)
+    # Tutor-only (area and at least one offer are required for tutors)
     bio: str | None = None
     area: str | None = Field(default=None, max_length=120)
-    rate_per_session: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=2)
+    offers: list[OfferIn] = Field(default=[], max_length=20)
 
     @model_validator(mode="after")
     def check_role_fields(self) -> "RegisterRequest":
         if self.role == UserRole.admin:
             raise ValueError("role must be 'parent' or 'tutor'")
-        if self.role == UserRole.tutor and (not self.area or self.rate_per_session is None):
-            raise ValueError("tutors must provide area and rate_per_session")
+        if self.role == UserRole.tutor:
+            if self.password is not None:
+                raise ValueError("tutors don't choose a password: we email one to them with their TutorLink email")
+            if not self.area or not self.offers:
+                raise ValueError("tutors must provide area and at least one offer")
+            self.first_name, self.surname = clean_name_part(self.first_name), clean_name_part(self.surname)
+            if not self.first_name or not self.surname:
+                raise ValueError("tutors must provide first_name and surname")
+            self.full_name = f"{self.first_name} {self.surname}"
+        else:
+            if not self.full_name or not self.full_name.strip():
+                raise ValueError("full_name is required")
+            if self.password is None:
+                raise ValueError("password is required")
         return self
 
 
 class LoginRequest(SQLModel):
     email: EmailStr
     password: str
+
+
+class ChangePasswordRequest(SQLModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=72)
 
 
 class TokenResponse(SQLModel):
@@ -75,9 +98,11 @@ class TokenResponse(SQLModel):
 class UserRead(SQLModel):
     id: UUID
     email: str
+    work_email: str | None = None
     role: UserRole
     is_active: bool
     created_at: datetime
+    photo_url: str | None = None
 
 
 class ParentProfileRead(SQLModel):

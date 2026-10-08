@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -22,13 +20,25 @@ class Settings(BaseSettings):
     ALEMBIC_DATABASE_URL: str | None = None
 
     PAYSTACK_SECRET_KEY: str = ""
-    PAYSTACK_PUBLIC_KEY: str = ""
     PAYSTACK_WEBHOOK_SECRET: str = ""
+    # Bank for parents' dedicated account numbers: "test-bank" in Paystack test mode, e.g. "titan-paystack" live.
+    PAYSTACK_DVA_BANK: str = "test-bank"
 
     RESEND_API_KEY: str = ""
     FROM_EMAIL: str = "noreply@tutorlink.ng"
+    # Tutors are assigned a work email at this domain (e.g. o.anthony@tutorlink.com) and log in with it.
+    TUTOR_EMAIL_DOMAIN: str = "tutorlink.com"
 
-    COMMISSION_RATE: Decimal = Decimal("0.10")
+    # Cloudflare R2 for uploaded files. While unset, files are kept under LOCAL_STORAGE_DIR (development only).
+    R2_ACCOUNT_ID: str = ""
+    R2_ACCESS_KEY_ID: str = ""
+    R2_SECRET_ACCESS_KEY: str = ""
+    R2_BUCKET: str = ""
+    LOCAL_STORAGE_DIR: str = "storage"
+
+    # Background jobs (expiries, due payments, payable earnings) run inside the API process.
+    RUN_SCHEDULER: bool = True
+    SCHEDULER_INTERVAL_SECONDS: int = 60
 
     @field_validator("SECRET_KEY")
     @classmethod

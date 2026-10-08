@@ -2,18 +2,17 @@ import hashlib
 import hmac
 import json
 import logging
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from fastapi import HTTPException, status
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.core.config import is_placeholder, settings
 from app.db.base import utcnow
-from app.domains.auth.models import ParentProfile, User
-from app.domains.billing import service as billing_service
-from app.domains.billing.models import Invoice, InvoiceStatus
-from app.domains.notifications import service as notifications
+from app.domains.bookings import service as bookings
+from app.domains.payments import service as payments
+from app.domains.payouts import service as payouts
 from app.domains.webhooks.models import WebhookEvent
 
 logger = logging.getLogger(__name__)
@@ -38,68 +37,6 @@ def _event_id(payload: dict, header_event_id: str | None) -> str | None:
     return f"{payload['event']}:{transaction_id}"
 
 
-def _find_invoice(session: Session, data: dict) -> Invoice | None:
-    reference = data.get("reference")
-    invoice = None
-    if reference:
-        invoice = session.exec(
-            select(Invoice).where(Invoice.paystack_reference == reference).with_for_update()
-        ).first()
-    if invoice is None:
-        # A parent can start several payment attempts; only the latest reference is stored,
-        # so fall back to the invoice id we put in the transaction metadata.
-        metadata = data.get("metadata")
-        invoice_id = metadata.get("invoice_id") if isinstance(metadata, dict) else None
-        try:
-            invoice = session.get(Invoice, UUID(invoice_id), with_for_update=True) if invoice_id else None
-        except ValueError:
-            invoice = None
-    return invoice
-
-
-def _mark_paid(session: Session, data: dict) -> Invoice | None:
-    invoice = _find_invoice(session, data)
-    if invoice is None:
-        logger.warning("charge.success for unknown invoice (reference=%s)", data.get("reference"))
-        return None
-    if invoice.status == InvoiceStatus.paid:
-        return None
-    amount_kobo = billing_service.to_kobo(invoice.total_amount)
-    if data.get("amount") != amount_kobo or data.get("currency", "NGN") != "NGN":
-        logger.warning("charge.success amount mismatch for invoice %s: got %s %s",
-                       invoice.id, data.get("amount"), data.get("currency"))
-        return None
-
-    # The signature only proves the sender knows our secret; ask Paystack itself that the money arrived.
-    reference = data.get("reference")
-    verified = billing_service.verify_paystack_transaction(reference) if reference else {}
-    if (verified.get("status") != "success" or verified.get("reference") != reference
-            or verified.get("amount") != amount_kobo or verified.get("currency") != "NGN"):
-        logger.warning("charge.success for invoice %s not confirmed by Paystack (reference=%s, status=%s)",
-                       invoice.id, reference, verified.get("status"))
-        return None
-
-    invoice.status = InvoiceStatus.paid
-    invoice.paid_at = utcnow()
-    invoice.paystack_reference = data.get("reference") or invoice.paystack_reference
-    session.add(invoice)
-    return invoice
-
-
-def _mark_failed(session: Session, data: dict) -> None:
-    reference = data.get("reference")
-    if not reference:
-        return
-    invoice = session.exec(
-        select(Invoice).where(Invoice.paystack_reference == reference).with_for_update()
-    ).first()
-    # Only the latest payment attempt counts: a failure on an older reference, or after the
-    # invoice was paid, changes nothing.
-    if invoice is not None and invoice.status == InvoiceStatus.pending:
-        invoice.status = InvoiceStatus.failed
-        session.add(invoice)
-
-
 def process_payment_webhook(session: Session, raw_body: bytes, signature: str | None,
                             header_event_id: str | None) -> dict:
     # With an empty or public example secret, anyone could sign a fake "payment succeeded" event.
@@ -120,7 +57,7 @@ def process_payment_webhook(session: Session, raw_body: bytes, signature: str | 
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot identify event")
     event_type = payload.get("event", "")
 
-    # 3-4. Idempotency: the insert and the invoice update commit together, so an event is
+    # 3-4. Idempotency: the insert and the money movement commit together, so an event is
     # only recorded once it has been fully processed.
     inserted = session.connection().execute(
         pg_insert(WebhookEvent)
@@ -132,20 +69,21 @@ def process_payment_webhook(session: Session, raw_body: bytes, signature: str | 
         session.rollback()
         return {"status": "duplicate"}
 
-    # 5-6. Mark the invoice paid (or failed, so the parent can retry).
+    # 5. Apply it. Deposits are matched to the parent by their account number's Paystack customer.
     data = payload.get("data") or {}
-    invoice = None
+    parent_id = None
     if event_type == "charge.success":
-        invoice = _mark_paid(session, data)
-    elif event_type == "charge.failed":
-        _mark_failed(session, data)
+        parent_id = payments.credit_deposit(session, data)
+    elif event_type in ("transfer.success", "transfer.failed", "transfer.reversed"):
+        reference = str(data.get("reference") or "")
+        succeeded = event_type == "transfer.success"
+        if reference.startswith("PO-"):
+            payouts.settle_payout_transfer(session, reference, succeeded)
+        elif reference.startswith("WD-"):
+            payments.settle_withdrawal_transfer(session, reference, succeeded)
     session.commit()
 
-    # 7. Confirmation email.
-    if invoice is not None:
-        session.refresh(invoice)
-        parent = session.get(User, invoice.parent_id)
-        profile = session.exec(select(ParentProfile).where(ParentProfile.user_id == parent.id)).first()
-        notifications.payment_received(parent.email, profile.full_name if profile else "there",
-                                       invoice.billing_month, invoice.billing_year, invoice.total_amount)
+    # 6. New money may cover lessons waiting to be paid.
+    if parent_id is not None:
+        bookings.pay_due_periods(session, parent_id)
     return {"status": "ok"}

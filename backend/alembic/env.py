@@ -7,13 +7,7 @@ from sqlmodel import SQLModel
 from app.core.config import settings
 
 # Import every domain's models so SQLModel.metadata knows about all tables.
-from app.domains.auth import models as auth_models  # noqa: F401
-from app.domains.billing import models as billing_models  # noqa: F401
-from app.domains.reviews import models as reviews_models  # noqa: F401
-from app.domains.schedules import models as schedules_models  # noqa: F401
-from app.domains.sessions import models as sessions_models  # noqa: F401
-from app.domains.tutors import models as tutors_models  # noqa: F401
-from app.domains.webhooks import models as webhooks_models  # noqa: F401
+from app.db import models  # noqa: F401  (registers every table)
 
 config = context.config
 # A URL set programmatically (e.g. by the test suite) wins over the environment.

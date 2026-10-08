@@ -5,22 +5,28 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/types'
 
-const LINKS: Record<Role, { href: string; label: string }[]> = {
+export const LINKS: Record<Role, { href: string; label: string }[]> = {
   parent: [
     { href: '/dashboard/parent', label: 'Overview' },
-    { href: '/dashboard/parent/schedules', label: 'My Schedules' },
-    { href: '/dashboard/parent/sessions', label: 'Sessions' },
-    { href: '/dashboard/parent/invoices', label: 'Invoices' },
+    { href: '/dashboard/parent/bookings', label: 'My Bookings' },
+    { href: '/dashboard/parent/lessons', label: 'Lessons' },
+    { href: '/dashboard/parent/wallet', label: 'Payments & Receipts' },
     { href: '/tutors', label: 'Find Tutors' },
   ],
   tutor: [
     { href: '/dashboard/tutor', label: 'Overview' },
-    { href: '/dashboard/tutor/profile', label: 'Profile & Subjects' },
-    { href: '/dashboard/tutor/sessions', label: 'Log a Session' },
+    { href: '/dashboard/tutor/bookings', label: 'Bookings' },
+    { href: '/dashboard/tutor/lessons', label: 'Lessons' },
+    { href: '/dashboard/tutor/earnings', label: 'Earnings & Receipts' },
+    { href: '/dashboard/tutor/profile', label: 'Profile & Offers' },
   ],
   admin: [
     { href: '/admin/tutors', label: 'Vet Tutors' },
-    { href: '/admin/invoices', label: 'Generate Invoices' },
+    { href: '/admin/payouts', label: 'Tutor Payouts' },
+    { href: '/admin/problems', label: 'Problems' },
+    { href: '/admin/refunds', label: 'Refunds' },
+    { href: '/admin/withdrawals', label: 'Withdrawals' },
+    { href: '/admin/fees', label: 'Fees' },
   ],
 }
 

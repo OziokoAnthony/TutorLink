@@ -1,4 +1,7 @@
-import type { Level, SessionStatus, InvoiceStatus, VettingStatus } from '@/types'
+import type {
+  BillingPeriod, BookingStatus, EarningStatus, IssueKind, Level, LessonStatus, PeriodStatus, RefundStatus,
+  TransferStatus, VettingStatus, WeeklyTime,
+} from '@/types'
 
 /** Index matches the backend: 0 = Monday ... 6 = Sunday. */
 export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -63,24 +66,65 @@ export function todayDayOfWeek(): number {
   return (new Date().getDay() + 6) % 7
 }
 
-/** The most recent date (today or earlier) that falls on `dayOfWeek` (0 = Monday). */
-export function latestDateOnWeekday(dayOfWeek: number): string {
-  const date = new Date()
-  const back = (todayDayOfWeek() - dayOfWeek + 7) % 7
-  date.setDate(date.getDate() - back)
-  return toISODate(date)
+/** "Monday 15:00–16:00" */
+export function slotText(slot: WeeklyTime): string {
+  return `${DAYS[slot.day_of_week]} ${formatTime(slot.start_time)}–${formatTime(slot.end_time)}`
 }
 
-export function monthYear(month: number, year: number): string {
-  return `${MONTHS[month - 1]} ${year}`
+/** An ISO timestamp in Nigerian time: "Wed 15 Oct, 15:00". */
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos',
+  })
 }
 
-export const SESSION_STATUS_LABEL: Record<SessionStatus, string> = {
-  scheduled: 'Scheduled', logged: 'Logged', confirmed: 'Confirmed', cancelled: 'Cancelled',
+/** 0.08 -> "8%" */
+export function formatPercent(rate: number): string {
+  return `${Math.round(rate * 10000) / 100}%`
 }
 
-export const INVOICE_STATUS_LABEL: Record<InvoiceStatus, string> = {
-  pending: 'Pending', paid: 'Paid', failed: 'Failed',
+export const BILLING_PERIODS: { value: BillingPeriod; label: string; hint: string }[] = [
+  { value: 'daily', label: 'Daily', hint: 'Pay for each day of lessons' },
+  { value: 'weekly', label: 'Weekly', hint: 'Pay for a week of lessons at a time' },
+  { value: 'monthly', label: 'Monthly', hint: 'Pay for a month of lessons at a time' },
+]
+
+export const BOOKING_STATUS_LABEL: Record<BookingStatus, string> = {
+  requested: 'Waiting for tutor', accepted: 'Awaiting payment', active: 'Active', paused: 'Paused (unpaid)',
+  ended: 'Ended', declined: 'Declined', expired: 'Expired', released: 'Released (unpaid)', cancelled: 'Cancelled',
+}
+
+export const PERIOD_STATUS_LABEL: Record<PeriodStatus, string> = {
+  due: 'To pay', paid: 'Paid', missed: 'Missed', expired: 'Expired', void: 'Cancelled',
+}
+
+export const LESSON_STATUS_LABEL: Record<LessonStatus, string> = {
+  confirmed: 'Confirmed', reported: 'Reported', completed: 'Completed', disputed: 'Under review',
+  flagged: 'Report missing', refunded: 'Refunded', cancelled: 'Cancelled',
+}
+
+export const EARNING_STATUS_LABEL: Record<EarningStatus, string> = {
+  pending: 'Upcoming', on_hold: 'On hold', payable: 'To be paid', paid: 'Paid', void: 'Not paid',
+}
+
+export const TRANSFER_STATUS_LABEL: Record<TransferStatus, string> = {
+  pending: 'Requested', processing: 'Sending', paid: 'Sent', failed: 'Failed', rejected: 'Rejected',
+}
+
+export const REFUND_STATUS_LABEL: Record<RefundStatus, string> = {
+  pending: 'Waiting for approval', approved: 'Refunded', rejected: 'Rejected',
+}
+
+export const ISSUE_KINDS: { value: Exclude<IssueKind, 'no_report'>; label: string }[] = [
+  { value: 'tutor_absent', label: "Tutor didn't come" },
+  { value: 'late_or_left_early', label: 'Tutor was late or left early' },
+  { value: 'agreement_broken', label: 'The agreement was broken' },
+  { value: 'other', label: 'Something else' },
+]
+
+export const ISSUE_KIND_LABEL: Record<IssueKind, string> = {
+  ...Object.fromEntries(ISSUE_KINDS.map((k) => [k.value, k.label])) as Record<Exclude<IssueKind, 'no_report'>, string>,
+  no_report: 'Tutor did not report the lesson',
 }
 
 export const VETTING_STATUS_LABEL: Record<VettingStatus, string> = {

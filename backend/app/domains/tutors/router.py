@@ -1,5 +1,5 @@
 """Tutor endpoints. `{tutor_id}` in every path is the tutor's *user* id (users.id), the same id
-schedules, sessions and invoice items use to reference a tutor."""
+bookings and lessons use to reference a tutor."""
 
 from typing import Literal
 from uuid import UUID
@@ -13,11 +13,11 @@ from app.domains.auth.models import User, UserRole
 from app.domains.tutors import service
 from app.domains.tutors.models import (
     EducationLevel,
+    OfferIn,
+    OfferRead,
     TutorProfileRead,
     TutorProfileUpsert,
     TutorPublic,
-    TutorSubjectCreate,
-    TutorSubjectRead,
     VetRequest,
 )
 
@@ -34,16 +34,25 @@ def upsert_profile(data: TutorProfileUpsert, user: User = Depends(tutor_only),
     return service.upsert_profile(session, user, data)
 
 
-@router.post("/profile/subjects", response_model=TutorSubjectRead, status_code=status.HTTP_201_CREATED)
-def add_subject(data: TutorSubjectCreate, user: User = Depends(tutor_only),
-                session: Session = Depends(get_session)):
-    return service.add_subject(session, user, data)
+@router.get("/profile/offers", response_model=list[OfferRead])
+def my_offers(user: User = Depends(tutor_only), session: Session = Depends(get_session)):
+    return service.list_my_offers(session, user)
 
 
-@router.delete("/profile/subjects/{subject_id}", status_code=status.HTTP_204_NO_CONTENT)
-def remove_subject(subject_id: UUID, user: User = Depends(tutor_only),
-                   session: Session = Depends(get_session)):
-    service.remove_subject(session, user, subject_id)
+@router.post("/profile/offers", response_model=OfferRead, status_code=status.HTTP_201_CREATED)
+def create_offer(data: OfferIn, user: User = Depends(tutor_only), session: Session = Depends(get_session)):
+    return service.create_offer(session, user, data)
+
+
+@router.put("/profile/offers/{offer_id}", response_model=OfferRead)
+def update_offer(offer_id: UUID, data: OfferIn, user: User = Depends(tutor_only),
+                 session: Session = Depends(get_session)):
+    return service.update_offer(session, user, offer_id, data)
+
+
+@router.delete("/profile/offers/{offer_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_offer(offer_id: UUID, user: User = Depends(tutor_only), session: Session = Depends(get_session)):
+    service.remove_offer(session, user, offer_id)
 
 
 @router.get("", response_model=list[TutorPublic])
@@ -53,7 +62,7 @@ def list_tutors(
     area: str | None = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    sort: Literal["name", "rating"] = "name",
+    sort: Literal["name", "rating", "price"] = "name",
     session: Session = Depends(get_session),
 ):
     return service.list_approved_tutors(session, subject, level, area, skip, limit, sort)

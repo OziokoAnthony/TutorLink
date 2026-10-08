@@ -8,8 +8,7 @@ from sqlmodel import Session, select
 
 from app.domains.auth.models import ParentProfile, User
 from app.domains.reviews.models import PublicReview, ReviewRead, ReviewUpsert, TutorReview, TutorToRate
-from app.domains.schedules.models import Schedule
-from app.domains.sessions.models import SessionStatus, TutoringSession
+from app.domains.lessons.models import Lesson, LessonStatus
 from app.domains.tutors.models import TutorProfile, VettingStatus
 
 RatingStats = tuple[Decimal | None, int]  # (average rating to 2 dp, number of ratings)
@@ -42,16 +41,11 @@ def rating_stats(session: Session, tutor_ids: list[UUID]) -> dict[UUID, RatingSt
     }
 
 
-def confirmed_session_count(session: Session, parent_id: UUID, tutor_id: UUID) -> int:
+def completed_lesson_count(session: Session, parent_id: UUID, tutor_id: UUID) -> int:
     return session.exec(
         select(func.count())
-        .select_from(TutoringSession)
-        .join(Schedule, Schedule.id == TutoringSession.schedule_id)
-        .where(
-            Schedule.parent_id == parent_id,
-            Schedule.tutor_id == tutor_id,
-            TutoringSession.status == SessionStatus.confirmed,
-        )
+        .select_from(Lesson)
+        .where(Lesson.parent_id == parent_id, Lesson.tutor_id == tutor_id, Lesson.status == LessonStatus.completed)
     ).one()
 
 
@@ -61,19 +55,13 @@ def has_reviewed(session: Session, parent_id: UUID, tutor_id: UUID) -> bool:
     ).first() is not None
 
 
-def should_prompt_for_rating(session: Session, parent_id: UUID, tutor_id: UUID) -> bool:
-    """True right after the parent's *first* confirmed session with this tutor, if not yet rated."""
-    return (confirmed_session_count(session, parent_id, tutor_id) == 1
-            and not has_reviewed(session, parent_id, tutor_id))
-
-
 def upsert_review(session: Session, parent: User, tutor_user_id: UUID, data: ReviewUpsert) -> ReviewRead:
     profile = session.exec(select(TutorProfile).where(TutorProfile.user_id == tutor_user_id)).first()
     if profile is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tutor not found")
-    if confirmed_session_count(session, parent.id, tutor_user_id) == 0:
+    if completed_lesson_count(session, parent.id, tutor_user_id) == 0:
         raise HTTPException(status.HTTP_403_FORBIDDEN,
-                            "You can only rate a tutor after confirming a session with them")
+                            "You can only rate a tutor after a completed lesson with them")
 
     comment = (data.comment or "").strip() or None
     review = session.exec(
@@ -124,21 +112,16 @@ def list_public_reviews(session: Session, tutor_user_id: UUID, skip: int, limit:
 
 
 def tutors_to_rate(session: Session, parent_id: UUID) -> list[TutorToRate]:
-    """Tutors this parent has a confirmed session with but hasn't rated yet."""
+    """Tutors this parent has had a completed lesson with but hasn't rated yet."""
     not_reviewed = ~(
         select(TutorReview.id)
-        .where(TutorReview.parent_id == parent_id, TutorReview.tutor_id == Schedule.tutor_id)
+        .where(TutorReview.parent_id == parent_id, TutorReview.tutor_id == Lesson.tutor_id)
         .exists()
     )
     rows = session.exec(
-        select(Schedule.tutor_id, TutorProfile.full_name)
-        .join(TutoringSession, TutoringSession.schedule_id == Schedule.id)
-        .join(TutorProfile, TutorProfile.user_id == Schedule.tutor_id)
-        .where(
-            Schedule.parent_id == parent_id,
-            TutoringSession.status == SessionStatus.confirmed,
-            not_reviewed,
-        )
+        select(Lesson.tutor_id, TutorProfile.full_name)
+        .join(TutorProfile, TutorProfile.user_id == Lesson.tutor_id)
+        .where(Lesson.parent_id == parent_id, Lesson.status == LessonStatus.completed, not_reviewed)
         .distinct()
         .order_by(TutorProfile.full_name)
     ).all()

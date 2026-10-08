@@ -7,26 +7,14 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/hooks/useAuth'
+import NotificationBell from '@/components/layout/NotificationBell'
+import { LINKS } from '@/components/layout/Sidebar'
 
-const DASHBOARD_LINKS = {
-  parent: [
-    { href: '/dashboard/parent', label: 'Overview' },
-    { href: '/dashboard/parent/schedules', label: 'Schedules' },
-    { href: '/dashboard/parent/sessions', label: 'Sessions' },
-    { href: '/dashboard/parent/invoices', label: 'Invoices' },
-  ],
-  tutor: [
-    { href: '/dashboard/tutor', label: 'Overview' },
-    { href: '/dashboard/tutor/profile', label: 'Profile' },
-    { href: '/dashboard/tutor/sessions', label: 'Log Session' },
-  ],
-}
-
-function DashboardMenu({ links }: { links: { href: string; label: string }[] }) {
+function DashboardMenu({ links, label = 'Dashboard' }: { links: { href: string; label: string }[]; label?: string }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm">Dashboard <ChevronDown className="ml-1 h-4 w-4" aria-hidden /></Button>
+        <Button variant="ghost" size="sm">{label} <ChevronDown className="ml-1 h-4 w-4" aria-hidden /></Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {links.map((link) => (
@@ -57,16 +45,12 @@ export default function Navbar() {
             {user?.role === 'parent' && (
               <>
                 <Button variant="ghost" size="sm" asChild><Link href="/tutors">Find Tutors</Link></Button>
-                <DashboardMenu links={DASHBOARD_LINKS.parent} />
+                <DashboardMenu links={LINKS.parent.filter((l) => l.href !== '/tutors')} />
               </>
             )}
-            {user?.role === 'tutor' && <DashboardMenu links={DASHBOARD_LINKS.tutor} />}
-            {user?.role === 'admin' && (
-              <>
-                <Button variant="ghost" size="sm" asChild><Link href="/admin/tutors">Vet Tutors</Link></Button>
-                <Button variant="ghost" size="sm" asChild><Link href="/admin/invoices">Invoices</Link></Button>
-              </>
-            )}
+            {user?.role === 'tutor' && <DashboardMenu links={LINKS.tutor} />}
+            {user?.role === 'admin' && <DashboardMenu links={LINKS.admin} label="Admin" />}
+            {user && <NotificationBell />}
             {user && <Button variant="outline" size="sm" className="ml-2" onClick={logout}>Logout</Button>}
           </div>
         )}

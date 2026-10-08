@@ -43,11 +43,12 @@ export default function TutorFilters({ value, onChange }: { value: TutorFiltersV
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="filter-sort">Sort by</Label>
-        <Select value={value.sort ?? 'name'} onValueChange={(v) => onChange({ ...value, sort: v as 'name' | 'rating' })}>
+        <Select value={value.sort ?? 'name'} onValueChange={(v) => onChange({ ...value, sort: v as TutorFiltersValue['sort'] })}>
           <SelectTrigger id="filter-sort"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="name">Name</SelectItem>
             <SelectItem value="rating">Top rated</SelectItem>
+            <SelectItem value="price">Lowest price</SelectItem>
           </SelectContent>
         </Select>
       </div>

@@ -14,11 +14,15 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlmodel import Session, SQLModel
 
+from app.core import clock as clock_module
+from app.core import paystack as paystack_client
 from app.core import security
 from app.core.config import settings
+from app.domains.auth import service as auth_service
+from app.db import models  # noqa: F401  (registers every table for TRUNCATE)
 from app.db.session import get_session
-from app.domains.billing import service as billing_service
 from app.domains.notifications import service as notifications
+from app.domains.payments import service as payments_service
 from app.main import app
 from tests import helpers
 
@@ -90,41 +94,41 @@ def outbox(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def paystack_secrets(monkeypatch):
-    """Real-looking Paystack secrets, whatever the developer's .env holds."""
+def test_settings(monkeypatch, tmp_path):
+    """Real-looking Paystack secrets, local file storage in a temp folder, no background scheduler,
+    whatever the developer's .env holds."""
     monkeypatch.setattr(settings, "PAYSTACK_SECRET_KEY", "sk_test_tutorlink_tests")
     monkeypatch.setattr(settings, "PAYSTACK_WEBHOOK_SECRET", "sk_test_tutorlink_tests")
+    for name in ("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"):
+        monkeypatch.setattr(settings, name, "")
+    monkeypatch.setattr(settings, "LOCAL_STORAGE_DIR", str(tmp_path / "storage"))
+    monkeypatch.setattr(settings, "RUN_SCHEDULER", False)
+
+
+@pytest.fixture(autouse=True)
+def tutor_password(monkeypatch):
+    """Tutors are emailed a generated password; tests get the known helpers.PASSWORD instead."""
+    monkeypatch.setattr(auth_service, "generate_password", lambda: helpers.PASSWORD)
+    return helpers.PASSWORD
+
+
+@pytest.fixture(autouse=True)
+def paystack(monkeypatch):
+    """A fake Paystack: every API call TutorLink makes is answered here, never over the network."""
+    fake = helpers.FakePaystack()
+    for name in ("verify_transaction", "create_customer", "create_dedicated_account", "list_banks",
+                 "resolve_account", "create_transfer_recipient", "initiate_transfer"):
+        monkeypatch.setattr(paystack_client, name, getattr(fake, name))
+    monkeypatch.setattr(payments_service, "_banks_cache", None)
+    return fake
 
 
 @pytest.fixture
-def paystack_transactions(monkeypatch):
-    """Fakes Paystack's Verify Transaction API: reference -> transaction `data` as Paystack reports it."""
-    transactions: dict[str, dict] = {}
-    monkeypatch.setattr(billing_service, "verify_paystack_transaction",
-                        lambda reference: transactions.get(reference, {}))
-    return transactions
-
-
-@pytest.fixture
-def paystack(monkeypatch, paystack_transactions):
-    """Fakes Paystack's Initialize Transaction API and records the calls.
-    Every started transaction counts as successfully paid unless a test edits `paystack_transactions`."""
-    calls: list[dict] = []
-
-    def fake_initialize(**kwargs):
-        calls.append(kwargs)
-        paystack_transactions[kwargs["reference"]] = {
-            "status": "success", "reference": kwargs["reference"],
-            "amount": kwargs["amount_kobo"], "currency": "NGN",
-        }
-        return {
-            "authorization_url": f"https://checkout.paystack.com/{kwargs['reference']}",
-            "access_code": "test_access_code",
-            "reference": kwargs["reference"],
-        }
-
-    monkeypatch.setattr(billing_service, "initialize_paystack_transaction", fake_initialize)
-    return calls
+def clock(monkeypatch):
+    """Lets a test move time forward: clock.travel(hours=25)."""
+    fake = helpers.FakeClock()
+    monkeypatch.setattr(clock_module, "now", fake.now)
+    return fake
 
 
 @pytest.fixture

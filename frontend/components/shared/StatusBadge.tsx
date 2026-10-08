@@ -1,7 +1,12 @@
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { INVOICE_STATUS_LABEL, SESSION_STATUS_LABEL, VETTING_STATUS_LABEL } from '@/lib/format'
-import type { InvoiceStatus, SessionStatus, VettingStatus } from '@/types'
+import {
+  BOOKING_STATUS_LABEL, EARNING_STATUS_LABEL, LESSON_STATUS_LABEL, PERIOD_STATUS_LABEL, REFUND_STATUS_LABEL,
+  TRANSFER_STATUS_LABEL, VETTING_STATUS_LABEL,
+} from '@/lib/format'
+import type {
+  BookingStatus, EarningStatus, LessonStatus, PeriodStatus, RefundStatus, TransferStatus, VettingStatus,
+} from '@/types'
 
 type Tone = 'yellow' | 'green' | 'red' | 'blue' | 'gray'
 
@@ -13,21 +18,46 @@ const TONE_CLASS: Record<Tone, string> = {
   gray: 'border-zinc-300 bg-zinc-100 text-zinc-700',
 }
 
-const SESSION_TONE: Record<SessionStatus, Tone> = { scheduled: 'gray', logged: 'blue', confirmed: 'green', cancelled: 'gray' }
-// CLAUDE.md: Pending (yellow), Paid (green), Failed (red)
-const INVOICE_TONE: Record<InvoiceStatus, Tone> = { pending: 'yellow', paid: 'green', failed: 'red' }
+const BOOKING_TONE: Record<BookingStatus, Tone> = {
+  requested: 'blue', accepted: 'yellow', active: 'green', paused: 'red', ended: 'gray', declined: 'gray',
+  expired: 'gray', released: 'gray', cancelled: 'gray',
+}
+const PERIOD_TONE: Record<PeriodStatus, Tone> = { due: 'yellow', paid: 'green', missed: 'red', expired: 'gray', void: 'gray' }
+const LESSON_TONE: Record<LessonStatus, Tone> = {
+  confirmed: 'blue', reported: 'blue', completed: 'green', disputed: 'yellow', flagged: 'red', refunded: 'gray',
+  cancelled: 'gray',
+}
+const EARNING_TONE: Record<EarningStatus, Tone> = { pending: 'gray', on_hold: 'yellow', payable: 'blue', paid: 'green', void: 'gray' }
+const TRANSFER_TONE: Record<TransferStatus, Tone> = { pending: 'yellow', processing: 'blue', paid: 'green', failed: 'red', rejected: 'gray' }
+const REFUND_TONE: Record<RefundStatus, Tone> = { pending: 'yellow', approved: 'green', rejected: 'gray' }
 const VETTING_TONE: Record<VettingStatus, Tone> = { pending: 'yellow', approved: 'green', rejected: 'red' }
 
 function ToneBadge({ tone, children }: { tone: Tone; children: string }) {
   return <Badge variant="outline" className={cn('font-medium', TONE_CLASS[tone])}>{children}</Badge>
 }
 
-export function SessionStatusBadge({ status }: { status: SessionStatus }) {
-  return <ToneBadge tone={SESSION_TONE[status]}>{SESSION_STATUS_LABEL[status]}</ToneBadge>
+export function BookingStatusBadge({ status }: { status: BookingStatus }) {
+  return <ToneBadge tone={BOOKING_TONE[status]}>{BOOKING_STATUS_LABEL[status]}</ToneBadge>
 }
 
-export function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
-  return <ToneBadge tone={INVOICE_TONE[status]}>{INVOICE_STATUS_LABEL[status]}</ToneBadge>
+export function PeriodStatusBadge({ status }: { status: PeriodStatus }) {
+  return <ToneBadge tone={PERIOD_TONE[status]}>{PERIOD_STATUS_LABEL[status]}</ToneBadge>
+}
+
+export function LessonStatusBadge({ status }: { status: LessonStatus }) {
+  return <ToneBadge tone={LESSON_TONE[status]}>{LESSON_STATUS_LABEL[status]}</ToneBadge>
+}
+
+export function EarningStatusBadge({ status }: { status: EarningStatus }) {
+  return <ToneBadge tone={EARNING_TONE[status]}>{EARNING_STATUS_LABEL[status]}</ToneBadge>
+}
+
+export function TransferStatusBadge({ status }: { status: TransferStatus }) {
+  return <ToneBadge tone={TRANSFER_TONE[status]}>{TRANSFER_STATUS_LABEL[status]}</ToneBadge>
+}
+
+export function RefundStatusBadge({ status }: { status: RefundStatus }) {
+  return <ToneBadge tone={REFUND_TONE[status]}>{REFUND_STATUS_LABEL[status]}</ToneBadge>
 }
 
 export function VettingStatusBadge({ status }: { status: VettingStatus }) {
