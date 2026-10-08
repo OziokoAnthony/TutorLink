@@ -73,6 +73,73 @@ export interface TutorProfile {
   rating_count: number
 }
 
+/** A question in an attempt (spec 4 R5). Never carries the correct answer or an explanation. */
+export interface ExamQuestion {
+  position: number
+  text: string
+  options: string[]
+  /** 0-3, saved as the tutor answers */
+  chosen_index: number | null
+}
+
+export interface ExamAttempt {
+  id: string
+  started_at: string
+  /** 30 minutes after the start, on the server clock */
+  deadline: string
+  questions: ExamQuestion[]
+}
+
+/** After submitting: the score and pass/fail only, never which answers were right. */
+export interface ExamResult {
+  id: string
+  started_at: string
+  submitted_at: string
+  score: number
+  total: number
+  passed: boolean
+  seconds_taken: number
+}
+
+export interface ExamStatus {
+  passed: boolean
+  open_attempt: ExamAttempt | null
+  /** before the 24-hour lock */
+  attempts_left: number
+  locked_until: string | null
+  /** newest first */
+  attempts: ExamResult[]
+  pass_mark: number
+  total: number
+  minutes: number
+}
+
+export interface AdminExamAttempt extends ExamResult {
+  tutor_id: string
+  tutor_name: string
+}
+
+export interface AdminExamQuestion {
+  id: string
+  subject: string | null
+  level: Level | null
+  text: string
+  options: string[]
+  correct_index: number
+  explanation: string
+  model: string
+  retired_at: string | null
+  created_at: string
+}
+
+/** Active bank questions for one tag against its target (general: subject null). */
+export interface ExamBankLevel {
+  subject: string | null
+  level: Level | null
+  active: number
+  target: number
+}
+
 export type CertificateStatus = 'pending' | 'verified' | 'rejected'
 
 /** A tutor's certificate (spec 4 R4). The checker PIN never comes back, only whether one is held. */
@@ -119,7 +186,7 @@ export interface NinResult extends NinCheck {
   attempts_left: number
 }
 
-export type OnboardingStepKey = 'profile' | 'nin' | 'certificates' | 'review'
+export type OnboardingStepKey = 'profile' | 'nin' | 'certificates' | 'quiz' | 'review'
 
 export interface OnboardingStep {
   key: OnboardingStepKey

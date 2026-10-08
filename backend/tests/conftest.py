@@ -15,12 +15,14 @@ from sqlalchemy.engine import make_url
 from sqlmodel import Session, SQLModel
 
 from app.core import clock as clock_module
+from app.core import claude as claude_client
 from app.core import dojah as dojah_client
 from app.core import google as google_client
 from app.core import paystack as paystack_client
 from app.core import security
 from app.core.config import settings
 from app.domains.auth import service as auth_service
+from app.domains.exam import service as exam_service
 from app.db import models  # noqa: F401  (registers every table for TRUNCATE)
 from app.db.session import get_session
 from app.domains.notifications import service as notifications
@@ -133,6 +135,20 @@ def dojah(monkeypatch):
     fake = helpers.FakeDojah()
     monkeypatch.setattr(helpers, "dojah", fake)
     monkeypatch.setattr(dojah_client, "lookup_nin", fake.lookup_nin)
+    return fake
+
+
+@pytest.fixture(autouse=True)
+def claude(monkeypatch, engine):
+    """A fake Claude for the exam bank (spec 4 R5.2), answered by helpers.claude. Generation that would
+    run in the background runs at once, on the test database."""
+    fake = helpers.FakeClaude()
+    monkeypatch.setattr(helpers, "claude", fake)
+    monkeypatch.setattr(claude_client, "generate_questions", fake.generate_questions)
+    monkeypatch.setattr(claude_client, "answer_question", fake.answer_question)
+    monkeypatch.setattr(claude_client, "available", lambda: True)
+    monkeypatch.setattr(exam_service, "run_in_background", lambda fn, *args: fn(*args))
+    monkeypatch.setattr(exam_service, "new_session", lambda: Session(engine))
     return fake
 
 

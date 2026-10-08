@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
 from PIL import Image
 
+from app.core.claude import GeneratedQuestion
 from app.core.clock import WAT
 from app.core.dojah import NinRecord
 from app.core.config import settings
@@ -67,6 +68,40 @@ class FakeDojah:
 
 
 dojah: FakeDojah = FakeDojah()
+
+
+CORRECT = "(correct)"  # the fake marks its key, so tests can answer right or wrong on purpose
+
+
+class FakeClaude:
+    """Writes and checks exam questions (spec 4 R5.2) without the network. Every generated question's
+    right option ends in CORRECT; the checker agrees unless `checker_disagrees` is set."""
+
+    def __init__(self):
+        self.generated: list[tuple[str | None, str | None, int]] = []  # (subject, level, count) per request
+        self.checked: list[tuple[str, list[str]]] = []  # what the independent checker was shown
+        self.checker_disagrees = False
+        self.counter = 0
+
+    def generate_questions(self, subject, level, count, avoid):
+        self.generated.append((subject, level, count))
+        questions = []
+        for _ in range(count):
+            self.counter += 1
+            n = self.counter
+            questions.append(GeneratedQuestion(
+                text=f"[{subject or 'General'} {level or ''}] Question {n} {uuid4().hex[:6]}: what is {n} + {n}?",
+                options=[f"{2 * n} {CORRECT}", f"{2 * n + 1}", f"{2 * n + 2}", f"{2 * n + 3}"],
+                correct_index=0, explanation=f"{n} + {n} = {2 * n}"))
+        return questions
+
+    def answer_question(self, text, options):
+        self.checked.append((text, list(options)))
+        right = next(i for i, option in enumerate(options) if option.endswith(CORRECT))
+        return (right + 1) % 4 if self.checker_disagrees else right
+
+
+claude: FakeClaude = FakeClaude()
 
 
 class FakeClock:
@@ -276,10 +311,52 @@ def certified_tutor(client, admin_headers: dict, **kwargs) -> dict:
     return tutor
 
 
+PREPARING = "Your exam is being prepared, try again shortly"
+
+
+def start_exam(client, tutor: dict):
+    """Starts an attempt. The first try on an empty bank answers "being prepared" while the (fake,
+    synchronous) generation fills it, so it tries once more (spec 4 R5.8)."""
+    response = client.post("/v1/exam/attempts", headers=tutor["headers"])
+    if response.status_code == 409 and response.json()["detail"] == PREPARING:
+        response = client.post("/v1/exam/attempts", headers=tutor["headers"])
+    return response
+
+
+def exam_answers(attempt: dict, right: int = 20) -> list[dict]:
+    """Answers for every question: the first `right` correct, the rest wrong."""
+    answers = []
+    for q in attempt["questions"]:
+        correct = next(i for i, option in enumerate(q["options"]) if option.endswith(CORRECT))
+        answers.append({"position": q["position"], "choice": correct if len(answers) < right else (correct + 1) % 4})
+    return answers
+
+
+def take_exam(client, tutor: dict, right: int = 20) -> dict:
+    """A whole attempt with `right` correct answers; returns the submit response's JSON."""
+    response = start_exam(client, tutor)
+    assert response.status_code == 200, response.text
+    attempt = response.json()
+    saved = client.put(f"/v1/exam/attempts/{attempt['id']}/answers", headers=tutor["headers"],
+                       json={"answers": exam_answers(attempt, right)})
+    assert saved.status_code == 200, saved.text
+    result = client.post(f"/v1/exam/attempts/{attempt['id']}/submit", headers=tutor["headers"])
+    assert result.status_code == 200, result.text
+    return result.json()
+
+
+def ready_tutor(client, admin_headers: dict, **kwargs) -> dict:
+    """A tutor who finished every onboarding step (spec 4 R2.1) and waits for an admin to approve them."""
+    tutor = certified_tutor(client, admin_headers, **kwargs)
+    assert take_exam(client, tutor)["passed"]
+    return tutor
+
+
 def approved_tutor(client, admin_headers: dict, **kwargs) -> dict:
     """An approved tutor with one offer: senior-secondary Mathematics, any day 08:00-20:00, ₦5,000.
-    They have a profile picture, a verified NIN and a verified certificate, as approval requires (spec 4 R2.3)."""
-    tutor = certified_tutor(client, admin_headers, **kwargs)
+    They have a profile picture, a verified NIN, a verified certificate and a passed exam, as approval
+    requires (spec 4 R2.3)."""
+    tutor = ready_tutor(client, admin_headers, **kwargs)
     assert vet(client, admin_headers, tutor).status_code == 200
     return tutor
 

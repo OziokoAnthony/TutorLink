@@ -11,7 +11,7 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 1. `feature-1-bookings-and-payments.md`: offers, booking requests, prepaid bank-transfer payments, hidden fees, lessons, problems and refunds, tutor payouts. **Built.**
 2. `feature-2-job-posts.md`: parents post jobs with their own price, approved tutors apply, choosing one books them. **Built.**
 3. `feature-3-online-lessons.md`: online or offline lessons, meeting links, recording consent, lesson recordings uploaded straight to R2. **Built.**
-4. `feature-4-tutor-onboarding.md`
+4. `feature-4-tutor-onboarding.md`: Google sign-in, work emails, profile pictures, NIN verification, certificates, the qualifying exam. **Built.**
 5. `feature-5-international.md` (draft: location, NGN/USD, job visibility by country)
 
 Read the spec before changing a feature it covers. Requirement ids (R1.2, R5.3…) are the shared
@@ -81,12 +81,20 @@ Alembic migration per spec or build step in `alembic/versions/`.
   or the selfie: only last 4 digits and `security.hash_nin` (keyed by `SECRET_KEY`). A verified NIN sets
   `tutor_profiles.nin_verified_at`, which locks the tutor's name except for admins.
   `onboarding.missing_for_approval` is the one list of what approval needs; `helpers.approved_tutor`
-  goes through it (picture, NIN, a verified certificate, then vetting). `helpers.verified_tutor` stops
-  after the NIN, `helpers.certified_tutor` after the certificate.
+  goes through it (picture, NIN, a verified certificate, a passed exam, then vetting).
+  `helpers.verified_tutor` stops after the NIN, `helpers.certified_tutor` after the certificate,
+  `helpers.ready_tutor` after the exam.
 - **Certificates (spec 4 R4).** `app/domains/certificates/`: files are private in storage and reach only
   their tutor and admins as short-lived links. A WAEC/NECO checker PIN is stored with `security.encrypt`
   and erased when an admin reviews the certificate. `CertificateType` is shared with job posts'
   minimum certificate (one `certificate_type` enum).
+- **Qualifying exam (spec 4 R5).** `app/domains/exam/`. Claude is called only in `app/core/claude.py`
+  (model `EXAM_MODEL`, structured JSON output, `fallbacks: "default"` for refusals): one call writes a
+  batch of questions, a second answers each without the key, and only agreeing questions are kept.
+  Generation runs in a background thread (`exam.request_generation`), started on demand when an attempt
+  can't be filled and by `jobs.run_once` (`top_up_bank`, outside `run_all`). In tests the `claude` fixture
+  fakes Claude (`helpers.FakeClaude`, whose right options end in `helpers.CORRECT`) and runs generation at
+  once; `helpers.take_exam(client, tutor, right=N)` takes a whole attempt.
 - **Errors.** Raise `HTTPException` with a plain-English `detail` the frontend can show as is:
   404 when it doesn't exist, 403 for the wrong role or someone else's resource, 409 for a state
   conflict, 422 for invalid input.

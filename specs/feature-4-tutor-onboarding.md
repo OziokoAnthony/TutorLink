@@ -48,7 +48,7 @@ identity checked against the national NIN database, certificates authenticated, 
 5. Users can change their picture anytime. Admins can remove an inappropriate picture, and the user is then asked to upload a new one.
 6. The admin vetting page shows the tutor's profile picture next to the NIN-verified name.
 
-### R2. Onboarding checklist (tutor) (built 2026-10-08 with Profile, NIN, Certificates and review; the Quiz joins it, and the R2.3 approval check, with R5)
+### R2. Onboarding checklist (tutor) (built 2026-10-08)
 1. A new tutor sees a checklist: Profile (profile picture, and at least one offer with subjects, available times and price per lesson, spec 1 R0) → NIN → Certificates → Quiz → Waiting for admin review.
 2. A tutor stays `pending` and hidden from `/tutors` until approved (existing rule 2).
 3. The admin can approve only when NIN is verified, at least one certificate is verified, and the quiz is passed. Rejecting is always allowed.
@@ -77,7 +77,7 @@ identity checked against the national NIN database, certificates authenticated, 
 3. The admin views each certificate next to the NIN-verified name. They mark it **verified** or **rejected**, with a note. The tutor sees the result and can upload a replacement for a rejected one.
 4. Approved tutors' public profiles show badges: "NIN verified" and certificate types verified. No files or numbers are shown.
 
-### R5. Qualifying exam (quiz)
+### R5. Qualifying exam (quiz) (built 2026-10-08)
 1. The quiz is TutorLink's **qualifying exam**. A tutor takes it from their dashboard after logging in, and passing it is the step that completes their registration (R2). No tutor becomes a Verified tutor without passing.
 2. **Questions are generated automatically** with the Claude API (Anthropic) into a question bank. They aim at complex, multi-step critical-thinking and problem-solving questions, not recall.
    - Each question is multiple choice with 4 options and one correct answer, a short explanation, and a tag: either **general reasoning** or a **subject + level**.
@@ -112,17 +112,17 @@ identity checked against the national NIN database, certificates authenticated, 
 - [x] A parent without a profile picture gets 409 on booking request and job post. A tutor without one can't start the NIN step.
 - [x] A picture over 5 MB or not JPG/PNG/WebP is rejected.
 - [x] A parent's picture is shown to tutors on that parent's job posts, booking requests and bookings, and isn't returned to unauthenticated users.
-- [ ] Approving a tutor without verified NIN, a verified certificate and a passed quiz is a 409, naming what's missing.
+- [x] Approving a tutor without verified NIN, a verified certificate and a passed quiz is a 409, naming what's missing.
 - [x] No API response or database column contains a full NIN, selfie or NIN photo.
-- [ ] NIN verification fails when any name part differs from the NIN record (spelling, missing middle name, swapped order), passes when only capital letters or spacing differ, and the tutor can't start certificates or the exam until it passes.
+- [x] NIN verification fails when any name part differs from the NIN record (spelling, missing middle name, swapped order), passes when only capital letters or spacing differ, and the tutor can't start certificates or the exam until it passes.
 - [x] A name-mismatch response doesn't include the NIN record's name.
 - [x] A verified tutor can't change their name. A NIN already verified on another account is rejected.
 - [x] A 4th NIN attempt within 24 hours is a 429. Dojah is faked in tests.
-- [ ] Quiz questions sent to the browser contain no correct-answer field. An answer submitted after 30 minutes isn't scored.
-- [ ] A tutor can take attempts 1-6. A 7th attempt within 24 hours of the 6th is a 429. After 24 hours, 6 more are allowed.
-- [ ] 14/20 passes and 13/20 fails.
-- [ ] A generated question whose independent check gives a different answer is not added to the bank. Claude is faked in tests.
-- [ ] The submit response contains the score and pass/fail but no correct answers.
+- [x] Quiz questions sent to the browser contain no correct-answer field. An answer submitted after 30 minutes isn't scored.
+- [x] A tutor can take attempts 1-6. A 7th attempt within 24 hours of the 6th is a 429. After 24 hours, 6 more are allowed.
+- [x] 14/20 passes and 13/20 fails.
+- [x] A generated question whose independent check gives a different answer is not added to the bank. Claude is faked in tests.
+- [x] The submit response contains the score and pass/fail but no correct answers.
 - [x] A WAEC/NECO checker PIN is unreadable in the database and gone after review.
 - [x] Certificate files are only reachable by the tutor who uploaded them and by admins.
 

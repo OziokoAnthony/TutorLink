@@ -14,7 +14,7 @@ def test_unapproved_tutor_not_in_list(client):
 
 
 def test_admin_approves_then_tutor_appears(client, admin_headers):
-    tutor = helpers.certified_tutor(client, admin_headers)
+    tutor = helpers.ready_tutor(client, admin_headers)
     response = helpers.vet(client, admin_headers, tutor, "approved")
     assert response.status_code == 200
     assert response.json()["vetting_status"] == "approved"

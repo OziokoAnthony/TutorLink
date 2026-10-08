@@ -21,6 +21,7 @@ dependencies = [
     "python-multipart>=0.0.32",
     "boto3>=1.43.108",
     "cryptography>=44",
+    "anthropic>=1.12.1",
 ]
 
 [dependency-groups]

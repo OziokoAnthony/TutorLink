@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     DOJAH_SECRET_KEY: str = ""
     DOJAH_BASE_URL: str = "https://sandbox.dojah.io"
 
+    # Claude writes and checks the qualifying exam's questions (spec 4 R5.2).
+    ANTHROPIC_API_KEY: str = ""
+    EXAM_MODEL: str = "claude-opus-5-5"
+
     # Cloudflare R2 for uploaded files. While unset, files are kept under LOCAL_STORAGE_DIR (development only).
     R2_ACCOUNT_ID: str = ""
     R2_ACCESS_KEY_ID: str = ""

@@ -70,7 +70,7 @@ export default function AdminVetTutorsPage() {
 
   return (
     <>
-      <PageHeader title="Vet tutors" description="Approve tutors before parents can see and book them. Approval needs a verified NIN and a verified certificate." />
+      <PageHeader title="Vet tutors" description="Approve tutors before parents can see and book them. Approval needs a verified NIN, a verified certificate and a passed qualifying exam." />
       {tutors === null ? <LoadingSpinner /> : tutors.length === 0 ? (
         <EmptyState message="No tutors pending review." />
       ) : (

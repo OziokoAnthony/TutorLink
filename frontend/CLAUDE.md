@@ -11,7 +11,7 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 1. `feature-1-bookings-and-payments.md`: offers, booking requests, prepaid bank-transfer payments, hidden fees, lessons, problems and refunds, tutor payouts. **Built.**
 2. `feature-2-job-posts.md`: parents post jobs with their own price, approved tutors apply, choosing one books them. **Built.**
 3. `feature-3-online-lessons.md`: online or offline lessons, meeting links, recording consent, lesson recordings uploaded straight to R2. **Built.**
-4. `feature-4-tutor-onboarding.md`
+4. `feature-4-tutor-onboarding.md`: Google sign-in, work emails, profile pictures, NIN verification, certificates, the qualifying exam. **Built.**
 5. `feature-5-international.md` (draft: location, NGN/USD, job visibility by country)
 
 Read the spec before changing a feature it covers, and check the backend's request and response

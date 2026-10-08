@@ -21,6 +21,7 @@ const STEP_TITLES: Record<OnboardingStepKey, string> = {
   profile: 'Profile',
   nin: 'Verify your NIN',
   certificates: 'Certificates',
+  quiz: 'Qualifying exam',
   review: 'Waiting for admin review',
 }
 
@@ -83,7 +84,7 @@ function NinForm({ attemptsLeft, retryAt, onDone }: { attemptsLeft: number; retr
   )
 }
 
-/** The tutor's onboarding checklist (spec 4 R2.1): Profile → NIN → Certificates → waiting for admin review. */
+/** The tutor's onboarding checklist (spec 4 R2.1): Profile → NIN → Certificates → Quiz → waiting for admin review. */
 export default function OnboardingChecklist() {
   const { refresh } = useAuth()
   const toast = useToast()
@@ -111,7 +112,8 @@ export default function OnboardingChecklist() {
     profile: !done.profile,
     nin: done.profile && !done.nin,
     certificates: done.nin,
-    review: done.profile && done.nin && done.certificates,
+    quiz: done.nin && !done.quiz,
+    review: done.profile && done.nin && done.certificates && done.quiz,
   }
 
   return (
@@ -144,6 +146,14 @@ export default function OnboardingChecklist() {
                     {step.todo.length > 0 && <p className="text-sm text-muted-foreground">{step.todo.join('. ')}.</p>}
                     <CertificatesSection onChange={load} />
                   </>
+                )}
+                {step.key === 'quiz' && open.quiz && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      20 questions in 30 minutes: general reasoning and the subjects you teach. You need 14 to pass.
+                    </p>
+                    <Button asChild size="sm"><Link href="/dashboard/tutor/exam">Go to the exam</Link></Button>
+                  </div>
                 )}
                 {step.key === 'review' && open.review && (
                   <p className="text-sm text-muted-foreground">

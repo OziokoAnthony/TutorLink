@@ -14,6 +14,7 @@ from app.domains.auth import photos
 from app.domains.auth.models import User
 from app.domains.certificates import service as certificates
 from app.domains.certificates.models import CertificateStatus
+from app.domains.exam import service as exam
 from app.domains.onboarding.models import (
     NinCheckRead,
     NinResult,
@@ -85,12 +86,14 @@ def get_onboarding(session: Session, user: User) -> Onboarding:
     attempts = _recent_attempts(session, user.id, clock.now())
     todo = profile_todo(session, user)
     certs = certificates_todo(session, user)
+    passed = exam.has_passed(session, user.id)
     nin_done = profile.nin_verified_at is not None
     return Onboarding(
         steps=[
             OnboardingStep(key="profile", done=not todo, todo=todo),
             OnboardingStep(key="nin", done=nin_done, todo=[] if nin_done else ["Verify your NIN with a selfie"]),
             OnboardingStep(key="certificates", done=not certs, todo=certs),
+            OnboardingStep(key="quiz", done=passed, todo=[] if passed else ["Pass the qualifying exam"]),
             OnboardingStep(key="review", done=profile.vetting_status == VettingStatus.approved,
                            todo=missing_for_approval(session, profile)),
         ],
@@ -101,12 +104,14 @@ def get_onboarding(session: Session, user: User) -> Onboarding:
 
 
 def missing_for_approval(session: Session, profile: TutorProfile) -> list[str]:
-    """What stops an admin approving this tutor (R2.3). The quiz (R5) joins when built."""
+    """What stops an admin approving this tutor (R2.3, R2.4): passing the quiz is mandatory."""
     missing = []
     if profile.nin_verified_at is None:
         missing.append("NIN not verified")
     if not certificates.has_verified(session, profile.user_id):
         missing.append("no verified certificate")
+    if not exam.has_passed(session, profile.user_id):
+        missing.append("qualifying exam not passed")
     return missing
 
 

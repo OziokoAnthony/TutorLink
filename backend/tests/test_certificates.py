@@ -181,6 +181,7 @@ def test_approving_without_a_verified_certificate_is_409(client, admin_headers, 
     certificate = upload(client, tutor)
     assert helpers.vet(client, admin_headers, tutor).status_code == 409  # pending isn't enough
     helpers.review_certificate(client, admin_headers, certificate["id"])
+    helpers.take_exam(client, tutor)
     assert helpers.vet(client, admin_headers, tutor).status_code == 200
 
 
@@ -191,7 +192,8 @@ def test_public_profile_shows_badges_but_no_files_or_numbers(client, admin_heade
         helpers.review_certificate(client, admin_headers, certificate["id"])
     rejected = upload(client, tutor, type="TRCN")
     helpers.review_certificate(client, admin_headers, rejected["id"], "rejected", "Expired")
-    helpers.vet(client, admin_headers, tutor)
+    helpers.take_exam(client, tutor)
+    assert helpers.vet(client, admin_headers, tutor).status_code == 200
 
     public = client.get(f"/v1/tutors/{tutor['id']}")
     assert public.json()["nin_verified"] is True
