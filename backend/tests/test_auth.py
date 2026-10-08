@@ -3,11 +3,14 @@ from tests.helpers import PASSWORD
 
 
 def register(client, **overrides):
+    """Parents with email and password; tutors with Google, the only way they can (spec 4 R1.1)."""
+    if overrides.get("role") == "tutor":
+        email = overrides.pop("email", None) or helpers.unique_email("tutor")
+        body = {"first_name": "Anthony", "surname": "Ozioko", "area": None, "offers": []}
+        body.update(overrides)
+        return helpers.google_register(client, email, **body)
     body = {"email": helpers.unique_email("user"), "password": PASSWORD, "role": "parent",
             "full_name": "Ada Parent"}
-    if overrides.get("role") == "tutor":
-        body = {**body, "full_name": None, "first_name": "Anthony", "surname": "Ozioko"}
-        del body["password"]
     body.update(overrides)
     return client.post("/v1/auth/register", json=body)
 

@@ -8,6 +8,8 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import uuid4
 
+import jwt
+from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
 from PIL import Image
 
@@ -22,6 +24,23 @@ WEAKNESSES = "Struggles with word problems and fractions."
 
 
 # ---------- Fakes ----------
+
+GOOGLE_CLIENT_ID = "tutorlink-tests.apps.googleusercontent.com"
+GOOGLE_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)  # "Google's" signing key in tests
+
+
+def google_token(email: str, given_name: str | None = "Anthony", family_name: str | None = "Ozioko", *,
+                 key=None, expires_in: timedelta = timedelta(hours=1), **claims) -> str:
+    """A Google ID token as Google Identity Services gives the browser, signed with GOOGLE_KEY
+    (or `key`, to forge one). Override any claim, e.g. aud="someone-else" or email_verified=False."""
+    now = datetime.now(timezone.utc)
+    payload = {"iss": "https://accounts.google.com", "aud": GOOGLE_CLIENT_ID, "sub": email, "email": email,
+               "email_verified": True, "given_name": given_name, "family_name": family_name,
+               "name": " ".join(n for n in (given_name, family_name) if n),
+               "picture": "https://lh3.googleusercontent.com/a/photo", "iat": now, "exp": now + expires_in}
+    payload.update(claims)
+    return jwt.encode(payload, key or GOOGLE_KEY, algorithm="RS256", headers={"kid": "test"})
+
 
 class FakeClock:
     def __init__(self):
@@ -151,16 +170,24 @@ def offer(subjects=("Mathematics",), level: str = "senior_secondary", price: str
     return {"subjects": list(subjects), "level": level, "price": price, "windows": windows or ALL_WEEK}
 
 
+def google_register(client, email: str, role: str = "tutor", **fields):
+    """Sign-up with Google: tutors' only way to register (spec 4 R1.1). For a tutor, defaults to
+    Anthony Ozioko in Lekki with one offer; for a parent, Ada Parent."""
+    body = ({"first_name": "Anthony", "surname": "Ozioko", "area": "Lekki", "offers": [offer()]}
+            if role == "tutor" else {"full_name": "Ada Parent"})
+    body.update(fields)
+    token = body.pop("id_token", None) or google_token(email)
+    return client.post("/v1/auth/google/register", json={"id_token": token, "role": role, **body})
+
+
 def register_tutor(client, email: str | None = None, full_name: str = "Tunde Tutor", area: str = "Lekki",
                    offers: list | None = None, **offer_kwargs) -> dict:
     """`full_name` is split into first name (first word) and surname (the rest). The tutor logs in with
     the work email and PASSWORD (the `tutor_password` fixture stands in for the generated password)."""
     email = email or unique_email("tutor")
     first_name, _, surname = full_name.partition(" ")
-    response = client.post("/v1/auth/register", json={
-        "email": email, "role": "tutor", "first_name": first_name, "surname": surname,
-        "area": area, "offers": offers or [offer(**offer_kwargs)],
-    })
+    response = google_register(client, email, first_name=first_name, surname=surname, area=area,
+                               offers=offers or [offer(**offer_kwargs)])
     assert response.status_code == 201, response.text
     user = response.json()["user"]
     tutor = {"id": user["id"], "email": email, "work_email": user["work_email"],

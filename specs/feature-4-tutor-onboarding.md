@@ -11,7 +11,7 @@ identity checked against the national NIN database, certificates authenticated, 
 
 ## Requirements
 
-### R0. Tutor work email (R0.1-R0.6 built 2026-10-07)
+### R0. Tutor work email (R0.1-R0.6 built 2026-10-07, R0.7 built 2026-10-08)
 1. Tutors register with first name and surname as separate fields.
 2. On registration each tutor is assigned a work email: initial of the surname, a dot, the first name, `@tutorlink.com`. Anthony Ozioko → `o.anthony@tutorlink.com`; a second Anthony Ozioko gets `o.anthony2@tutorlink.com`.
 3. The tutor doesn't choose a password: TutorLink generates one. The work email and the password are sent to the tutor's personal email, and the work email is also shown once after registration. The work email is the tutor's **only** login. It doesn't change if they change their name.
@@ -24,7 +24,7 @@ identity checked against the national NIN database, certificates authenticated, 
 
    The link works once and expires after **1 hour**. The response is the same whether or not the email has an account, so the form doesn't reveal who is registered. Setting a new password from the link doesn't log anyone out of another device, but the old password stops working.
 
-### R1. Google: tutors register with it, parents can also sign in with it
+### R1. Google: tutors register with it, parents can also sign in with it (built 2026-10-08)
 1. **Tutors register only with Google.** The tutor registration page has **Continue with Google** and no email or password fields. The verified Google email becomes the tutor's personal email (R0.4), and the tutor completes the same profile fields as before (first name and surname prefilled from Google, area, at least one offer).
 2. Right after registering, the tutor is shown their work email **and** generated password on screen, once, and both are emailed to their Google email (R0.3).
 3. **Tutors never log in with Google.** They log in only with their work email and password (R0.3). A tutor who uses Continue with Google on the login page gets a 401 naming their work email, and only once the Google token is verified, so it reveals nothing to anyone else.
@@ -103,12 +103,12 @@ identity checked against the national NIN database, certificates authenticated, 
 - [x] R0: Logging in with a tutor's personal email fails and, only when the password is right, names the work email.
 - [x] R0: No email is ever sent to a work email. Changing name keeps the work email.
 - [x] R0: A user changes their password with the current one; a wrong current password is a 422.
-- [ ] A forged, expired, wrong-audience or unverified-email Google token gets 401.
-- [ ] Tutor registration without a valid Google token is refused. With one, the response shows the work email and generated password once, and both are emailed to the Google email.
-- [ ] A tutor using Google on the login page gets a 401 naming their work email; the work email and password log them in.
-- [ ] A parent's Google login for an existing parent email signs into that account. For a new email it requires the parent profile fields.
-- [ ] A Google email already used by an account of the other role gets 409.
-- [ ] "Forgot password" answers the same for known and unknown emails. A tutor's email contains their work email and a reset link; the link sets a new password once, expires after 1 hour, and the old password stops working.
+- [x] A forged, expired, wrong-audience or unverified-email Google token gets 401.
+- [x] Tutor registration without a valid Google token is refused. With one, the response shows the work email and generated password once, and both are emailed to the Google email.
+- [x] A tutor using Google on the login page gets a 401 naming their work email; the work email and password log them in.
+- [x] A parent's Google login for an existing parent email signs into that account. For a new email it requires the parent profile fields.
+- [x] A Google email already used by an account of the other role gets 409.
+- [x] "Forgot password" answers the same for known and unknown emails. A tutor's email contains their work email and a reset link; the link sets a new password once, expires after 1 hour, and the old password stops working.
 - [ ] A parent without a profile picture gets 409 on booking request and job post. A tutor without one can't start the NIN step.
 - [x] A picture over 5 MB or not JPG/PNG/WebP is rejected.
 - [ ] A parent's picture is shown to tutors on that parent's job posts, booking requests and bookings, and isn't returned to unauthenticated users.

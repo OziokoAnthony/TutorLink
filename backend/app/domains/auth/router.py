@@ -1,12 +1,26 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile, status
 from sqlmodel import Session
 
 from app.core.deps import get_current_user, require_roles
 from app.db.session import get_session
 from app.domains.auth import photos, service
-from app.domains.auth.models import ChangePasswordRequest, LoginRequest, MeResponse, RegisterRequest, TokenResponse, User, UserRole
+from app.domains.auth.models import (
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
+    GoogleLoginRequest,
+    GoogleRegisterRequest,
+    GoogleRegisterResponse,
+    LoginRequest,
+    MeResponse,
+    RegisterRequest,
+    ResetPasswordRequest,
+    TokenResponse,
+    User,
+    UserRole,
+)
+from app.domains.notifications import service as notifications
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
@@ -22,6 +36,35 @@ def register(data: RegisterRequest, session: Session = Depends(get_session)):
 @router.post("/login", response_model=TokenResponse)
 def login(data: LoginRequest, session: Session = Depends(get_session)):
     return service.login(session, data)
+
+
+@router.post("/google/register", response_model=GoogleRegisterResponse, status_code=status.HTTP_201_CREATED)
+def google_register(data: GoogleRegisterRequest, session: Session = Depends(get_session)):
+    """Tutors register only here (spec 4 R1.1); parents may too. Tutors get `password`, shown once;
+    parents get `access_token`."""
+    return service.google_register(session, data)
+
+
+@router.post("/google/login", response_model=TokenResponse)
+def google_login(data: GoogleLoginRequest, session: Session = Depends(get_session)):
+    """Parents only. 404 when no account has this Google email: the frontend then offers sign-up."""
+    return service.google_login(session, data)
+
+
+@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
+def forgot_password(data: ForgotPasswordRequest, background_tasks: BackgroundTasks,
+                    session: Session = Depends(get_session)):
+    """Always the same answer, and the email goes out after responding, so the form doesn't reveal
+    who has an account (spec 4 R0.7)."""
+    email = service.forgot_password(session, data)
+    if email:
+        background_tasks.add_task(notifications.send_email, *email)
+    return {"detail": "If an account uses this email, we've sent it a link to set a new password."}
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+def reset_password(data: ResetPasswordRequest, session: Session = Depends(get_session)):
+    service.reset_password(session, data)
 
 
 @router.get("/me", response_model=MeResponse)

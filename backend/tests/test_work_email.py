@@ -9,11 +9,8 @@ from tests.helpers import PASSWORD
 
 
 def register_tutor(client, first_name="Anthony", surname="Ozioko", email=None):
-    email = email or helpers.unique_email("tutor")
-    return client.post("/v1/auth/register", json={
-        "email": email, "role": "tutor", "first_name": first_name, "surname": surname,
-        "area": "Lekki", "offers": [helpers.offer()],
-    })
+    return helpers.google_register(client, email or helpers.unique_email("tutor"),
+                                   first_name=first_name, surname=surname)
 
 
 def login(client, email, password=PASSWORD):
@@ -67,12 +64,10 @@ def test_parents_have_no_work_email_and_log_in_with_their_own(client):
 
 
 def test_nobody_registers_with_a_tutorlink_address(client):
+    body = {"email": "o.anthony@tutorlink.com", "password": PASSWORD, "role": "parent", "full_name": "Ada Parent"}
+    assert client.post("/v1/auth/register", json=body).status_code == 422
     for role in ("parent", "tutor"):
-        body = {"email": "o.anthony@tutorlink.com", "password": PASSWORD, "role": role, "full_name": "Ada Parent"}
-        if role == "tutor":
-            del body["password"]
-            body.update(first_name="Anthony", surname="Ozioko", area="Lekki", offers=[helpers.offer()])
-        assert client.post("/v1/auth/register", json=body).status_code == 422
+        assert helpers.google_register(client, "o.anthony@tutorlink.com", role).status_code == 422
 
 
 def test_tutor_needs_first_name_and_surname(client):
@@ -95,10 +90,12 @@ def test_no_email_is_ever_sent_to_the_work_email(client, outbox, admin_headers):
     assert outbox and all(sent["to"] != tutor["work_email"] for sent in outbox)
 
 
-def test_tutors_cannot_choose_a_password_at_registration(client):
-    body = {"email": helpers.unique_email("tutor"), "password": PASSWORD, "role": "tutor",
+def test_tutors_cannot_register_with_email_and_password(client):
+    """Spec 4 R1.1: tutors register only with Google, and never choose a password."""
+    body = {"email": helpers.unique_email("tutor"), "role": "tutor",
             "first_name": "Anthony", "surname": "Ozioko", "area": "Lekki", "offers": [helpers.offer()]}
     assert client.post("/v1/auth/register", json=body).status_code == 422
+    assert client.post("/v1/auth/register", json={**body, "password": PASSWORD}).status_code == 422
 
 
 def test_parents_must_choose_a_password(client):

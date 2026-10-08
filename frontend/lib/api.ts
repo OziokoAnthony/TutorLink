@@ -17,11 +17,14 @@ api.interceptors.request.use((config) => {
 })
 
 // Handle 401 globally — redirect to login.
-// Exception: a 401 from the login request itself means "wrong password"; the login page shows it.
+// Exception: a 401 from a login or Google sign-up request means "wrong password" or "use your
+// TutorLink email"; the page shows it.
+const SIGN_IN_PATHS = ['/auth/login', '/auth/google/login', '/auth/google/register']
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const isLoginRequest = error.config?.url?.endsWith('/auth/login')
+    const isLoginRequest = SIGN_IN_PATHS.some((path) => error.config?.url?.endsWith(path))
     if (error.response?.status === 401 && !isLoginRequest) {
       Cookies.remove(TOKEN_COOKIE)
       window.location.href = '/login'

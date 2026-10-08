@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     # Tutors are assigned a work email at this domain (e.g. o.anthony@tutorlink.com) and log in with it.
     TUTOR_EMAIL_DOMAIN: str = "tutorlink.com"
 
+    # Google sign-in (spec 4 R1): the OAuth Client ID that Google ID tokens must be issued for.
+    GOOGLE_CLIENT_ID: str = ""
+
     # Cloudflare R2 for uploaded files. While unset, files are kept under LOCAL_STORAGE_DIR (development only).
     R2_ACCOUNT_ID: str = ""
     R2_ACCESS_KEY_ID: str = ""

@@ -118,6 +118,18 @@ def tutor_application_received(to: str, name: str, work_email: str, password: st
     )
 
 
+def password_reset_email(name: str, link: str, work_email: str | None) -> tuple[str, str]:
+    """(subject, html) of the "Forgot password?" email (spec 4 R0.7). Tutors are reminded of their work email."""
+    reminder = (f"<p>You log in to TutorLink with your TutorLink email: <strong>{escape(work_email)}</strong></p>"
+                if work_email else "")
+    return "Reset your TutorLink password", _wrap(
+        name,
+        f"{reminder}<p>To set a new password, open this link. It works once and expires in 1 hour.</p>"
+        f'<p><a href="{escape(link)}">Set a new password</a></p>'
+        "<p>If you didn't ask for this, you can ignore this email: your password stays the same.</p>",
+    )
+
+
 def tutor_approved(to: str, name: str) -> None:
     send_email(
         to,

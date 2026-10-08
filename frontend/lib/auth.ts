@@ -3,9 +3,8 @@ import api, { TOKEN_COOKIE } from '@/lib/api'
 import { toTutorProfile, type OfferInput } from '@/lib/tutors'
 import type { ParentProfile, Role, TutorToRate, UserMe } from '@/types'
 
-export interface RegisterInput {
-  email: string
-  password?: string // parents only: tutors are emailed a generated password
+/** What a new parent or tutor tells us about themselves. */
+export interface ProfileInput {
   role: 'parent' | 'tutor'
   // Parents give a full name; tutors give first name and surname, which make their work email.
   full_name?: string
@@ -17,6 +16,18 @@ export interface RegisterInput {
   area?: string
   bio?: string
   offers?: OfferInput[]
+}
+
+/** Email and password sign-up: parents only. Tutors register with Google (spec 4 R1.1). */
+export interface RegisterInput extends ProfileInput {
+  email: string
+  password: string
+}
+
+/** Sign-up with Google: the email is the one in the Google ID token. */
+export interface GoogleRegisterInput extends ProfileInput {
+  id_token: string
+  use_google_photo?: boolean
 }
 
 interface RawMe {
@@ -32,20 +43,49 @@ export const ROLE_HOME: Record<Role, string> = {
   admin: '/admin/tutors',
 }
 
-/** Creates the account. For a tutor, returns the work email they must log in with. */
-export async function register(input: RegisterInput): Promise<{ work_email: string | null }> {
-  const { data } = await api.post<RawMe>('/auth/register', input)
-  return { work_email: data.user.work_email ?? null }
+function storeToken(accessToken: string): void {
+  Cookies.set(TOKEN_COOKIE, accessToken, {
+    expires: 1,
+    sameSite: 'strict',
+    secure: window.location.protocol === 'https:',
+  })
+}
+
+/** Creates a parent account with email and password; they log in afterwards. */
+export async function register(input: RegisterInput): Promise<void> {
+  await api.post<RawMe>('/auth/register', input)
+}
+
+/**
+ * Creates the account from a Google sign-in. A parent is signed in at once. A tutor gets their work
+ * email and generated password, shown once (spec 4 R1.2), and logs in with them.
+ */
+export async function registerWithGoogle(input: GoogleRegisterInput): Promise<{ work_email: string | null; password: string | null }> {
+  const { data } = await api.post<RawMe & { password: string | null; access_token: string | null }>('/auth/google/register', input)
+  if (data.access_token) storeToken(data.access_token)
+  return { work_email: data.user.work_email ?? null, password: data.password ?? null }
 }
 
 /** Logs in and stores the JWT cookie. */
 export async function login(email: string, password: string): Promise<void> {
   const { data } = await api.post<{ access_token: string; token_type: string }>('/auth/login', { email, password })
-  Cookies.set(TOKEN_COOKIE, data.access_token, {
-    expires: 1,
-    sameSite: 'strict',
-    secure: window.location.protocol === 'https:',
-  })
+  storeToken(data.access_token)
+}
+
+/** Parents only. 404 when no account uses this Google email; tutors get a 401 naming their work email. */
+export async function loginWithGoogle(idToken: string): Promise<void> {
+  const { data } = await api.post<{ access_token: string; token_type: string }>('/auth/google/login', { id_token: idToken })
+  storeToken(data.access_token)
+}
+
+/** Emails a reset link if an account uses this personal email. The answer is the same either way. */
+export async function forgotPassword(email: string): Promise<void> {
+  await api.post('/auth/forgot-password', { email })
+}
+
+/** Sets a new password from the emailed link (works once, for 1 hour). */
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  await api.post('/auth/reset-password', { token, new_password: newPassword })
 }
 
 function toUserMe(data: RawMe): UserMe {

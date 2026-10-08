@@ -15,6 +15,7 @@ from sqlalchemy.engine import make_url
 from sqlmodel import Session, SQLModel
 
 from app.core import clock as clock_module
+from app.core import google as google_client
 from app.core import paystack as paystack_client
 from app.core import security
 from app.core.config import settings
@@ -103,6 +104,26 @@ def test_settings(monkeypatch, tmp_path):
         monkeypatch.setattr(settings, name, "")
     monkeypatch.setattr(settings, "LOCAL_STORAGE_DIR", str(tmp_path / "storage"))
     monkeypatch.setattr(settings, "RUN_SCHEDULER", False)
+
+
+@pytest.fixture(autouse=True)
+def google(monkeypatch):
+    """Google ID tokens are checked against helpers.GOOGLE_KEY instead of Google's published keys, and the
+    Google account photo is a generated image (no network). Set `google.photo = None` for no photo."""
+    class FakeGoogle:
+        photo: bytes | None = helpers.image_bytes()
+        fetched: list[str] = []
+
+        def fetch_photo(self, url):
+            self.fetched.append(url)
+            return self.photo if url else None
+
+    fake = FakeGoogle()
+    fake.fetched = []
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", helpers.GOOGLE_CLIENT_ID)
+    monkeypatch.setattr(google_client, "signing_key", lambda token: helpers.GOOGLE_KEY.public_key())
+    monkeypatch.setattr(google_client, "fetch_photo", fake.fetch_photo)
+    return fake
 
 
 @pytest.fixture(autouse=True)

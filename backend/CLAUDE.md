@@ -67,6 +67,13 @@ Alembic migration per spec or build step in `alembic/versions/`.
   makes one, and both are emailed to `users.email`, their personal address, where every email is sent
   (nothing is ever sent to the work email). Tests pin the generated password to `helpers.PASSWORD`
   (`tutor_password` fixture). Parents and admins choose a password and log in with `users.email`.
+- **Google sign-in (spec 4 R1).** Google ID tokens are verified only in `app/core/google.py`.
+  Tutors register only through `POST /auth/google/register` and never log in with Google; parents
+  may do both, and a parent who signed up with Google has `password_hash = NULL` until they use
+  "Forgot password?". In tests, `helpers.google_token(email, …)` mints tokens the `google` fixture
+  accepts, and `helpers.google_register` / `register_tutor` sign up through it.
+- **Password reset (spec 4 R0.7).** `password_reset_tokens` stores only a SHA-256 of each link's
+  token; a link works once, for an hour, and `/auth/forgot-password` answers the same for any email.
 - **Errors.** Raise `HTTPException` with a plain-English `detail` the frontend can show as is:
   404 when it doesn't exist, 403 for the wrong role or someone else's resource, 409 for a state
   conflict, 422 for invalid input.

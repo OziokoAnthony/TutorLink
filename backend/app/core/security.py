@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import hashlib
 import secrets
 
 import jwt
@@ -26,8 +27,18 @@ def generate_password(length: int = 12) -> str:
     return "".join(secrets.choice(_PASSWORD_ALPHABET) for _ in range(length))
 
 
-def verify_password(plain_password: str, password_hash: str) -> bool:
-    return pwd_context.verify(plain_password, password_hash)
+def verify_password(plain_password: str, password_hash: str | None) -> bool:
+    """False when the user has no password (a parent who signed up with Google)."""
+    return password_hash is not None and pwd_context.verify(plain_password, password_hash)
+
+
+def hash_token(token: str) -> str:
+    """SHA-256 of a random one-time token, e.g. a password reset link's. Only the hash is stored."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def generate_token() -> str:
+    return secrets.token_urlsafe(32)
 
 
 def create_access_token(subject: str, role: str, expires_delta: timedelta | None = None) -> str:
