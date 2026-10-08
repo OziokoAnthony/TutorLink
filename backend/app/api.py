@@ -12,6 +12,7 @@ from app.domains.bookings.router import router as bookings_router
 from app.domains.bookings.router import tutor_router as tutor_schedule_router
 from app.domains.fees.router import router as fees_router
 from app.domains.files.router import router as files_router
+from app.domains.job_posts.router import router as jobs_router
 from app.domains.lessons.router import admin_router as admin_lessons_router
 from app.domains.lessons.router import router as lessons_router
 from app.domains.notifications.router import router as notifications_router
@@ -30,7 +31,7 @@ api_router = APIRouter()
 for router in (
     auth_router, admin_users_router,
     tutors_router, tutor_schedule_router, reviews_router, admin_tutors_router,
-    bookings_router, admin_bookings_router,
+    bookings_router, admin_bookings_router, jobs_router,
     lessons_router, admin_lessons_router,
     wallet_router, banks_router, admin_withdrawals_router,
     earnings_router, admin_payouts_router,

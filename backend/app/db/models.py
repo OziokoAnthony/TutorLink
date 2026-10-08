@@ -3,6 +3,7 @@
 from app.domains.auth import models as auth_models  # noqa: F401
 from app.domains.bookings import models as bookings_models  # noqa: F401
 from app.domains.fees import models as fees_models  # noqa: F401
+from app.domains.job_posts import models as job_posts_models  # noqa: F401
 from app.domains.lessons import models as lessons_models  # noqa: F401
 from app.domains.notifications import models as notifications_models  # noqa: F401
 from app.domains.payments import models as payments_models  # noqa: F401

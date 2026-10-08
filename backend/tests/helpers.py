@@ -275,3 +275,39 @@ def completed_lesson(client, db, clock: FakeClock, paystack: FakePaystack, paren
     clock.travel(hours=24, minutes=1)
     run_jobs(db, clock)
     return lesson
+
+
+# ---------- Job posts (spec 2) ----------
+
+def job_body(*, subjects=("Mathematics",), price: str = "6000.00", mode: str = "offline", area: str | None = "Lekki",
+             slots: list | None = None, start_date: date | None = None, billing_period: str = "weekly",
+             **overrides) -> dict:
+    """A job: one 15:00-16:00 lesson a week, starting in 3 days, at the parent's price."""
+    start_date = start_date or days_ahead(3)
+    body = {
+        "subjects": list(subjects), "level": "senior_secondary", "mode": mode, "area": area,
+        "slots": slots if slots is not None else [
+            {"day_of_week": start_date.weekday(), "start_time": "15:00", "end_time": "16:00"}],
+        "start_date": start_date.isoformat(), "end_date": None, "billing_period": billing_period,
+        "qualifications": "A science degree and two years of teaching.", "min_certificate": "Degree",
+        "other_requirements": "Patient with young learners.", "price": price,
+        "child_strengths": STRENGTHS, "child_weaknesses": WEAKNESSES,
+    }
+    body.update(overrides)
+    return body
+
+
+def post_job(client, parent: dict, **kwargs) -> dict:
+    response = client.post("/v1/jobs", headers=parent["headers"], json=job_body(**kwargs))
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def apply_to_job(client, tutor: dict, job: dict, note: str | None = "I teach this every week."):
+    return client.post(f"/v1/jobs/{job['id']}/apply", headers=tutor["headers"], json={"note": note})
+
+
+def choose_applicant(client, parent: dict, job: dict, tutor: dict):
+    applicants = client.get(f"/v1/jobs/{job['id']}/applications", headers=parent["headers"]).json()
+    application = next(a for a in applicants if a["tutor_id"] == tutor["id"])
+    return client.post(f"/v1/jobs/{job['id']}/applications/{application['id']}/choose", headers=parent["headers"])
