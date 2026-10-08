@@ -27,7 +27,7 @@ qualifications they want and the price they will pay, and let tutors come to the
 
 ### R2. Browsing and applying (tutor)
 1. Only **approved** tutors can browse and apply.
-2. The tutor job list shows open jobs only. It can be filtered by subject (a job matches if it includes that subject), level, mode and area.
+2. The tutor job list shows open jobs only. It can be filtered by subject (a job matches if it includes that subject), level, mode and area. Which countries' jobs a tutor sees: spec 5 R4.
 3. Each job shows P, and **to the tutor only**, T% and their earning per lesson P × (1 − T%).
 4. Tutors never see the parent fee, the parent's total, or the parent's surname, address, phone or email. They see the parent's first name and profile picture, the area, and the child's strengths and weaknesses.
 5. When the tutor is chosen, the booking carries the job's strengths and weaknesses (spec 1 R2.1).
