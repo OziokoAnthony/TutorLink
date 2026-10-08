@@ -1,18 +1,19 @@
 """Lessons after they're paid: tutor reports, the parent's problem window, problems and their outcome
 (spec 1 R4, R5). Functions that depend on the time take `now`."""
 
+import logging
 from datetime import date, datetime, timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
-from app.core import clock
+from app.core import clock, storage
 from app.core.clock import at_wat
 from app.domains.auth import service as auth_service
-from app.domains.auth.models import User
+from app.domains.auth.models import User, UserRole
 from app.domains.bookings import service as bookings_service
-from app.domains.bookings.models import Booking
+from app.domains.bookings.models import Booking, LessonMode
 from app.domains.lessons.models import (
     EarningStatus,
     IssueCreate,
@@ -27,6 +28,9 @@ from app.domains.lessons.models import (
     LessonReport,
     LessonStatus,
     LessonTutorView,
+    RecordingLink,
+    RecordingUpload,
+    RecordingUploadIn,
 )
 from app.domains.notifications import service as notifications
 from app.domains.payments import service as payments
@@ -35,6 +39,15 @@ from app.domains.reviews import service as review_service
 
 REPORT_WITHIN = timedelta(hours=24)  # tutor reports within 24 h of the lesson's end (spec 1 R4.2)
 PROBLEM_WINDOW = timedelta(hours=24)  # parent can report a problem for 24 h after the report (R4.3, R5.1)
+
+# Lesson recordings (spec 3 R2)
+RECORDING_TYPES = {"video/mp4": ".mp4", "video/webm": ".webm", "video/quicktime": ".mov"}
+MAX_RECORDING_BYTES = 2 * 1024 ** 3  # 2 GB
+UPLOAD_LINK_TTL = timedelta(hours=1)
+VIEW_LINK_TTL = timedelta(minutes=15)
+KEEP_RECORDINGS = timedelta(days=90)
+
+logger = logging.getLogger(__name__)
 
 
 # ---------- Reading ----------
@@ -67,6 +80,8 @@ def _views(session: Session, lessons: list[Lesson], view):
             "subjects": b.subjects, "level": b.level, "mode": b.mode,
             "parent_name": names.get(l.parent_id), "tutor_name": names.get(l.tutor_id),
             "issue": _issue_read(issue) if issue else None,
+            "recording_required": b.mode == LessonMode.online,
+            "has_recording": l.recording_uploaded_at is not None and l.recording_deleted_at is None,
         }))
     return result
 
@@ -118,6 +133,11 @@ def submit_report(session: Session, tutor: User, lesson_id: UUID, data: LessonRe
         raise HTTPException(status.HTTP_409_CONFLICT, f"This lesson can't be reported (it is {lesson.status.value})")
     if lesson.status == LessonStatus.confirmed and now > lesson.ends_at + REPORT_WITHIN:
         raise HTTPException(status.HTTP_409_CONFLICT, "The 24-hour report deadline has passed")
+    if session.get(Booking, lesson.booking_id).mode == LessonMode.online:
+        # Checked again from the stored file, not only from what the upload claimed (spec 3 R2.1, R2.3).
+        if lesson.recording_uploaded_at is None or _stored_recording_problem(lesson) is not None:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                                "Upload the lesson recording before submitting your report")
 
     lesson.topic_covered = data.topic_covered
     lesson.homework = data.homework or None
@@ -134,6 +154,123 @@ def submit_report(session: Session, tutor: User, lesson_id: UUID, data: LessonRe
     )
     session.commit()
     return _views(session, [lesson], LessonTutorView)[0]
+
+
+# ---------- Recordings (online lessons) ----------
+
+def _stored_recording_problem(lesson: Lesson) -> str | None:
+    """Why the stored file isn't an acceptable recording, or None if it is."""
+    found = storage.head(lesson.recording_key) if lesson.recording_key else None
+    if found is None:
+        return "The recording upload didn't finish. Please upload it again."
+    size, content_type = found
+    if content_type.split(";")[0].strip() not in RECORDING_TYPES:
+        return "The recording must be an MP4, WebM or MOV video."
+    if size > MAX_RECORDING_BYTES or size == 0:
+        return "The recording must be a video of at most 2 GB."
+    return None
+
+
+def request_recording_upload(session: Session, tutor: User, lesson_id: UUID, data: RecordingUploadIn,
+                             now: datetime | None = None) -> RecordingUpload:
+    """A short-lived link for the browser to upload the recording straight to storage (spec 3 R2.2)."""
+    now = now or clock.now()
+    lesson = _get(session, lesson_id)
+    if lesson.tutor_id != tutor.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only upload recordings of your own lessons")
+    if session.get(Booking, lesson.booking_id).mode != LessonMode.online:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Only online lessons have a recording")
+    if lesson.reported_at is not None or lesson.status in (LessonStatus.refunded, LessonStatus.cancelled):
+        raise HTTPException(status.HTTP_409_CONFLICT, "This lesson's recording can no longer be changed")
+    if now < lesson.starts_at:
+        raise HTTPException(status.HTTP_409_CONFLICT, "You can upload the recording once the lesson has started")
+    content_type = data.content_type.split(";")[0].strip().lower()
+    extension = "." + data.filename.rsplit(".", 1)[-1].lower() if "." in data.filename else ""
+    if content_type not in RECORDING_TYPES or extension not in RECORDING_TYPES.values():
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The recording must be an MP4, WebM or MOV video")
+    if data.size > MAX_RECORDING_BYTES:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The recording must be at most 2 GB")
+
+    old_key = lesson.recording_key
+    lesson.recording_key = f"recordings/{lesson.id}/{uuid4().hex}{RECORDING_TYPES[content_type]}"
+    lesson.recording_content_type = content_type
+    lesson.recording_size = data.size
+    lesson.recording_uploaded_at = None
+    session.add(lesson)
+    session.commit()
+    if old_key:
+        _delete_file(old_key)
+    seconds = int(UPLOAD_LINK_TTL.total_seconds())
+    return RecordingUpload(upload_url=storage.upload_url(lesson.recording_key, content_type, data.size, seconds),
+                           content_type=content_type, expires_at=now + UPLOAD_LINK_TTL)
+
+
+def complete_recording_upload(session: Session, tutor: User, lesson_id: UUID,
+                              now: datetime | None = None) -> LessonTutorView:
+    """The browser finished uploading: check the stored file's type and size (spec 3 R2.3)."""
+    now = now or clock.now()
+    lesson = _get(session, lesson_id)
+    if lesson.tutor_id != tutor.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only upload recordings of your own lessons")
+    if lesson.recording_key is None or lesson.reported_at is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "There's no recording upload waiting for this lesson")
+    problem = _stored_recording_problem(lesson)
+    if problem is not None:
+        # Don't keep (or pay to store) a file that was refused; the tutor asks for a new link.
+        if storage.head(lesson.recording_key) is not None:
+            _delete_file(lesson.recording_key)
+        lesson.recording_key = lesson.recording_content_type = lesson.recording_size = None
+        session.add(lesson)
+        session.commit()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, problem)
+    size, content_type = storage.head(lesson.recording_key)
+    lesson.recording_size = size
+    lesson.recording_content_type = content_type.split(";")[0].strip()
+    lesson.recording_uploaded_at = now
+    session.add(lesson)
+    session.commit()
+    return _views(session, [lesson], LessonTutorView)[0]
+
+
+def recording_link(session: Session, user: User, lesson_id: UUID, now: datetime | None = None) -> RecordingLink:
+    """A 15-minute viewing link for the lesson's parent, its tutor and admins only (spec 3 R2.4)."""
+    now = now or clock.now()
+    lesson = session.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Lesson not found")
+    if user.role != UserRole.admin and user.id not in (lesson.parent_id, lesson.tutor_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only watch recordings of your own lessons")
+    if lesson.recording_uploaded_at is None or lesson.recording_deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "This lesson has no recording")
+    seconds = int(VIEW_LINK_TTL.total_seconds())
+    return RecordingLink(url=storage.url(lesson.recording_key, seconds), expires_at=now + VIEW_LINK_TTL)
+
+
+def _delete_file(key: str) -> bool:
+    try:
+        storage.delete(key)
+        return True
+    except Exception:
+        logger.exception("Could not delete recording %s", key)
+        return False
+
+
+def delete_old_recordings(session: Session, now: datetime) -> int:
+    """Deletes recordings 90 days after the lesson, unless a problem on that lesson is still open
+    (spec 3 R2.6)."""
+    open_issue = select(LessonIssue.id).where(LessonIssue.lesson_id == Lesson.id, LessonIssue.resolved_at.is_(None))
+    rows = session.exec(select(Lesson).where(Lesson.recording_key.is_not(None),
+                                             Lesson.recording_deleted_at.is_(None),
+                                             Lesson.ends_at <= now - KEEP_RECORDINGS,
+                                             ~open_issue.exists()).with_for_update()).all()
+    deleted = 0
+    for lesson in rows:
+        if _delete_file(lesson.recording_key):
+            lesson.recording_deleted_at = now
+            session.add(lesson)
+            deleted += 1
+    session.commit()
+    return deleted
 
 
 # ---------- Problems ----------

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import Choice from '@/components/shared/Choice'
+import RecordingConsent from '@/components/shared/RecordingConsent'
 import { BILLING_PERIODS, CERTIFICATES, DAYS, LEVELS, SUBJECTS, formatTime, toISODate } from '@/lib/format'
 import type { BillingPeriod, CertificateType, Job, JobInput, LessonMode, Level, WeeklyTime } from '@/types'
 
@@ -29,6 +30,7 @@ export default function JobForm({ initial, submitLabel, onSubmit, onCancel }: {
   const [level, setLevel] = useState<Level>(initial?.level ?? 'primary')
   const [mode, setMode] = useState<LessonMode>(initial?.mode ?? 'offline')
   const [area, setArea] = useState(initial?.area ?? '')
+  const [consent, setConsent] = useState(initial?.mode === 'online')
   const [slots, setSlots] = useState<WeeklyTime[]>(initial?.slots.map((s) => ({
     ...s, start_time: formatTime(s.start_time), end_time: formatTime(s.end_time),
   })) ?? [{ day_of_week: 0, start_time: '16:00', end_time: '17:00' }])
@@ -67,6 +69,7 @@ export default function JobForm({ initial, submitLabel, onSubmit, onCancel }: {
     if (endDate && endDate < startDate) return 'The end date must be after the start date'
     if (!(Number(price) > 0)) return 'Enter the price you will pay per lesson'
     if (!qualifications.trim()) return 'Describe the qualifications you want'
+    if (mode === 'online' && !consent) return 'Please agree that online lessons will be recorded'
     if (strengths.trim().length < 10) return "Tell tutors your child's strengths (at least 10 characters)"
     if (weaknesses.trim().length < 10) return 'Tell tutors what your child finds hard (at least 10 characters)'
     return null
@@ -84,6 +87,7 @@ export default function JobForm({ initial, submitLabel, onSubmit, onCancel }: {
         billing_period: billing, qualifications: qualifications.trim(), min_certificate: minCertificate,
         other_requirements: other.trim() || null, price: Number(price),
         child_strengths: strengths.trim(), child_weaknesses: weaknesses.trim(),
+        recording_consent: mode === 'online' && consent,
       })
     } catch {
       // The page shows the error; keep the form as it is.
@@ -137,6 +141,7 @@ export default function JobForm({ initial, submitLabel, onSubmit, onCancel }: {
         <Choice label="Lesson mode" value={mode} onChange={setMode} options={[
           { value: 'offline', label: 'At home (offline)' }, { value: 'online', label: 'Online' },
         ]} />
+        {mode === 'online' && <RecordingConsent checked={consent} onChange={setConsent} />}
       </div>
       {mode === 'offline' && (
         <div className="space-y-1.5">

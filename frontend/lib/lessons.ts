@@ -21,6 +21,30 @@ export async function submitReport(id: string, topic_covered: string, homework?:
   return toLesson(data)
 }
 
+/** A viewing link for the lesson's recording; it expires after 15 minutes. */
+export async function getRecordingLink(id: string): Promise<{ url: string; expires_at: string }> {
+  const { data } = await api.get(`/lessons/${id}/recording`)
+  return data
+}
+
+/** Uploads an online lesson's recording straight to storage (never through the API), then asks the
+ * backend to check it. `onProgress` gets 0-100. */
+export async function uploadRecording(id: string, file: File, onProgress: (percent: number) => void): Promise<Lesson> {
+  const { data: upload } = await api.post<{ upload_url: string; content_type: string }>(
+    `/lessons/${id}/recording/upload`, { filename: file.name, content_type: file.type, size: file.size })
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', upload.upload_url)
+    xhr.setRequestHeader('Content-Type', upload.content_type)
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)) }
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('The upload failed. Please try again.')))
+    xhr.onerror = () => reject(new Error('The upload failed. Check your connection and try again.'))
+    xhr.send(file)
+  })
+  const { data } = await api.post(`/lessons/${id}/recording/complete`)
+  return toLesson(data)
+}
+
 export async function reportProblem(id: string, kind: IssueKind, description: string): Promise<Lesson> {
   const { data } = await api.post(`/lessons/${id}/problem`, { kind, description })
   return toLesson(data)

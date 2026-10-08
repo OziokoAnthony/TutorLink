@@ -13,6 +13,10 @@ from urllib.parse import quote
 
 from app.core.config import settings
 
+# Same answer on every OS (Windows reads these from the registry otherwise).
+for _type, _ext in (("video/mp4", ".mp4"), ("video/webm", ".webm"), ("video/quicktime", ".mov")):
+    mimetypes.add_type(_type, _ext)
+
 
 def r2_configured() -> bool:
     return all([settings.R2_ACCOUNT_ID, settings.R2_ACCESS_KEY_ID, settings.R2_SECRET_ACCESS_KEY, settings.R2_BUCKET])
@@ -75,3 +79,45 @@ def read_local(key: str) -> tuple[bytes, str] | None:
     if not path.is_file():
         return None
     return path.read_bytes(), mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+
+
+def upload_url(key: str, content_type: str, size: int, expires_in: int = 900) -> str:
+    """A URL the browser PUTs the file to directly, so large files never pass through the API. The
+    content type and exact size are part of the signature: a different file is refused."""
+    if r2_configured():
+        return _r2_client().generate_presigned_url(
+            "put_object",
+            Params={"Bucket": settings.R2_BUCKET, "Key": key, "ContentType": content_type, "ContentLength": size},
+            ExpiresIn=expires_in,
+        )
+    expires = int(time.time()) + expires_in
+    sig = local_signature(upload_signing_key(key, content_type, size), expires)
+    return (f"{settings.BASE_URL}/v1/files/{quote(key)}?expires={expires}&size={size}"
+            f"&type={quote(content_type, safe='')}&sig={sig}")
+
+
+def upload_signing_key(key: str, content_type: str, size: int) -> str:
+    return f"put:{key}:{content_type}:{size}"
+
+
+def head(key: str) -> tuple[int, str] | None:
+    """(size in bytes, content type) of a stored file, or None if there is no such file."""
+    if r2_configured():
+        from botocore.exceptions import ClientError
+
+        try:
+            found = _r2_client().head_object(Bucket=settings.R2_BUCKET, Key=key)
+        except ClientError:
+            return None
+        return int(found["ContentLength"]), found.get("ContentType") or "application/octet-stream"
+    path = _local_path(key)
+    if not path.is_file():
+        return None
+    return path.stat().st_size, mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+
+
+def local_file(key: str) -> Path:
+    """Where a local-storage file lives, for the development upload route."""
+    path = _local_path(key)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path

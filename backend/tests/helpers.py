@@ -133,10 +133,11 @@ def login(client, email: str, password: str = PASSWORD) -> dict:
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
-def register_parent(client, email: str | None = None, full_name: str = "Ada Parent", photo: bool = True) -> dict:
+def register_parent(client, email: str | None = None, full_name: str = "Ada Parent", photo: bool = True,
+                    address: str | None = None) -> dict:
     email = email or unique_email("parent")
     response = client.post("/v1/auth/register", json={
-        "email": email, "password": PASSWORD, "role": "parent", "full_name": full_name,
+        "email": email, "password": PASSWORD, "role": "parent", "full_name": full_name, "address": address,
     })
     assert response.status_code == 201, response.text
     parent = {"id": response.json()["user"]["id"], "email": email, "headers": login(client, email)}
@@ -199,7 +200,7 @@ def days_ahead(n: int, now: datetime | None = None) -> date:
 def book(client, parent: dict, tutor: dict, *, subjects=("Mathematics",), slots: list | None = None,
          start_date: date | None = None, end_date: date | None = None, billing_period: str = "weekly",
          mode: str = "offline", offer_id: str | None = None, strengths: str = STRENGTHS,
-         weaknesses: str = WEAKNESSES):
+         weaknesses: str = WEAKNESSES, recording_consent: bool | None = None):
     """Requests a booking. By default: one 15:00-16:00 lesson a week, starting in 3 days."""
     start_date = start_date or days_ahead(3)
     slots = slots if slots is not None else [
@@ -209,6 +210,7 @@ def book(client, parent: dict, tutor: dict, *, subjects=("Mathematics",), slots:
         "slots": slots, "start_date": start_date.isoformat(),
         "end_date": end_date.isoformat() if end_date else None, "billing_period": billing_period,
         "mode": mode, "child_strengths": strengths, "child_weaknesses": weaknesses,
+        "recording_consent": mode == "online" if recording_consent is None else recording_consent,
     })
 
 
@@ -291,7 +293,7 @@ def job_body(*, subjects=("Mathematics",), price: str = "6000.00", mode: str = "
         "start_date": start_date.isoformat(), "end_date": None, "billing_period": billing_period,
         "qualifications": "A science degree and two years of teaching.", "min_certificate": "Degree",
         "other_requirements": "Patient with young learners.", "price": price,
-        "child_strengths": STRENGTHS, "child_weaknesses": WEAKNESSES,
+        "child_strengths": STRENGTHS, "child_weaknesses": WEAKNESSES, "recording_consent": mode == "online",
     }
     body.update(overrides)
     return body

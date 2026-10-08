@@ -15,10 +15,12 @@ import PageHeader from '@/components/shared/PageHeader'
 import { useToast } from '@/hooks/useToast'
 import { errorMessage } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
-import { getTutorLessons, submitReport } from '@/lib/lessons'
+import { getTutorLessons, submitReport, uploadRecording } from '@/lib/lessons'
 import type { Lesson } from '@/types'
 
 const REPORT_WITHIN_MS = 24 * 60 * 60 * 1000
+const MAX_RECORDING_BYTES = 2 * 1024 ** 3
+const RECORDING_TYPES = ['video/mp4', 'video/webm', 'video/quicktime']
 
 export default function TutorLessonsPage() {
   const toast = useToast()
@@ -27,11 +29,28 @@ export default function TutorLessonsPage() {
   const [topic, setTopic] = useState('')
   const [homework, setHomework] = useState('')
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<number | null>(null)
 
   const load = useCallback(() => {
     getTutorLessons().then(setLessons).catch((e) => { toast.error(errorMessage(e)); setLessons([]) })
   }, [toast])
   useEffect(load, [load])
+
+  async function upload(file: File | undefined) {
+    if (!reporting || !file) return
+    if (!RECORDING_TYPES.includes(file.type)) return toast.error('The recording must be an MP4, WebM or MOV video')
+    if (file.size > MAX_RECORDING_BYTES) return toast.error('The recording must be at most 2 GB')
+    setProgress(0)
+    try {
+      const updated = await uploadRecording(reporting.id, file, setProgress)
+      setReporting(updated)
+      toast.success('Recording uploaded')
+    } catch (error) {
+      toast.error(errorMessage(error))
+    } finally {
+      setProgress(null)
+    }
+  }
 
   async function report() {
     if (!reporting) return
@@ -85,13 +104,29 @@ export default function TutorLessonsPage() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={!!reporting} onOpenChange={(o) => !busy && !o && setReporting(null)}>
+      <Dialog open={!!reporting} onOpenChange={(o) => !busy && progress === null && !o && setReporting(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Lesson report</DialogTitle>
             <DialogDescription>The parent sees this and has 24 hours to raise a problem.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
+            {reporting?.recording_required && (
+              <div className="space-y-1.5 rounded-md border p-3">
+                <Label htmlFor="report-recording">Lesson recording</Label>
+                {reporting.has_recording
+                  ? <p className="text-sm text-emerald-700">Recording uploaded. You can replace it before you submit.</p>
+                  : <p className="text-sm text-muted-foreground">Online lessons need their recording before the report: MP4, WebM or MOV, up to 2 GB.</p>}
+                <input id="report-recording" type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+                  disabled={progress !== null || busy} onChange={(e) => { upload(e.target.files?.[0]); e.target.value = '' }}
+                  className="block w-full text-sm file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5" />
+                {progress !== null && (
+                  <div role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} className="h-2 w-full rounded bg-muted">
+                    <div className="h-2 rounded bg-primary transition-all" style={{ width: `${progress}%` }} />
+                  </div>
+                )}
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="report-topic">Topic covered</Label>
               <Textarea id="report-topic" rows={3} maxLength={2000} value={topic} onChange={(e) => setTopic(e.target.value)} />
@@ -102,8 +137,11 @@ export default function TutorLessonsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setReporting(null)} disabled={busy}>Back</Button>
-            <Button onClick={report} disabled={busy || !topic.trim()}>{busy ? 'Submitting…' : 'Submit report'}</Button>
+            <Button variant="outline" onClick={() => setReporting(null)} disabled={busy || progress !== null}>Back</Button>
+            <Button onClick={report}
+              disabled={busy || progress !== null || !topic.trim() || (!!reporting?.recording_required && !reporting.has_recording)}>
+              {busy ? 'Submitting…' : 'Submit report'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

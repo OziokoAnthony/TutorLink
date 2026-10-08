@@ -19,7 +19,7 @@ from app.domains.auth import service as auth_service
 from app.domains.auth.models import User
 from app.domains.bookings import schedule
 from app.domains.bookings import service as bookings
-from app.domains.bookings.models import BookingParentView, LessonMode
+from app.domains.bookings.models import RECORDING_CONSENT, BookingParentView, LessonMode
 from app.domains.fees import service as fees_service
 from app.domains.job_posts.models import (
     ApplicantView,
@@ -169,9 +169,12 @@ def _check_times(data: JobIn, now: datetime) -> None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "There are no lessons between these dates")
 
 
-def _write(session: Session, job: JobPost, data: JobIn) -> None:
-    for field, value in data.model_dump(exclude={"slots"}).items():
+def _write(session: Session, job: JobPost, data: JobIn, now: datetime) -> None:
+    for field, value in data.model_dump(exclude={"slots", "recording_consent"}).items():
         setattr(job, field, value)
+    consent_at = bookings.check_recording_consent(data.mode, data.recording_consent, now)
+    job.recording_consent_at = consent_at
+    job.recording_consent_text = RECORDING_CONSENT if consent_at else None
     if job.mode == LessonMode.online:
         job.area = data.area or None
     session.add(job)
@@ -186,8 +189,9 @@ def post_job(session: Session, parent: User, data: JobIn, now: datetime | None =
     if parent.photo_key is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Add a profile picture before posting a job")
     _check_times(data, now)
-    job = JobPost(parent_id=parent.id, **data.model_dump(exclude={"slots"}), created_at=now, updated_at=now)
-    _write(session, job, data)
+    job = JobPost(parent_id=parent.id, **data.model_dump(exclude={"slots", "recording_consent"}),
+                  created_at=now, updated_at=now)
+    _write(session, job, data, now)
     session.commit()
     session.refresh(job)
     return _parent_views(session, [job])[0]
@@ -202,7 +206,7 @@ def update_job(session: Session, parent: User, job_id: UUID, data: JobIn,
     if job.status != JobStatus.open:
         raise HTTPException(status.HTTP_409_CONFLICT, f"An {job.status.value} job can't be edited")
     _check_times(data, now)
-    _write(session, job, data)
+    _write(session, job, data, now)
     for application in session.exec(select(JobApplication).where(
             JobApplication.job_id == job.id, JobApplication.status == ApplicationStatus.applied)).all():
         taken = bookings.taken_slots(session, application.tutor_id)
@@ -335,6 +339,7 @@ def choose(session: Session, parent: User, job_id: UUID, application_id: UUID,
         session, parent_id=parent.id, tutor_id=application.tutor_id, job_id=job.id, subjects=job.subjects,
         level=job.level, mode=job.mode, billing_period=job.billing_period, start_date=job.start_date,
         end_date=job.end_date, price=job.price, child_strengths=job.child_strengths,
-        child_weaknesses=job.child_weaknesses, slots=_slots(session, [job.id])[job.id], now=now, on_created=link,
+        child_weaknesses=job.child_weaknesses, slots=_slots(session, [job.id])[job.id], now=now,
+        recording_consent_at=job.recording_consent_at, on_created=link,
     )
     return bookings.parent_view(session, booking)

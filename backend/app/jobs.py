@@ -1,4 +1,5 @@
-"""Time-based rules (spec 1): expiries, payment deadlines, next periods, reports and payable earnings.
+"""Time-based rules (spec 1): expiries, payment deadlines, next periods, reports and payable earnings;
+and deleting lesson recordings after 90 days (spec 3).
 
 `run_all` is called every SCHEDULER_INTERVAL_SECONDS by the API process. A PostgreSQL advisory lock
 makes sure only one process runs it at a time, even with several API containers.
@@ -35,6 +36,7 @@ def run_all(session: Session, now: datetime | None = None) -> dict[str, int]:
         "flagged_lessons": lessons.flag_unreported(session, now),
         "completed_lessons": lessons.complete_reported(session, now),
         "ended_bookings": bookings.end_finished_bookings(session, now),
+        "deleted_recordings": lessons.delete_old_recordings(session, now),
     }
 
 

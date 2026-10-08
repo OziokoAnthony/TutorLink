@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
+import RecordingPlayer from '@/components/lessons/RecordingPlayer'
 import { EarningStatusBadge, LessonStatusBadge } from '@/components/shared/StatusBadge'
 import { formatDate, formatDateTime, formatNaira, formatTime, ISSUE_KIND_LABEL } from '@/lib/format'
 import type { Lesson } from '@/types'
@@ -33,6 +34,8 @@ export default function LessonCard({ lesson, viewer, actions }: {
             {lesson.homework && <p><span className="font-medium">Homework:</span> {lesson.homework}</p>}
           </div>
         )}
+
+        {lesson.has_recording && <RecordingPlayer lessonId={lesson.id} />}
 
         {lesson.issue && (
           <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-950">

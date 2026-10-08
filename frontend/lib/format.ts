@@ -131,6 +131,9 @@ export const VETTING_STATUS_LABEL: Record<VettingStatus, string> = {
   pending: 'Under review', approved: 'Approved', rejected: 'Not approved',
 }
 
+/** What the parent agrees to before online lessons (the backend stores it with the time). */
+export const RECORDING_CONSENT = 'Lessons will be recorded and kept for review.'
+
 export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
   open: 'Open', ongoing: 'Tutor chosen', completed: 'Completed', closed: 'Closed',
 }
