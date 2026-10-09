@@ -21,6 +21,37 @@ uv sync                         # local venv for tests
 Postgres from Docker is published on host port **5435**: 5432 is taken by a local Windows
 Postgres and 5433–5434 by WSL. Inside Docker the app reaches it at `db:5432`.
 
+## Required settings
+
+The API refuses to start without these (`app/core/config.py` checks them). Generate each key with
+`python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+
+| Setting | When | Rule |
+|---|---|---|
+| `SECRET_KEY` | always | 32+ characters, not the `.env.example` placeholder. Signs login tokens. |
+| `DATABASE_URL` | always | The Postgres connection URL. |
+| `FILE_SIGNING_KEY` | `APP_ENV=production` | Its own 32+ character key, different from `SECRET_KEY`. Signs file links. |
+| `FIELD_ENCRYPTION_KEY` | `APP_ENV=production` | Its own 32+ character key, different from `SECRET_KEY`. Encrypts WAEC/NECO checker PINs. |
+| `NIN_HASH_KEY` | `APP_ENV=production` | Its own 32+ character key, different from `SECRET_KEY`. Hashes NINs. |
+
+`docker compose` also refuses to start without `POSTGRES_PASSWORD` in `.env`.
+
+Don't change the three production keys once real data exists: a new `FILE_SIGNING_KEY` breaks file links
+already handed out, a new `FIELD_ENCRYPTION_KEY` makes stored checker PINs unreadable, and a new
+`NIN_HASH_KEY` lets an already-verified NIN verify a second account.
+
+The API starts without these, but set them in production:
+
+- `COOKIE_DOMAIN`: the domain the site and the API share (e.g. `tutorlink.ng`). Without it, the site's
+  middleware can't see the login cookie, and logged-in users are sent back to the login page.
+- `TRUST_PROXY_HEADERS=true`, only behind a proxy or CDN (Render, Cloudflare). Without it, rate limits count
+  the proxy's address, so one person's failed logins can block everyone.
+- `BASE_URL` and `FRONTEND_URL` with `https://`: the login cookie is then marked Secure and HSTS is sent.
+- Paystack, Resend, Google, Dojah and Anthropic keys: without them, those features are off (payments,
+  emails, Google sign-in, NIN checks, exam generation).
+- The `STORAGE_*` bucket settings: without them, uploaded files go to a local folder, which is for
+  development only.
+
 ## Admin accounts
 
 Nobody can register as an admin. Create admins with the CLI script; it prompts for the
