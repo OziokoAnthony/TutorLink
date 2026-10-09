@@ -30,7 +30,9 @@ const LESSON_TONE: Record<LessonStatus, Tone> = {
 const EARNING_TONE: Record<EarningStatus, Tone> = { pending: 'gray', on_hold: 'yellow', payable: 'blue', paid: 'green', void: 'gray' }
 const TRANSFER_TONE: Record<TransferStatus, Tone> = { pending: 'yellow', processing: 'blue', paid: 'green', failed: 'red', rejected: 'gray' }
 const REFUND_TONE: Record<RefundStatus, Tone> = { pending: 'yellow', approved: 'green', rejected: 'gray' }
-const JOB_TONE: Record<JobStatus, Tone> = { open: 'blue', ongoing: 'yellow', completed: 'green', closed: 'gray' }
+const JOB_TONE: Record<JobStatus, Tone> = {
+  pending: 'yellow', rejected: 'red', open: 'blue', ongoing: 'yellow', completed: 'green', closed: 'gray',
+}
 const APPLICATION_TONE: Record<ApplicationStatus, Tone> = { applied: 'blue', withdrawn: 'gray', chosen: 'green' }
 const VETTING_TONE: Record<VettingStatus, Tone> = { pending: 'yellow', approved: 'green', rejected: 'red' }
 const CERTIFICATE_TONE: Record<CertificateStatus, Tone> = { pending: 'yellow', verified: 'green', rejected: 'red' }

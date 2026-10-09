@@ -60,17 +60,18 @@ up, then truncate the tables before each test. Emails and Paystack calls are fak
 - Tutors register with `first_name`, `surname` and at least one offer (subjects, level, weekly
   windows, price). Their profile starts as `pending` and doesn't appear in `GET /v1/tutors` until an
   admin approves it.
-- **Tutor work emails.** Registration assigns each tutor a work email: initial of the surname, a
-  dot, the first name, at `TUTOR_EMAIL_DOMAIN` (`o.anthony@tutorlink.com`; the next Anthony Ozioko
-  gets `o.anthony2@…`). It's returned as `user.work_email` and is their only login: logging in with
-  their personal email gets a 401 naming the work email. Tutors don't send a `password` when they
-  register: TutorLink generates one and emails it, with the work email, to their personal email
-  (nothing is ever sent to the work email). `PUT /auth/me/password` changes it. Nobody can register
-  with an address at that domain. Parents and admins choose a password and log in with their own email.
+- **Accounts.** Parents and tutors sign up the same way: `POST /v1/auth/register` with any email and
+  a chosen password, or `POST /v1/auth/google/register` with a Google ID token (signed in at once).
+  Everyone logs in with their email (`/auth/login`) or Google (`/auth/google/login`, not for admins),
+  and every email goes to that address. `PUT /auth/me/password` changes a password. There are no
+  TutorLink work emails any more (removed in migration 0019).
+- **Seeing tutors.** `GET /v1/tutors`, `/tutors/{id}`, `/tutors/{id}/schedule` and `/reviews` need a
+  logged-in parent or admin.
 - The same booking or lesson comes back in a different shape for the parent, the tutor and the
   admin, so each side sees only its own fee figures (spec 1, R1).
-- **Job posts (spec 2).** Parents `POST /v1/jobs` with their own price per lesson. Approved tutors
-  browse open jobs (`GET /v1/jobs?subject=&level=&mode=&area=`), apply once
+- **Job posts (spec 2).** Parents `POST /v1/jobs` with their own price per lesson. The job is `pending`
+  until an admin approves it (`PATCH /v1/admin/jobs/{id}`, queue at `GET /v1/admin/jobs?status=pending`);
+  an edit sends it back for review. Approved tutors browse open jobs (`GET /v1/jobs?subject=&level=&mode=&area=`), apply once
   (`POST /v1/jobs/{id}/apply`) and can withdraw while the job is open. The parent lists applicants
   (`GET /v1/jobs/{id}/applications`) and chooses one
   (`POST /v1/jobs/{id}/applications/{application_id}/choose`), which creates a booking already
@@ -100,7 +101,7 @@ uv run python -m app.jobs
   `average_rating` (null until the first rating) and `rating_count`.
 - **Sorting:** `GET /v1/tutors?sort=rating` lists the best-rated tutors first. More ratings break
   ties, and unrated tutors come last.
-- **Reading reviews:** `GET /v1/tutors/{tutor_id}/reviews` is public and shows each parent's first
+- **Reading reviews:** `GET /v1/tutors/{tutor_id}/reviews` is for logged-in parents and admins and shows each parent's first
   name only.
 - **Rating prompts:** `GET /v1/auth/me` returns `tutors_to_rate` for parents.
 

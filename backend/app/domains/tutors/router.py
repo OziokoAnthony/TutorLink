@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlmodel import Session
 
-from app.core.deps import require_roles
+from app.core.deps import can_see_tutors, require_roles
 from app.db.session import get_session
 from app.domains.auth.models import User, UserRole
 from app.domains.tutors import service
@@ -64,13 +64,14 @@ def list_tutors(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     sort: Literal["name", "rating", "price"] = "name",
+    viewer: User = Depends(can_see_tutors),
     session: Session = Depends(get_session),
 ):
     return service.list_approved_tutors(session, subject, level, area, skip, limit, sort)
 
 
 @router.get("/{tutor_id}", response_model=TutorPublic)
-def get_tutor(tutor_id: UUID, session: Session = Depends(get_session)):
+def get_tutor(tutor_id: UUID, viewer: User = Depends(can_see_tutors), session: Session = Depends(get_session)):
     return service.get_public_tutor(session, tutor_id)
 
 

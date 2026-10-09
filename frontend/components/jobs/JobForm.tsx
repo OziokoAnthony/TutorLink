@@ -228,6 +228,9 @@ export default function JobForm({ initial, submitLabel, onSubmit, onCancel }: {
       </div>
 
       {problem && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{problem}</p>}
+      <p className="rounded-md bg-accent px-3 py-2 text-sm">
+        Every job post is checked by TutorLink before tutors can see it. We&apos;ll let you know when it&apos;s live.
+      </p>
       <div className="flex gap-2">
         <Button type="submit" disabled={busy}>{busy ? 'Saving…' : submitLabel}</Button>
         {onCancel && <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>Cancel</Button>}

@@ -10,13 +10,12 @@ from app.core import clock, google
 from app.core.config import settings
 from app.core.security import (
     create_access_token,
-    generate_password,
     generate_token,
     get_password_hash,
     hash_token,
     verify_password,
 )
-from app.domains.auth import photos, work_email
+from app.domains.auth import photos
 from app.domains.auth.models import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
@@ -62,10 +61,6 @@ def get_user_by_email(session: Session, email: str) -> User | None:
     return session.exec(select(User).where(func.lower(User.email) == email.lower())).first()
 
 
-def get_user_by_work_email(session: Session, email: str) -> User | None:
-    return session.exec(select(User).where(func.lower(User.work_email) == email.lower())).first()
-
-
 def build_me(session: Session, user: User) -> MeResponse:
     me = MeResponse(user=UserRead.model_validate(user, update={"photo_url": photos.url_for(user)}))
     if user.role == UserRole.parent:
@@ -81,18 +76,13 @@ def build_me(session: Session, user: User) -> MeResponse:
 
 
 def _check_new_email(session: Session, email: str) -> None:
-    if work_email.is_work_domain(email):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            "Please register with your own email. TutorLink email addresses are given to tutors after they register.")
     if get_user_by_email(session, email):
         raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
 
 
 def _create_account(session: Session, data: ProfileFields, email: str, password: str | None) -> User:
-    """Creates the user and their parent or tutor profile. Tutors are assigned a work email (R0.2)."""
+    """Creates the user and their parent or tutor profile."""
     user = User(email=email, password_hash=get_password_hash(password) if password else None, role=data.role)
-    if data.role == UserRole.tutor:
-        user.work_email = work_email.next_work_email(session, data.first_name, data.surname)
     try:
         session.add(user)
         session.flush()  # no ORM relationships, so insert the user before its profile explicitly
@@ -111,25 +101,29 @@ def _create_account(session: Session, data: ProfileFields, email: str, password:
         constraint = getattr(exc.orig.diag, "constraint_name", None)
         if constraint == "uq_users_email":  # lost a registration race
             raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
-        if constraint == "uq_users_work_email":  # another tutor with the same name registered at the same moment
-            raise HTTPException(status.HTTP_409_CONFLICT, "Something went wrong creating your account. Please try again.")
         raise
     session.refresh(user)
     return user
 
 
+def _welcome(user: User, data: ProfileFields) -> None:
+    """Tutors are told their application is in and what comes next."""
+    if user.role == UserRole.tutor:
+        notifications.tutor_application_received(user.email, data.full_name)
+
+
 def register(session: Session, data: RegisterRequest) -> MeResponse:
-    """Email and password sign-up, for parents. Tutors register with Google (spec 4 R1.1)."""
+    """Sign-up with any email address and a chosen password, for parents and tutors (spec 4 R1.1)."""
     email = data.email.lower()
     _check_new_email(session, email)
     user = _create_account(session, data, email, data.password)
+    _welcome(user, data)
     return build_me(session, user)
 
 
 def google_register(session: Session, data: GoogleRegisterRequest) -> GoogleRegisterResponse:
-    """Sign-up with Google (spec 4 R1). The verified Google email becomes the personal email. Tutors are
-    given a work email and a generated password, shown once and emailed (R1.2); parents are signed in
-    and have no password until they set one with "Forgot password?" (R1.4)."""
+    """Sign-up with Google, for parents and tutors (spec 4 R1). The verified Google email is their email.
+    They're signed in at once, and have no password until they set one with "Forgot password?" (R1.4)."""
     identity = google.verify_id_token(data.id_token)
     existing = get_user_by_email(session, identity.email)
     if existing is not None:
@@ -139,26 +133,20 @@ def google_register(session: Session, data: GoogleRegisterRequest) -> GoogleRegi
         raise HTTPException(status.HTTP_409_CONFLICT, "You already have an account. Please log in.")
     _check_new_email(session, identity.email)
 
-    password = generate_password() if data.role == UserRole.tutor else None
-    user = _create_account(session, data, identity.email, password)
+    user = _create_account(session, data, identity.email, None)
     if data.use_google_photo and (picture := google.fetch_photo(identity.picture)):
         try:
             photos.set_photo(session, user, picture)
         except HTTPException:  # not an image we accept: they upload one themselves
             pass
-
-    response = GoogleRegisterResponse(**build_me(session, user).model_dump())
-    if user.role == UserRole.tutor:
-        notifications.tutor_application_received(user.email, data.full_name, user.work_email, password)
-        response.password = password
-    else:
-        response.access_token = create_access_token(str(user.id), user.role.value)
-    return response
+    _welcome(user, data)
+    return GoogleRegisterResponse(**build_me(session, user).model_dump(),
+                                  access_token=create_access_token(str(user.id), user.role.value))
 
 
 def google_login(session: Session, data: GoogleLoginRequest) -> TokenResponse:
-    """Parents only (R1.4). Tutors log in with their work email (R1.3), admins with their password (R1.7).
-    These messages come only after Google verified the token, so they tell a stranger nothing."""
+    """Parents and tutors (R1.4); admins log in with their password (R1.7). These messages come only after
+    Google verified the token, so they tell a stranger nothing."""
     identity = google.verify_id_token(data.id_token)
     user = get_user_by_email(session, identity.email)
     if user is None:
@@ -166,29 +154,17 @@ def google_login(session: Session, data: GoogleLoginRequest) -> TokenResponse:
                             "There's no TutorLink account for this Google email yet. Sign up to create one.")
     if not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "This account has been deactivated")
-    if user.role == UserRole.tutor:
-        login_with = f"your TutorLink email: {user.work_email}" if user.work_email else "your email and password"
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, f"Tutors can't log in with Google. Log in with {login_with}")
     if user.role == UserRole.admin:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Admins log in with their email and password")
     return TokenResponse(access_token=create_access_token(str(user.id), user.role.value))
 
 
 def login(session: Session, data: LoginRequest) -> TokenResponse:
-    """Tutors log in with their work email only; parents and admins with their own email."""
-    user = get_user_by_work_email(session, data.email) or get_user_by_email(session, data.email)
+    user = get_user_by_email(session, data.email)
     if user is None or not verify_password(data.password, user.password_hash) or not user.is_active:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
             "Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    if user.work_email and user.work_email != data.email.lower():
-        # Right password, personal email: point them to their work email (checked after the password,
-        # so it tells a stranger nothing).
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED,
-            f"Tutors log in with their TutorLink email: {user.work_email}",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return TokenResponse(access_token=create_access_token(str(user.id), user.role.value))
@@ -218,7 +194,7 @@ def forgot_password(session: Session, data: ForgotPasswordRequest) -> tuple[str,
     session.commit()
     name = full_names(session, [user.id]).get(user.id, "there")
     link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
-    return user.email, *notifications.password_reset_email(name, link, user.work_email)
+    return user.email, *notifications.password_reset_email(name, link)
 
 
 def reset_password(session: Session, data: ResetPasswordRequest) -> None:

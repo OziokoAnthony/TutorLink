@@ -1,6 +1,6 @@
 # Spec 4 of 4: Google sign-in, profile pictures and tutor onboarding (NIN, certificates, quiz)
 
-Status: **approved** (2026-10-07). Tutor sign-up with Google decided 2026-10-08 (R0, R1).
+Status: **approved** (2026-10-07). Tutor sign-up with Google decided 2026-10-08 (R0, R1). Work emails removed 2026-10-09: tutors sign up and log in like parents (R0, R1).
 Independent of specs 1-3, except that approved status gates job applications (spec 2).
 
 ## Why
@@ -11,28 +11,25 @@ identity checked against the national NIN database, certificates authenticated, 
 
 ## Requirements
 
-### R0. Tutor work email (R0.1-R0.6 built 2026-10-07, R0.7 built 2026-10-08)
-1. Tutors register with first name and surname as separate fields.
-2. On registration each tutor is assigned a work email: initial of the surname, a dot, the first name, `@tutorlink.com`. Anthony Ozioko → `o.anthony@tutorlink.com`; a second Anthony Ozioko gets `o.anthony2@tutorlink.com`.
-3. The tutor doesn't choose a password: TutorLink generates one. The work email and the password are sent to the tutor's personal email, and the work email is also shown once after registration. The work email is the tutor's **only** login. It doesn't change if they change their name.
-4. Their personal email stays on the account, and every notification goes there. The work email is only for logging in: no email is ever sent to it.
-5. Any user can change their password from their profile (current password + new password). Tutors use this to replace the generated one.
-6. Parents and admins are excluded: they choose their own password and log in with their own email.
-7. **Forgot password.** The login page has "Forgot password?". The user enters their personal email (for tutors, the Google email they registered with). If an account has that email, TutorLink emails that address:
-   - for a tutor, their work email (a reminder) and a link to set a new password;
-   - for a parent, a link to set a new password.
+### R0. Accounts and passwords (changed 2026-10-09)
+1. Tutors register with first name and surname as separate fields (R3.1).
+2. **Parents and tutors sign up the same way:** with any email address they use (Gmail, Yahoo, Outlook, iCloud or any other) and a password they choose, or with Google (R1). That email is their login, and every notification goes there.
+3. *Removed 2026-10-09:* tutors used to be given a TutorLink work email (`o.anthony@tutorlink.com`) and a generated password. Tutors who had one now log in with their own email (the one on their account) and the same password.
+4. A new tutor is emailed that their application is in and what to do next. No password is ever emailed.
+5. Any user can change their password from their profile (current password + new password).
+6. Admins choose their own password and log in with their own email.
+7. **Forgot password.** The login page has "Forgot password?". The user enters their email. If an account has that email, TutorLink emails it a link to set a new password.
 
    The link works once and expires after **1 hour**. The response is the same whether or not the email has an account, so the form doesn't reveal who is registered. Setting a new password from the link doesn't log anyone out of another device, but the old password stops working.
 
-### R1. Google: tutors register with it, parents can also sign in with it (built 2026-10-08)
-1. **Tutors register only with Google.** The tutor registration page has **Continue with Google** and no email or password fields. The verified Google email becomes the tutor's personal email (R0.4), and the tutor completes the same profile fields as before (first name and surname prefilled from Google, area, at least one offer).
-2. Right after registering, the tutor is shown their work email **and** generated password on screen, once, and both are emailed to their Google email (R0.3).
-3. **Tutors never log in with Google.** They log in only with their work email and password (R0.3). A tutor who uses Continue with Google on the login page gets a 401 naming their work email, and only once the Google token is verified, so it reveals nothing to anyone else.
-4. **Parents** can register and log in with **Continue with Google** as well as with email and password. A parent's Google login signs into the parent account with that email. A Google sign-up for a new email creates a parent account after the same profile fields as email sign-up. A parent who registered with Google has no password until they set one through "Forgot password?" (R0.7).
+### R1. Google sign-in for parents and tutors (built 2026-10-08, changed 2026-10-09)
+1. The registration page offers **Continue with Google** or email and password, to parents and tutors alike. With Google, the verified Google email becomes their email (R0.2), and they complete the same profile fields (a tutor's first name and surname are prefilled from Google; area and at least one offer are required).
+2. A Google sign-up is signed in at once.
+3. Parents and tutors can both log in with **Continue with Google** as well as with email and password.
+4. A Google login signs into the account with that email; for a new email they're sent to sign up. Someone who registered with Google has no password until they set one through "Forgot password?" (R0.7).
 5. The backend accepts a Google ID token, verifies its signature, audience (our Client ID) and expiry, and requires `email_verified`.
 6. A Google email already registered to an account of the other role is refused with a 409. A tutor can't register with a Google email that's already a parent's account, and the reverse.
 7. Admin accounts can't sign in with Google. They keep using password only.
-8. Tutors who registered before this (with email and password) keep their work email and password. Nothing changes for them.
 
 ### R1b. Profile pictures (parents and tutors) (built)
 *Built together with spec 1, since booking requests require a parent picture.*
@@ -43,7 +40,7 @@ identity checked against the national NIN database, certificates authenticated, 
    - a tutor must have one before taking the NIN step (it is part of the "Profile" step).
 3. When signing up with Google, the Google account photo is offered as the starting picture, and the user can replace it.
 4. Who sees it:
-   - **Tutor photo**: everyone, on `/tutors`, tutor profiles, booking requests and job applications.
+   - **Tutor photo**: logged-in parents and admins, on `/tutors` and tutor profiles (anonymous visitors and tutors can't browse tutors), plus booking requests and job applications.
    - **Parent photo**: the parent, admins, and tutors: on the parent's job posts (spec 2 R2.4), booking requests to that tutor, and bookings.
 5. Users can change their picture anytime. Admins can remove an inappropriate picture, and the user is then asked to upload a new one.
 6. The admin vetting page shows the tutor's profile picture next to the NIN-verified name.
@@ -94,21 +91,18 @@ identity checked against the national NIN database, certificates authenticated, 
 
 ## Non-goals
 - Automatic certificate verification with exam bodies or universities.
-- Other social logins (Apple, Facebook).
+- Other social logins (Microsoft, Apple, Facebook): email and password covers every other email provider for now.
 - Google sign-in for admins.
 
 ## Acceptance criteria
-- [x] R0: A tutor registering as Anthony Ozioko gets `o.anthony@tutorlink.com`; the next one gets `o.anthony2@tutorlink.com`.
-- [x] R0: A tutor can't send a password at registration (422). The generated password and the work email are emailed to their personal email, and they work together to log in.
-- [x] R0: Logging in with a tutor's personal email fails and, only when the password is right, names the work email.
-- [x] R0: No email is ever sent to a work email. Changing name keeps the work email.
+- [x] R0: A tutor signs up with any email and a chosen password and logs in with them; there's no work email, and no password is emailed.
 - [x] R0: A user changes their password with the current one; a wrong current password is a 422.
 - [x] A forged, expired, wrong-audience or unverified-email Google token gets 401.
-- [x] Tutor registration without a valid Google token is refused. With one, the response shows the work email and generated password once, and both are emailed to the Google email.
-- [x] A tutor using Google on the login page gets a 401 naming their work email; the work email and password log them in.
+- [x] Google registration without a valid token is refused. With one, a tutor is signed in at once and emailed that their application is in.
+- [x] A tutor can log in with Google.
 - [x] A parent's Google login for an existing parent email signs into that account. For a new email it requires the parent profile fields.
 - [x] A Google email already used by an account of the other role gets 409.
-- [x] "Forgot password" answers the same for known and unknown emails. A tutor's email contains their work email and a reset link; the link sets a new password once, expires after 1 hour, and the old password stops working.
+- [x] "Forgot password" answers the same for known and unknown emails. The email has a reset link; the link sets a new password once, expires after 1 hour, and the old password stops working.
 - [x] A parent without a profile picture gets 409 on booking request and job post. A tutor without one can't start the NIN step.
 - [x] A picture over 5 MB or not JPG/PNG/WebP is rejected.
 - [x] A parent's picture is shown to tutors on that parent's job posts, booking requests and bookings, and isn't returned to unauthenticated users.

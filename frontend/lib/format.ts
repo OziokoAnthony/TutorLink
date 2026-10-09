@@ -15,16 +15,29 @@ export const LEVELS: { value: Level; label: string }[] = [
   { value: 'primary', label: 'Primary' },
   { value: 'junior_secondary', label: 'Junior Secondary' },
   { value: 'senior_secondary', label: 'Senior Secondary' },
+  { value: 'international', label: 'International High School' },
 ]
 
 /** Common Nigerian school subjects, used for the browse filter and as suggestions for tutors. */
-export const SUBJECTS = [
+const NIGERIAN_SUBJECTS = [
   'Mathematics', 'English Language', 'Basic Science', 'Basic Technology', 'Social Studies',
   'Civic Education', 'Physics', 'Chemistry', 'Biology', 'Further Mathematics', 'Economics',
   'Literature in English', 'Government', 'Geography', 'Agricultural Science', 'Computer Studies',
   'Commerce', 'Accounting', 'French', 'Yoruba', 'Igbo', 'Hausa', 'Christian Religious Studies',
   'Islamic Religious Studies', 'Verbal Reasoning', 'Quantitative Reasoning',
 ]
+
+/** High school subjects of international schools (British IGCSE and A-Level, IB, American) that the
+ * Nigerian list doesn't already cover, plus the international exams parents book prep for. */
+const INTERNATIONAL_SUBJECTS = [
+  'Additional Mathematics', 'Statistics', 'Combined Science', 'Computer Science', 'Business Studies',
+  'History', 'Global Perspectives', 'Environmental Management', 'Psychology', 'Sociology',
+  'English as a Second Language', 'Spanish', 'German', 'Mandarin Chinese', 'Art and Design',
+  'Design and Technology', 'Music', 'Physical Education', 'IB Theory of Knowledge',
+  'AP Calculus', 'SAT', 'ACT', 'IELTS', 'TOEFL',
+]
+
+export const SUBJECTS = [...NIGERIAN_SUBJECTS, ...INTERNATIONAL_SUBJECTS]
 
 export function levelLabel(level?: Level): string {
   return LEVELS.find((l) => l.value === level)?.label ?? ''
@@ -135,6 +148,7 @@ export const VETTING_STATUS_LABEL: Record<VettingStatus, string> = {
 export const RECORDING_CONSENT = 'Lessons will be recorded and kept for review.'
 
 export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
+  pending: 'Waiting for review', rejected: 'Not approved',
   open: 'Open', ongoing: 'Tutor chosen', completed: 'Completed', closed: 'Closed',
 }
 

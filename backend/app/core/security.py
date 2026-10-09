@@ -22,14 +22,6 @@ def get_password_hash(password: str) -> str:
 
 
 # No 0/O or 1/l/I, so a password read from an email is typed correctly.
-_PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-
-
-def generate_password(length: int = 12) -> str:
-    """A random password for a tutor, emailed to them at registration (spec 4 R0.3)."""
-    return "".join(secrets.choice(_PASSWORD_ALPHABET) for _ in range(length))
-
-
 def verify_password(plain_password: str, password_hash: str | None) -> bool:
     """False when the user has no password (a parent who signed up with Google)."""
     return password_hash is not None and pwd_context.verify(plain_password, password_hash)

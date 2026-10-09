@@ -1,5 +1,5 @@
-"""Job posts (spec 2): parents post what they need and at what price, approved tutors apply, and the
-parent chooses one, which creates a booking already taken (spec 1 R2.5 onward).
+"""Job posts (spec 2): parents post what they need and at what price, an admin reviews it, approved tutors
+apply, and the parent chooses one, which creates a booking already taken (spec 1 R2.5 onward).
 
 Functions that depend on the time take `now`, so tests can move the clock.
 """
@@ -26,10 +26,12 @@ from app.domains.job_posts.models import (
     ApplicationIn,
     ApplicationStatus,
     ApplicationTutorView,
+    JobAdminView,
     JobApplication,
     JobIn,
     JobParentView,
     JobPost,
+    JobReviewIn,
     JobSlot,
     JobStatus,
     JobTutorView,
@@ -40,6 +42,8 @@ from app.domains.tutors import service as tutor_service
 from app.domains.tutors.models import EducationLevel, WeeklyTime
 
 CLASH_REASON = "The job's new lesson times clash with your other bookings."
+# A parent can edit or close a job until a tutor is chosen (R1.3).
+EDITABLE = (JobStatus.pending, JobStatus.rejected, JobStatus.open)
 
 
 # ---------- Reading ----------
@@ -185,6 +189,7 @@ def _write(session: Session, job: JobPost, data: JobIn, now: datetime) -> None:
 
 
 def post_job(session: Session, parent: User, data: JobIn, now: datetime | None = None) -> JobParentView:
+    """The job waits for an admin's review before tutors can see it (R1.4)."""
     now = now or clock.now()
     if parent.photo_key is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Add a profile picture before posting a job")
@@ -199,14 +204,19 @@ def post_job(session: Session, parent: User, data: JobIn, now: datetime | None =
 
 def update_job(session: Session, parent: User, job_id: UUID, data: JobIn,
                now: datetime | None = None) -> JobParentView:
-    """Replaces an open job's details. Applicants are told; those whose bookings now clash with the new
-    times are withdrawn and told why (R1.3)."""
+    """Replaces the details of a job no tutor has been chosen for. The edited job goes back for review, so
+    tutors see it again only once an admin approves it (R1.4). Applicants are told; those whose bookings now
+    clash with the new times are withdrawn and told why (R1.3)."""
     now = now or clock.now()
     job = _own(session, parent, job_id, lock=True)
-    if job.status != JobStatus.open:
-        raise HTTPException(status.HTTP_409_CONFLICT, f"An {job.status.value} job can't be edited")
+    if job.status not in EDITABLE:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"A {job.status.value} job can't be edited")
     _check_times(data, now)
     _write(session, job, data, now)
+    job.status = JobStatus.pending
+    job.review_note = None
+    job.reviewed_at = None
+    job.updated_at = now
     for application in session.exec(select(JobApplication).where(
             JobApplication.job_id == job.id, JobApplication.status == ApplicationStatus.applied)).all():
         taken = bookings.taken_slots(session, application.tutor_id)
@@ -220,7 +230,8 @@ def update_job(session: Session, parent: User, job_id: UUID, data: JobIn,
         else:
             notifications.notify(session, application.tutor_id, "A job you applied to changed",
                                  f"The parent updated their job for {', '.join(job.subjects)}. "
-                                 "Please check the new details.", f"/dashboard/tutor/jobs/{job.id}")
+                                 "Please check the new details. TutorLink reviews the changes before the job "
+                                 "is open again.", f"/dashboard/tutor/jobs/{job.id}")
     session.commit()
     session.refresh(job)
     return _parent_views(session, [job])[0]
@@ -229,8 +240,8 @@ def update_job(session: Session, parent: User, job_id: UUID, data: JobIn,
 def close_job(session: Session, parent: User, job_id: UUID, now: datetime | None = None) -> JobParentView:
     now = now or clock.now()
     job = _own(session, parent, job_id, lock=True)
-    if job.status != JobStatus.open:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Only an open job can be closed")
+    if job.status not in EDITABLE:
+        raise HTTPException(status.HTTP_409_CONFLICT, "A job can only be closed before a tutor is chosen")
     job.status = JobStatus.closed
     job.closed_at = now
     session.add(job)
@@ -272,7 +283,8 @@ def withdraw(session: Session, tutor: User, job_id: UUID) -> JobTutorView:
                                                             JobApplication.tutor_id == tutor.id)).first()
     if application is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "You haven't applied to this job")
-    if job.status != JobStatus.open or application.status != ApplicationStatus.applied:
+    # Pending: an edited job back for review still has its applications.
+    if job.status not in (JobStatus.open, JobStatus.pending) or application.status != ApplicationStatus.applied:
         raise HTTPException(status.HTTP_409_CONFLICT, "You can only withdraw from an open job")
     application.status = ApplicationStatus.withdrawn
     session.add(application)
@@ -304,6 +316,9 @@ def choose(session: Session, parent: User, job_id: UUID, application_id: UUID,
     and the job becomes ongoing (R3.2, R3.3)."""
     now = now or clock.now()
     job = _own(session, parent, job_id, lock=True)
+    if job.status == JobStatus.pending:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "Your job is waiting for review. You can choose a tutor once it's approved.")
     if job.status != JobStatus.open:
         raise HTTPException(status.HTTP_409_CONFLICT, "This job is no longer open")
     application = session.exec(select(JobApplication).where(JobApplication.id == application_id,
@@ -343,3 +358,46 @@ def choose(session: Session, parent: User, job_id: UUID, application_id: UUID,
         recording_consent_at=job.recording_consent_at, on_created=link,
     )
     return bookings.parent_view(session, booking)
+
+
+# ---------- Review (admin) ----------
+
+def _admin_views(session: Session, jobs: list[JobPost]) -> list[JobAdminView]:
+    slots = _slots(session, [j.id for j in jobs])
+    names = auth_service.full_names(session, [j.parent_id for j in jobs])
+    return [JobAdminView.model_validate(j, update={"slots": slots[j.id], "parent_name": names.get(j.parent_id)})
+            for j in jobs]
+
+
+def admin_list(session: Session, status_filter: JobStatus | None) -> list[JobAdminView]:
+    """Oldest change first, so the review queue (`pending`) is handled in order."""
+    stmt = select(JobPost)
+    if status_filter is not None:
+        stmt = stmt.where(JobPost.status == status_filter)
+    return _admin_views(session, list(session.exec(stmt.order_by(JobPost.updated_at)).all()))
+
+
+def review(session: Session, job_id: UUID, data: JobReviewIn, now: datetime | None = None) -> JobAdminView:
+    """Approving opens the job to tutors; rejecting tells the parent why, and they can edit it to resubmit
+    (R1.4)."""
+    now = now or clock.now()
+    job = _get(session, job_id, lock=True)
+    if job.status != JobStatus.pending:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This job isn't waiting for review")
+    job.status = data.status
+    job.review_note = data.note if data.status == JobStatus.rejected else None
+    job.reviewed_at = now
+    session.add(job)
+    subjects = ", ".join(job.subjects)
+    if data.status == JobStatus.open:
+        notifications.notify(session, job.parent_id, "Your job is live",
+                             f"TutorLink approved your job for {subjects}. Tutors can now see it and apply.",
+                             f"/dashboard/parent/jobs/{job.id}")
+    else:
+        notifications.notify(session, job.parent_id, "Your job wasn't approved",
+                             f"TutorLink couldn't approve your job for {subjects}.\nReason: {data.note}\n"
+                             "You can edit the job and it will be reviewed again.",
+                             f"/dashboard/parent/jobs/{job.id}")
+    session.commit()
+    session.refresh(job)
+    return _admin_views(session, [job])[0]

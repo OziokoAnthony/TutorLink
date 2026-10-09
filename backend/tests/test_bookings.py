@@ -257,13 +257,13 @@ def test_either_side_can_end_and_paid_lessons_still_happen(client, paystack, par
     assert helpers.lessons(client, parent)[0]["status"] == "confirmed"
 
 
-def test_parents_see_when_the_tutor_is_busy_free_or_teaching(client, clock, paystack, parent, admin_headers):
+def test_parents_see_when_the_tutor_is_busy_free_or_teaching(client, viewer, clock, paystack, parent, admin_headers):
     tutor = helpers.approved_tutor(client, admin_headers, windows=[
         {"day_of_week": d, "start_time": "14:00", "end_time": "18:00"} for d in range(7)])
     helpers.paid_booking(client, paystack, parent, tutor)  # 15:00-16:00 on the lesson's weekday
     day = helpers.days_ahead(3).weekday()
 
-    schedule = client.get(f"/v1/tutors/{tutor['id']}/schedule").json()  # public, no login needed
+    schedule = client.get(f"/v1/tutors/{tutor['id']}/schedule", headers=viewer).json()  # any parent may look
     assert schedule["busy"] == [{"day_of_week": day, "start_time": "15:00:00", "end_time": "16:00:00"}]
     free_that_day = [(f["start_time"], f["end_time"]) for f in schedule["free"] if f["day_of_week"] == day]
     assert free_that_day == [("14:00:00", "15:00:00"), ("16:00:00", "18:00:00")]
@@ -273,4 +273,4 @@ def test_parents_see_when_the_tutor_is_busy_free_or_teaching(client, clock, pays
 
     lesson = helpers.lessons(client, parent)[0]
     clock.set(datetime.fromisoformat(lesson["starts_at"]) + timedelta(minutes=10))
-    assert client.get(f"/v1/tutors/{tutor['id']}/schedule").json()["in_session_now"] is True
+    assert client.get(f"/v1/tutors/{tutor['id']}/schedule", headers=viewer).json()["in_session_now"] is True

@@ -37,7 +37,7 @@ export default function ForgotPasswordPage() {
         <CardHeader>
           <CardTitle className="text-2xl">Forgot password?</CardTitle>
           <CardDescription>
-            Enter your own email. Tutors: use the Google email you signed up with, not your TutorLink email.
+            Enter the email you signed up with. We&apos;ll send you a link to set a new password.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -45,8 +45,7 @@ export default function ForgotPasswordPage() {
             <div className="space-y-4">
               <p className="text-sm">
                 If a TutorLink account uses <strong className="break-all">{sentTo}</strong>, we&apos;ve sent it a link
-                to set a new password. The link works once and expires in 1 hour. Tutors will also find their
-                TutorLink email in it.
+                to set a new password. The link works once and expires in 1 hour.
               </p>
               <Button asChild variant="outline" className="w-full"><Link href="/login">Back to log in</Link></Button>
             </div>

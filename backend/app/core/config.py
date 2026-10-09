@@ -26,8 +26,6 @@ class Settings(BaseSettings):
 
     RESEND_API_KEY: str = ""
     FROM_EMAIL: str = "noreply@tutorlink.ng"
-    # Tutors are assigned a work email at this domain (e.g. o.anthony@tutorlink.com) and log in with it.
-    TUTOR_EMAIL_DOMAIN: str = "tutorlink.com"
 
     # Google sign-in (spec 4 R1): the OAuth Client ID that Google ID tokens must be issued for.
     GOOGLE_CLIENT_ID: str = ""

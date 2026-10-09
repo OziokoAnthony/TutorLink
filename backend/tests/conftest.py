@@ -21,7 +21,6 @@ from app.core import google as google_client
 from app.core import paystack as paystack_client
 from app.core import security
 from app.core.config import settings
-from app.domains.auth import service as auth_service
 from app.domains.exam import service as exam_service
 from app.db import models  # noqa: F401  (registers every table for TRUNCATE)
 from app.db.session import get_session
@@ -153,13 +152,6 @@ def claude(monkeypatch, engine):
 
 
 @pytest.fixture(autouse=True)
-def tutor_password(monkeypatch):
-    """Tutors are emailed a generated password; tests get the known helpers.PASSWORD instead."""
-    monkeypatch.setattr(auth_service, "generate_password", lambda: helpers.PASSWORD)
-    return helpers.PASSWORD
-
-
-@pytest.fixture(autouse=True)
 def paystack(monkeypatch):
     """A fake Paystack: every API call TutorLink makes is answered here, never over the network."""
     fake = helpers.FakePaystack()
@@ -181,3 +173,9 @@ def clock(monkeypatch):
 @pytest.fixture
 def admin_headers(client, db):
     return helpers.create_admin(client, db)
+
+
+@pytest.fixture
+def viewer(client):
+    """Headers of a logged-in parent: only parents and admins can see tutors."""
+    return helpers.register_parent(client)["headers"]

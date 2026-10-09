@@ -49,23 +49,23 @@ def test_only_tutors_have_onboarding(client):
     assert helpers.check_nin(client, parent, "12345678901").status_code == 403
 
 
-def test_approving_without_a_verified_nin_is_409_naming_what_is_missing(client, admin_headers, tutor):
+def test_approving_without_a_verified_nin_is_409_naming_what_is_missing(client, viewer, admin_headers, tutor):
     response = helpers.vet(client, admin_headers, tutor)
     assert response.status_code == 409
     assert "NIN not verified" in response.json()["detail"]
     assert "NIN not verified" in steps(client, tutor)["review"]["todo"]
-    assert client.get(f"/v1/tutors/{tutor['id']}").status_code == 404  # still hidden (R2.2)
+    assert client.get(f"/v1/tutors/{tutor['id']}", headers=viewer).status_code == 404  # still hidden (R2.2)
 
 
 def test_rejecting_is_always_allowed(client, admin_headers, tutor):
     assert helpers.vet(client, admin_headers, tutor, "rejected", "Incomplete").status_code == 200
 
 
-def test_tutor_who_finished_onboarding_can_be_approved_and_is_listed(client, admin_headers):
+def test_tutor_who_finished_onboarding_can_be_approved_and_is_listed(client, viewer, admin_headers):
     tutor = helpers.ready_tutor(client, admin_headers)
     assert steps(client, tutor)["nin"]["done"]
     assert helpers.vet(client, admin_headers, tutor).status_code == 200
-    assert client.get(f"/v1/tutors/{tutor['id']}").status_code == 200
+    assert client.get(f"/v1/tutors/{tutor['id']}", headers=viewer).status_code == 200
     assert steps(client, tutor)["review"]["done"]
 
 
@@ -214,9 +214,9 @@ def test_admin_sees_each_check_and_the_verified_name(client, admin_headers, doja
     assert not check["verified"] and pending["nin_verified_at"] is None
 
 
-def test_public_profile_has_no_nin_details(client, admin_headers):
+def test_public_profile_has_no_nin_details(client, viewer, admin_headers):
     tutor = helpers.approved_tutor(client, admin_headers)
-    public = client.get(f"/v1/tutors/{tutor['id']}").json()
+    public = client.get(f"/v1/tutors/{tutor['id']}", headers=viewer).json()
     assert "nin_check" not in public and "nin_verified_at" not in public
 
 

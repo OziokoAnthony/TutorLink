@@ -166,12 +166,9 @@ export default function TutorProfilePage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Your details</CardTitle>
-            {user.work_email && (
-              <CardDescription>
-                You log in with <span className="font-medium text-foreground">{user.work_email}</span>.
-                It stays the same if you change your name. Messages go to {user.email}.
-              </CardDescription>
-            )}
+            <CardDescription>
+              You log in with <span className="font-medium text-foreground">{user.email}</span>, and messages go there too.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 sm:grid-cols-2" noValidate>

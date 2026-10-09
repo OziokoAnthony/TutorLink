@@ -46,3 +46,7 @@ def require_roles(roles: list[UserRole]):
         return user
 
     return checker
+
+
+# Tutors' profiles, schedules and reviews are for registered parents (and admins), not anonymous visitors.
+can_see_tutors = require_roles([UserRole.parent, UserRole.admin])

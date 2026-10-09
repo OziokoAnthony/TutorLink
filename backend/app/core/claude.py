@@ -25,7 +25,9 @@ FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
 LEVEL_NAMES = {"primary": "primary school (Primary 1-6)",
                "junior_secondary": "junior secondary school (JSS 1-3)",
-               "senior_secondary": "senior secondary school (SSS 1-3, WAEC/NECO level)"}
+               "senior_secondary": "senior secondary school (SSS 1-3, WAEC/NECO level)",
+               "international": "international high school (Cambridge IGCSE and A-Level, IB Diploma, "
+                                "American high school and AP level)"}
 
 GENERATOR_SYSTEM = """You write questions for TutorLink's qualifying exam. TutorLink is a Nigerian marketplace \
 for home tutors; every tutor must pass this exam before parents can book them. The exam is meant to \
@@ -130,9 +132,11 @@ def generate_questions(subject: str | None, level: str | None, count: int,
                  "and interpreting simple data. Any educated adult should be able to answer them with "
                  "careful thought; no specialist subject knowledge")
     else:
+        curriculum = ("an international curriculum (IGCSE, A-Level, IB or American)" if level == "international"
+                      else "the Nigerian curriculum")
         topic = (f"{subject} as taught at {LEVEL_NAMES.get(level or '', level)} in Nigeria. The tutor will "
                  f"teach this, so test whether they can solve the hardest problems a strong student at "
-                 f"this level meets, using the Nigerian curriculum")
+                 f"this level meets, using {curriculum}")
     prompt = f"Write {count} questions on {topic}."
     if avoid:
         listed = "\n".join(f"- {q[:200]}" for q in avoid)

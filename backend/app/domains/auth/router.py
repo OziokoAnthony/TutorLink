@@ -40,14 +40,13 @@ def login(data: LoginRequest, session: Session = Depends(get_session)):
 
 @router.post("/google/register", response_model=GoogleRegisterResponse, status_code=status.HTTP_201_CREATED)
 def google_register(data: GoogleRegisterRequest, session: Session = Depends(get_session)):
-    """Tutors register only here (spec 4 R1.1); parents may too. Tutors get `password`, shown once;
-    parents get `access_token`."""
+    """Parents and tutors (spec 4 R1.1): signed in at once with `access_token`."""
     return service.google_register(session, data)
 
 
 @router.post("/google/login", response_model=TokenResponse)
 def google_login(data: GoogleLoginRequest, session: Session = Depends(get_session)):
-    """Parents only. 404 when no account has this Google email: the frontend then offers sign-up."""
+    """Parents and tutors. 404 when no account has this Google email: the frontend then offers sign-up."""
     return service.google_login(session, data)
 
 
@@ -75,7 +74,7 @@ def me(user: User = Depends(get_current_user), session: Session = Depends(get_se
 @router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT)
 def change_password(data: ChangePasswordRequest, user: User = Depends(get_current_user),
                     session: Session = Depends(get_session)):
-    """Tutors use this to replace the password emailed to them at registration."""
+    """Change a password while logged in, knowing the current one."""
     service.change_password(session, user, data)
 
 

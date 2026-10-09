@@ -55,7 +55,7 @@ function ResetPassword() {
         <CardContent>
           {done ? (
             <div className="space-y-4">
-              <p className="text-sm">Your password is set. Tutors: log in with your TutorLink email.</p>
+              <p className="text-sm">Your password is set. Log in with your email and new password.</p>
               <Button asChild className="w-full"><Link href="/login">Log in</Link></Button>
             </div>
           ) : !token ? (

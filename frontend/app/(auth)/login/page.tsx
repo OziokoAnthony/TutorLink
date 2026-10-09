@@ -34,7 +34,6 @@ export default function LoginPage() {
     try {
       await login(values.email, values.password) // stores cookie and redirects by role
     } catch (error) {
-      // The backend's 401 text is shown as is: it tells a tutor who used their own email which one to use.
       setFormError(errorMessage(error))
     }
   }
@@ -45,12 +44,12 @@ export default function LoginPage() {
       await loginWithGoogle(idToken)
     } catch (error) {
       if (errorStatus(error) === 404) {
-        // No account for this Google email yet: parents sign up with it (spec 4 R1.4).
+        // No account for this Google email yet: they sign up with it (spec 4 R1.4).
         keepForSignUp(idToken)
         router.push('/register?with=google')
         return
       }
-      // A tutor is told their TutorLink email (R1.3); admins to use their password.
+      // Admins are told to use their password.
       setFormError(errorMessage(error))
     }
   }
@@ -64,8 +63,7 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-            <FormField id="email" label="Email" error={errors.email?.message}
-              hint="Tutors: use your TutorLink email, like o.anthony@tutorlink.com.">
+            <FormField id="email" label="Email" error={errors.email?.message}>
               <Input id="email" type="email" autoComplete="email" {...register('email')} aria-invalid={!!errors.email} />
             </FormField>
             <FormField id="password" label="Password" error={errors.password?.message}>
@@ -82,7 +80,6 @@ export default function LoginPage() {
               <span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" />
             </div>
             <GoogleButton onCredential={onGoogle} />
-            <p className="text-center text-xs text-muted-foreground">Google sign-in is for parents. Tutors log in with their TutorLink email.</p>
             <p className="text-center text-sm text-muted-foreground">
               New to TutorLink? <Link href="/register" className="font-medium text-primary hover:underline">Create an account</Link>
             </p>

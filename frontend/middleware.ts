@@ -34,6 +34,14 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get('tutorlink_token')
   const { pathname } = request.nextUrl
 
+  // Tutors' profiles are for registered parents (and admins): visitors are asked to sign up as a parent.
+  if (pathname.startsWith('/tutors')) {
+    const role = token ? roleFromToken(token.value) : null
+    if (!role) return NextResponse.redirect(new URL('/register?role=parent&reason=tutors', request.url))
+    if (role === 'tutor') return NextResponse.redirect(new URL(ROLE_HOME.tutor, request.url))
+    return NextResponse.next()
+  }
+
   const protectedPrefixes = ['/dashboard', '/admin', '/receipts']
   const isProtected = protectedPrefixes.some(p => pathname.startsWith(p))
 
@@ -60,5 +68,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*', '/receipts/:path*'],
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/receipts/:path*', '/tutors', '/tutors/:path*'],
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -24,26 +24,28 @@ import OfferFields, { EMPTY_OFFER, offerProblem } from '@/components/tutors/Offe
 const optionalText = z.string().trim().max(200).optional().or(z.literal(''))
 const phone = z.string().trim().regex(/^\+?[0-9 ]{7,20}$/, 'Enter a valid phone number').optional().or(z.literal(''))
 
-/** With Google, the email comes from the Google account and parents set no password (spec 4 R1.4). */
+/** Parents and tutors sign up the same way: any email and a password, or Google. With Google, the email
+ * comes from the Google account and there's no password (spec 4 R1.1, R1.4). */
 function makeSchema(withGoogle: boolean) {
   const emailAndPassword = {
     email: z.string().trim().email('Enter a valid email address'),
     password: z.string().min(8, 'Password must be at least 8 characters').max(72, 'Password is too long'),
   }
   // Both are optional in the type; without Google they're required by the parser.
-  const parentAccount = withGoogle
+  const account = (withGoogle
     ? { email: emailAndPassword.email.optional(), password: emailAndPassword.password.optional() }
-    : emailAndPassword
+    : emailAndPassword) as { email: z.ZodOptional<z.ZodString>; password: z.ZodOptional<z.ZodString> }
   return z.discriminatedUnion('role', [
     z.object({
       role: z.literal('parent'),
-      ...(parentAccount as { email: z.ZodOptional<z.ZodString>; password: z.ZodOptional<z.ZodString> }),
+      ...account,
       phone,
       full_name: z.string().trim().min(2, 'Enter your full name').max(200),
       address: optionalText,
     }),
     z.object({
       role: z.literal('tutor'),
+      ...account,
       phone,
       first_name: z.string().trim().min(1, 'Enter your first name').max(100),
       middle_name: z.string().trim().max(100).optional().or(z.literal('')),
@@ -68,15 +70,13 @@ export default function RegisterPage() {
 }
 
 function Register() {
-  const router = useRouter()
   const params = useSearchParams()
   const toast = useToast()
-  const { enter } = useAuth()
+  const { enter, login } = useAuth()
   const [formError, setFormError] = useState<string | null>(null)
   const [offer, setOffer] = useState<OfferInput>(EMPTY_OFFER)
   const [google, setGoogle] = useState<GoogleCredential | null>(null)
   const [useGooglePhoto, setUseGooglePhoto] = useState(true)
-  const [created, setCreated] = useState<{ email: string; password: string } | null>(null)
   const schema = useMemo(() => makeSchema(google !== null), [google])
   const { register, handleSubmit, watch, setValue, getValues, formState: { errors, isSubmitting } } =
     useForm<RegisterValues, unknown, RegisterOutput>({
@@ -124,10 +124,6 @@ function Register() {
 
   async function onSubmit(values: RegisterOutput) {
     setFormError(null)
-    if (values.role === 'tutor' && !google) {
-      setFormError('Tutors sign up with Google. Choose your Google account above.')
-      return
-    }
     const problem = values.role === 'tutor' ? offerProblem(offer) : null
     if (problem) {
       setFormError(`What you teach: ${problem.toLowerCase()}.`)
@@ -142,28 +138,20 @@ function Register() {
         }
     try {
       if (google) {
-        const result = await registerWithGoogle({
+        await registerWithGoogle({
           ...profile, id_token: google.token, use_google_photo: Boolean(google.picture) && useGooglePhoto,
         })
         toast.success('Account created!')
-        if (result.work_email && result.password) {
-          setCreated({ email: result.work_email, password: result.password }) // tutors see their login once
-        } else {
-          await enter() // parents are signed in
-        }
-      } else if (values.role === 'parent' && values.email && values.password) {
-        await registerUser({ ...profile, role: 'parent', email: values.email, password: values.password })
+        await enter()
+      } else if (values.email && values.password) {
+        await registerUser({ ...profile, email: values.email, password: values.password })
         toast.success('Account created!')
-        router.push('/login')
+        await login(values.email, values.password)
       }
     } catch (error) {
       setFormError(errorMessage(error))
     }
   }
-
-  if (created) return <LoginCreated {...created} />
-
-  const showForm = role === 'parent' || google !== null
 
   return (
     <div className="mx-auto flex max-w-xl px-4 py-12">
@@ -171,6 +159,12 @@ function Register() {
         <CardHeader>
           <CardTitle className="text-2xl">Create your account</CardTitle>
           <CardDescription>Parents find tutors; tutors get booked for weekly lessons. You&apos;ll add a profile picture after signing in.</CardDescription>
+          {params.get('reason') === 'tutors' && (
+            <p className="rounded-md bg-accent px-3 py-2 text-sm">
+              Create a free parent account to see our tutors. Already registered?{' '}
+              <Link href="/login" className="font-medium text-primary hover:underline">Log in</Link>
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
@@ -196,14 +190,6 @@ function Register() {
             {google ? (
               <GoogleAccount credential={google} useGooglePhoto={useGooglePhoto} onUseGooglePhoto={setUseGooglePhoto}
                 onChange={() => setGoogle(null)} />
-            ) : role === 'tutor' ? (
-              <div className="space-y-3 rounded-lg border p-4">
-                <p className="text-sm">
-                  Tutors sign up with their Google account. We&apos;ll then give you a TutorLink email and a password:
-                  you&apos;ll use those to log in.
-                </p>
-                <GoogleButton onCredential={onGoogle} text="signup_with" />
-              </div>
             ) : (
               <>
                 <GoogleButton onCredential={onGoogle} text="signup_with" />
@@ -213,8 +199,7 @@ function Register() {
               </>
             )}
 
-            {showForm && (
-              <>
+            <>
                 {role === 'parent' ? (
                   <FormField id="full_name" label="Full name" error={fieldErrors.full_name?.message}>
                     <Input id="full_name" autoComplete="name" {...register('full_name')} aria-invalid={!!fieldErrors.full_name} />
@@ -240,7 +225,8 @@ function Register() {
                 )}
                 {!google && (
                   <>
-                    <FormField id="email" label="Email" error={fieldErrors.email?.message}>
+                    <FormField id="email" label="Email" error={fieldErrors.email?.message}
+                      hint="Any email you use works: Gmail, Yahoo, Outlook, iCloud and others. You'll log in with it.">
                       <Input id="email" type="email" autoComplete="email" {...register('email')} aria-invalid={!!fieldErrors.email} />
                     </FormField>
                     <FormField id="password" label="Password" error={fieldErrors.password?.message} hint="At least 8 characters.">
@@ -274,15 +260,12 @@ function Register() {
                     </FormField>
                   </>
                 )}
-              </>
-            )}
+            </>
 
             {formError && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{formError}</p>}
-            {showForm && (
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? 'Creating account…' : 'Create account'}
-              </Button>
-            )}
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? 'Creating account…' : 'Create account'}
+            </Button>
             <p className="text-center text-sm text-muted-foreground">
               Already have an account? <Link href="/login" className="font-medium text-primary hover:underline">Log in</Link>
             </p>
@@ -320,45 +303,6 @@ function GoogleAccount({ credential, useGooglePhoto, onUseGooglePhoto, onChange 
           Use this photo as my profile picture (you can change it later)
         </label>
       )}
-    </div>
-  )
-}
-
-/** Shown once to a new tutor: the work email TutorLink assigned and the generated password (spec 4 R1.2).
- * Both were also emailed to their Google email. */
-function LoginCreated({ email, password }: { email: string; password: string }) {
-  const toast = useToast()
-  async function copy(text: string) {
-    try {
-      await navigator.clipboard.writeText(text)
-      toast.success('Copied')
-    } catch {
-      toast.error("Couldn't copy. Please write it down.")
-    }
-  }
-  return (
-    <div className="mx-auto flex max-w-xl px-4 py-12">
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle className="text-2xl">Your TutorLink login</CardTitle>
-          <CardDescription>
-            Log in with this email and password every time; Google sign-in isn&apos;t used for tutors. We&apos;ve also
-            emailed them to you. This is the only time the password is shown here: you can change it in your profile.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {[{ label: 'Email', value: email }, { label: 'Password', value: password }].map(({ label, value }) => (
-            <div key={label}>
-              <p className="mb-1 text-sm font-medium">{label}</p>
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted px-4 py-3">
-                <span className="break-all font-mono text-lg font-semibold">{value}</span>
-                <Button type="button" variant="outline" size="sm" onClick={() => copy(value)}>Copy</Button>
-              </div>
-            </div>
-          ))}
-          <Button asChild className="w-full"><Link href="/login">Log in</Link></Button>
-        </CardContent>
-      </Card>
     </div>
   )
 }

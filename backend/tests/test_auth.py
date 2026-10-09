@@ -3,14 +3,12 @@ from tests.helpers import PASSWORD
 
 
 def register(client, **overrides):
-    """Parents with email and password; tutors with Google, the only way they can (spec 4 R1.1)."""
-    if overrides.get("role") == "tutor":
-        email = overrides.pop("email", None) or helpers.unique_email("tutor")
-        body = {"first_name": "Anthony", "surname": "Ozioko", "area": None, "offers": []}
-        body.update(overrides)
-        return helpers.google_register(client, email, **body)
+    """Email and password sign-up, for parents and tutors alike (spec 4 R1.1)."""
     body = {"email": helpers.unique_email("user"), "password": PASSWORD, "role": "parent",
             "full_name": "Ada Parent"}
+    if overrides.get("role") == "tutor":
+        body = {"email": helpers.unique_email("tutor"), "password": PASSWORD, "first_name": "Anthony",
+                "surname": "Ozioko", "area": None, "offers": []}
     body.update(overrides)
     return client.post("/v1/auth/register", json=body)
 
@@ -33,6 +31,15 @@ def test_register_tutor_returns_201_with_pending_vetting_and_offers(client):
     assert profile["area"] == "Yaba"
     assert profile["offers"][0]["subjects"] == ["Mathematics", "Physics"]
     assert profile["offers"][0]["price"] == "4500.00"  # one price, whatever the number of subjects
+
+
+def test_tutor_signs_up_with_any_email_and_logs_in_with_it(client, outbox):
+    response = register(client, role="tutor", email="Chioma@Yahoo.com", area="Yaba", offers=[helpers.offer()])
+    assert response.status_code == 201
+    assert response.json()["user"]["email"] == "chioma@yahoo.com"
+    assert "work_email" not in response.json()["user"]
+    assert outbox[-1]["to"] == "chioma@yahoo.com" and PASSWORD not in outbox[-1]["html"]
+    assert client.post("/v1/auth/login", json={"email": "chioma@yahoo.com", "password": PASSWORD}).status_code == 200
 
 
 def test_register_tutor_without_area_or_offer_is_422(client):
@@ -100,8 +107,7 @@ def test_password_hash_never_in_any_response(client):
     headers = helpers.login(client, "parent@example.com")
     responses.append(client.post("/v1/auth/login", json={"email": "parent@example.com", "password": PASSWORD}))
     responses.append(client.get("/v1/auth/me", headers=headers))
-    tutor_login = responses[1].json()["user"]["work_email"]
-    responses.append(client.get("/v1/auth/me", headers=helpers.login(client, tutor_login)))
+    responses.append(client.get("/v1/auth/me", headers=helpers.login(client, "tutor@example.com")))
     for response in responses:
         assert "password_hash" not in response.text
         assert "$2b$" not in response.text  # no bcrypt hash under any other name

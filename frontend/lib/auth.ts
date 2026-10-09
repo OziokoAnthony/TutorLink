@@ -6,7 +6,7 @@ import type { ParentProfile, Role, TutorToRate, UserMe } from '@/types'
 /** What a new parent or tutor tells us about themselves. */
 export interface ProfileInput {
   role: 'parent' | 'tutor'
-  // Parents give a full name; tutors give first name and surname, which make their work email.
+  // Parents give a full name; tutors give first name and surname, as on their NIN record.
   full_name?: string
   first_name?: string
   middle_name?: string // tutors: only if their NIN record has one (spec 4 R3.1)
@@ -19,7 +19,7 @@ export interface ProfileInput {
   offers?: OfferInput[]
 }
 
-/** Email and password sign-up: parents only. Tutors register with Google (spec 4 R1.1). */
+/** Sign-up with any email and a chosen password, for parents and tutors (spec 4 R1.1). */
 export interface RegisterInput extends ProfileInput {
   email: string
   password: string
@@ -32,7 +32,7 @@ export interface GoogleRegisterInput extends ProfileInput {
 }
 
 interface RawMe {
-  user: { id: string; email: string; work_email: string | null; role: Role; photo_url: string | null }
+  user: { id: string; email: string; role: Role; photo_url: string | null }
   parent_profile: ParentProfile | null
   tutor_profile: unknown | null
   tutors_to_rate: TutorToRate[]
@@ -52,19 +52,15 @@ function storeToken(accessToken: string): void {
   })
 }
 
-/** Creates a parent account with email and password; they log in afterwards. */
+/** Creates a parent or tutor account with any email and a chosen password; they log in afterwards. */
 export async function register(input: RegisterInput): Promise<void> {
   await api.post<RawMe>('/auth/register', input)
 }
 
-/**
- * Creates the account from a Google sign-in. A parent is signed in at once. A tutor gets their work
- * email and generated password, shown once (spec 4 R1.2), and logs in with them.
- */
-export async function registerWithGoogle(input: GoogleRegisterInput): Promise<{ work_email: string | null; password: string | null }> {
-  const { data } = await api.post<RawMe & { password: string | null; access_token: string | null }>('/auth/google/register', input)
-  if (data.access_token) storeToken(data.access_token)
-  return { work_email: data.user.work_email ?? null, password: data.password ?? null }
+/** Creates the account from a Google sign-in, for parents and tutors, and signs them in at once. */
+export async function registerWithGoogle(input: GoogleRegisterInput): Promise<void> {
+  const { data } = await api.post<RawMe & { access_token: string }>('/auth/google/register', input)
+  storeToken(data.access_token)
 }
 
 /** Logs in and stores the JWT cookie. */
@@ -73,13 +69,13 @@ export async function login(email: string, password: string): Promise<void> {
   storeToken(data.access_token)
 }
 
-/** Parents only. 404 when no account uses this Google email; tutors get a 401 naming their work email. */
+/** Parents and tutors. 404 when no account uses this Google email; admins get a 401. */
 export async function loginWithGoogle(idToken: string): Promise<void> {
   const { data } = await api.post<{ access_token: string; token_type: string }>('/auth/google/login', { id_token: idToken })
   storeToken(data.access_token)
 }
 
-/** Emails a reset link if an account uses this personal email. The answer is the same either way. */
+/** Emails a reset link if an account uses this email. The answer is the same either way. */
 export async function forgotPassword(email: string): Promise<void> {
   await api.post('/auth/forgot-password', { email })
 }
@@ -93,7 +89,6 @@ function toUserMe(data: RawMe): UserMe {
   return {
     id: data.user.id,
     email: data.user.email,
-    work_email: data.user.work_email ?? null,
     role: data.user.role,
     photo_url: data.user.photo_url ?? null,
     profile: data.tutor_profile ? toTutorProfile(data.tutor_profile) : data.parent_profile,

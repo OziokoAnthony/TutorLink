@@ -3,7 +3,7 @@
 
 export type Role = 'parent' | 'tutor' | 'admin'
 export type VettingStatus = 'pending' | 'approved' | 'rejected'
-export type Level = 'primary' | 'junior_secondary' | 'senior_secondary'
+export type Level = 'primary' | 'junior_secondary' | 'senior_secondary' | 'international'
 export type LessonMode = 'online' | 'offline'
 export type BillingPeriod = 'daily' | 'weekly' | 'monthly'
 export type BookingStatus =
@@ -15,7 +15,8 @@ export type IssueKind = 'tutor_absent' | 'late_or_left_early' | 'agreement_broke
 export type IssueResolution = 'refund' | 'reschedule' | 'reject'
 export type TransferStatus = 'pending' | 'processing' | 'paid' | 'failed' | 'rejected'
 export type RefundStatus = 'pending' | 'approved' | 'rejected'
-export type JobStatus = 'open' | 'ongoing' | 'completed' | 'closed'
+/** pending: waiting for an admin's review; rejected: not approved (see review_note). */
+export type JobStatus = 'pending' | 'rejected' | 'open' | 'ongoing' | 'completed' | 'closed'
 export type ApplicationStatus = 'applied' | 'withdrawn' | 'chosen'
 export type CertificateType = 'WAEC' | 'NECO' | 'NABTEB' | 'NCE' | 'Degree' | 'PGDE' | 'TRCN' | 'Other'
 export type EntryKind = 'deposit' | 'period_payment' | 'refund' | 'withdrawal' | 'withdrawal_reversal'
@@ -206,8 +207,6 @@ export interface UserMe {
   id: string
   /** Personal email: notifications go here. Parents and admins log in with it. */
   email: string
-  /** Tutors only: the TutorLink email they log in with, e.g. o.anthony@tutorlink.com. */
-  work_email: string | null
   role: Role
   photo_url: string | null
   profile: ParentProfile | TutorProfile | null
@@ -564,6 +563,12 @@ export interface Job extends JobInput {
   parent_price_per_lesson?: number
   booking_id?: string | null
   applicant_count?: number
+  review_note?: string | null // why an admin didn't approve it
+  // Admin
+  parent_id?: string
+  parent_name?: string | null
+  reviewed_at?: string | null
+  updated_at?: string
   // Tutor
   tutor_fee_rate?: number
   tutor_earning_per_lesson?: number

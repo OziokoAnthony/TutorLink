@@ -25,6 +25,7 @@ export const LINKS: Record<Role, { href: string; label: string }[]> = {
   admin: [
     { href: '/admin/tutors', label: 'Vet Tutors' },
     { href: '/admin/certificates', label: 'Certificates' },
+    { href: '/admin/jobs', label: 'Job Posts' },
     { href: '/admin/exam', label: 'Exam' },
     { href: '/admin/payouts', label: 'Tutor Payouts' },
     { href: '/admin/problems', label: 'Problems' },

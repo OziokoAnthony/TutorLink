@@ -60,18 +60,14 @@ Alembic migration per spec or build step in `alembic/versions/`.
 - **Time-based rules** (expiry, release, due periods, flags, payable earnings) are functions in the
   domain services, called by `app/jobs.py`. Write them as idempotent catch-up passes over `now`.
 - **Ids.** `tutor_id` and `parent_id` are always `users.id`, in URLs and in tables.
-- **Tutor work emails.** Each tutor is assigned `users.work_email` at registration
-  (`app/domains/auth/work_email.py`: surname initial + "." + first name @ `TUTOR_EMAIL_DOMAIN`,
-  e.g. `o.anthony@tutorlink.com`, numbered on a clash). It is the tutor's only login and never
-  changes, even when they rename themselves. Tutors don't choose a password: `security.generate_password()`
-  makes one, and both are emailed to `users.email`, their personal address, where every email is sent
-  (nothing is ever sent to the work email). Tests pin the generated password to `helpers.PASSWORD`
-  (`tutor_password` fixture). Parents and admins choose a password and log in with `users.email`.
-- **Google sign-in (spec 4 R1).** Google ID tokens are verified only in `app/core/google.py`.
-  Tutors register only through `POST /auth/google/register` and never log in with Google; parents
-  may do both, and a parent who signed up with Google has `password_hash = NULL` until they use
-  "Forgot password?". In tests, `helpers.google_token(email, …)` mints tokens the `google` fixture
-  accepts, and `helpers.google_register` / `register_tutor` sign up through it.
+- **Accounts (spec 4 R0, R1).** Parents and tutors sign up the same way: any email and a chosen
+  password (`POST /auth/register`), or Google (`POST /auth/google/register`, signed in at once).
+  `users.email` is everyone's login and where every email goes. Google ID tokens are verified only in
+  `app/core/google.py`; someone who signed up with Google has `password_hash = NULL` until they use
+  "Forgot password?". Admins can't use Google. Tutor work emails were removed (migration 0019).
+  In tests, `helpers.register_tutor` signs up with email and `helpers.PASSWORD`;
+  `helpers.google_token(email, …)` mints tokens the `google` fixture accepts, and
+  `helpers.google_register` signs up through Google.
 - **Password reset (spec 4 R0.7).** `password_reset_tokens` stores only a SHA-256 of each link's
   token; a link works once, for an hour, and `/auth/forgot-password` answers the same for any email.
 - **Tutor onboarding (spec 4 R2, R3).** `app/domains/onboarding/` holds the checklist
@@ -102,7 +98,8 @@ Alembic migration per spec or build step in `alembic/versions/`.
 ## Guardrails
 
 - `password_hash` stays out of every response model.
-- `GET /tutors` and `GET /tutors/{id}` return approved tutors only.
+- `GET /tutors` and `GET /tutors/{id}` return approved tutors only, and with `/tutors/{id}/schedule` and `/reviews` need a logged-in parent or admin (`deps.can_see_tutors`): anonymous visitors and tutors can't browse tutors.
+- A job post reaches tutors only once an admin approves it (spec 2 R1.4); `helpers.post_job` approves, `helpers.submit_job` leaves it pending.
 - A forged, duplicate or unverified webhook leaves the database unchanged.
 - An earning is paid at most once; a failed transfer makes it payable again.
 - Placeholder secrets (`is_placeholder`) are treated as unset: the app refuses a placeholder

@@ -1,5 +1,5 @@
-"""Google sign-in (spec 4 R1): tutors register only with Google and log in with their work email;
-parents may register and log in with Google. Plus "Forgot password?" (R0.7)."""
+"""Google sign-in (spec 4 R1): parents and tutors may register and log in with Google, as well as with
+any email and a password. Plus "Forgot password?" (R0.7)."""
 
 import re
 from datetime import timedelta
@@ -59,34 +59,26 @@ def test_tutor_registration_needs_a_google_token(client):
     assert client.post("/v1/auth/google/register", json=body).status_code == 422
 
 
-def test_tutor_registers_with_google_and_sees_work_email_and_password_once(client, outbox, monkeypatch):
-    from app.domains.auth import service as auth_service
-    monkeypatch.setattr(auth_service, "generate_password", lambda: "Xk7pQ2mN9rTb")
-
+def test_tutor_registers_with_google_and_is_signed_in(client, outbox):
     response = helpers.google_register(client, "Anthony@Gmail.com")
     assert response.status_code == 201, response.text
     body = response.json()
-    assert body["user"]["email"] == "anthony@gmail.com"  # the Google email is the personal email
-    assert body["user"]["work_email"] == "o.anthony@tutorlink.com"
-    assert body["password"] == "Xk7pQ2mN9rTb"
-    assert body["access_token"] is None
+    assert body["user"]["email"] == "anthony@gmail.com"  # the Google email is their email
+    assert "work_email" not in body["user"] and "password" not in body
     assert body["tutor_profile"]["vetting_status"] == "pending"
+    me = client.get("/v1/auth/me", headers=bearer(body["access_token"])).json()
+    assert me["user"]["role"] == "tutor"
 
     email = outbox[-1]
-    assert email["to"] == "anthony@gmail.com"
-    assert "o.anthony@tutorlink.com" in email["html"] and "Xk7pQ2mN9rTb" in email["html"]
-
-    assert password_login(client, "o.anthony@tutorlink.com", "Xk7pQ2mN9rTb").status_code == 200
-    me = client.get("/v1/auth/me", headers=helpers.login(client, "o.anthony@tutorlink.com", "Xk7pQ2mN9rTb")).json()
-    assert "password" not in me
+    assert email["to"] == "anthony@gmail.com" and "application" in email["subject"]
 
 
-def test_tutor_using_google_to_log_in_is_told_their_work_email(client):
+def test_tutor_logs_in_with_google(client):
     tutor = helpers.register_tutor(client, email="anthony@gmail.com")
     response = google_login(client, google_token("anthony@gmail.com"))
-    assert response.status_code == 401
-    assert tutor["work_email"] in response.json()["detail"]
-    assert password_login(client, tutor["work_email"]).status_code == 200
+    assert response.status_code == 200
+    me = client.get("/v1/auth/me", headers=bearer(response.json()["access_token"])).json()
+    assert me["user"]["id"] == tutor["id"]
 
 
 def test_tutor_registration_with_a_used_google_email_is_409(client):
@@ -98,12 +90,6 @@ def test_tutor_fields_are_still_required_with_google(client):
     assert helpers.google_register(client, "a@gmail.com", area=None).status_code == 422
     assert helpers.google_register(client, "a@gmail.com", offers=[]).status_code == 422
     assert helpers.google_register(client, "a@gmail.com", surname=" ").status_code == 422
-
-
-def test_tutors_who_registered_before_google_keep_logging_in(client, db):
-    """R1.8: an existing tutor (work email + password) is untouched."""
-    tutor = helpers.register_tutor(client)
-    assert password_login(client, tutor["work_email"]).status_code == 200
 
 
 # ---------- Parents (R1.4) ----------
@@ -129,7 +115,6 @@ def test_parent_google_sign_up_needs_the_profile_fields_and_signs_them_in(client
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["parent_profile"]["full_name"] == "Ada Obi"
-    assert body["password"] is None
     me = client.get("/v1/auth/me", headers=bearer(body["access_token"])).json()
     assert me["user"]["email"] == "new@example.com"
     assert google_login(client, google_token("new@example.com")).status_code == 200
@@ -212,27 +197,10 @@ def test_forgot_password_answers_the_same_for_known_and_unknown_emails(client, o
     assert [e["to"] for e in outbox[sent_before:]] == ["ada@example.com"]
 
 
-def test_tutor_reset_email_reminds_them_of_their_work_email(client, outbox):
-    tutor = helpers.register_tutor(client, email="anthony@gmail.com")
-    forgot(client, "anthony@gmail.com")
-    email = outbox[-1]
-    assert email["to"] == "anthony@gmail.com"
-    assert tutor["work_email"] in email["html"]
-    assert link_token(email)
-
-
-def test_tutor_work_email_is_not_a_reset_address(client, outbox):
-    tutor = helpers.register_tutor(client)
-    sent_before = len(outbox)
-    assert forgot(client, tutor["work_email"]).status_code == 202
-    assert len(outbox) == sent_before
-
-
-def test_parent_reset_email_has_a_link_and_no_work_email(client, outbox):
+def test_parent_reset_email_has_a_link(client, outbox):
     helpers.register_parent(client, email="ada@example.com")
     forgot(client, "ada@example.com")
     assert link_token(outbox[-1])
-    assert settings.TUTOR_EMAIL_DOMAIN not in outbox[-1]["html"]
 
 
 def test_reset_link_sets_a_new_password_once(client, outbox):
@@ -241,8 +209,8 @@ def test_reset_link_sets_a_new_password_once(client, outbox):
     token = link_token(outbox[-1])
 
     assert reset(client, token).status_code == 204
-    assert password_login(client, tutor["work_email"]).status_code == 401  # the old password stops working
-    assert password_login(client, tutor["work_email"], "brand-new-password").status_code == 200
+    assert password_login(client, tutor["email"]).status_code == 401  # the old password stops working
+    assert password_login(client, tutor["email"], "brand-new-password").status_code == 200
     # Already-issued sessions keep working.
     assert client.get("/v1/auth/me", headers=tutor["headers"]).status_code == 200
 

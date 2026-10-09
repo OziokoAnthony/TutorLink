@@ -11,7 +11,7 @@ interface AuthContextValue {
   loading: boolean
   /** Logs in, loads the user, and redirects to their role's home page. */
   login: (email: string, password: string) => Promise<void>
-  /** Logs a parent in with a Google ID token, then redirects like `login`. */
+  /** Logs a parent or tutor in with a Google ID token, then redirects like `login`. */
   loginWithGoogle: (idToken: string) => Promise<void>
   /** After a sign-up that signed the user in: loads them and goes to their home page. */
   enter: () => Promise<void>

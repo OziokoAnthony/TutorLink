@@ -10,6 +10,15 @@ const config: Config = {
   ],
   theme: {
   	extend: {
+  		keyframes: {
+  			'hero-zoom': {
+  				from: { transform: 'scale(1)' },
+  				to: { transform: 'scale(1.12)' }
+  			}
+  		},
+  		animation: {
+  			'hero-zoom': 'hero-zoom 7.5s ease-out forwards'
+  		},
   		fontFamily: {
   			sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
   		},

@@ -23,6 +23,7 @@ class EducationLevel(str, Enum):
     primary = "primary"
     junior_secondary = "junior_secondary"
     senior_secondary = "senior_secondary"
+    international = "international"  # high school in an international curriculum (IGCSE, A-Level, IB, American)
 
 
 # Shared by tutor_offers.level and bookings.level (one PostgreSQL type).

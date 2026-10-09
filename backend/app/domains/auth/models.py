@@ -22,10 +22,8 @@ class UserRole(str, Enum):
 class User(BaseUUIDModel, table=True):
     __tablename__ = "users"
 
-    email: str = Field(unique=True)  # personal email: notifications go here; parents and admins log in with it
-    # Tutors only: the address TutorLink assigns them, e.g. o.anthony@tutorlink.com. Their only login.
-    work_email: str | None = Field(default=None, unique=True)
-    password_hash: str | None = None  # None for a parent who signed up with Google and hasn't set one (R1.4)
+    email: str = Field(unique=True)  # everyone logs in with it, and every email goes here
+    password_hash: str | None = None  # None for someone who signed up with Google and hasn't set one (R1.4)
     role: UserRole = Field(sa_type=pg_enum(UserRole, "user_role"))
     is_active: bool = Field(default=True, sa_column_kwargs={"server_default": sa.true()})
     photo_key: str | None = None  # profile picture in storage (spec 4 R1b)
@@ -87,24 +85,20 @@ class ProfileFields(SQLModel):
 
 
 class RegisterRequest(ProfileFields):
-    """Email and password sign-up: parents only. Tutors register with Google (spec 4 R1.1)."""
+    """Sign-up with any email address and a chosen password, for parents and tutors (spec 4 R1.1)."""
 
     email: EmailStr
-    password: str | None = Field(default=None, min_length=8, max_length=72)  # bcrypt only uses the first 72 bytes
+    password: str = Field(min_length=8, max_length=72)  # bcrypt only uses the first 72 bytes
 
     @model_validator(mode="after")
     def check_role_fields(self) -> "RegisterRequest":
-        if self.role == UserRole.tutor:
-            raise ValueError("tutors register with Google")
         self.check_profile()
-        if self.password is None:
-            raise ValueError("password is required")
         return self
 
 
 class GoogleRegisterRequest(ProfileFields):
-    """Sign-up with Google: tutors always, parents optionally (spec 4 R1.1, R1.4). The email is the
-    verified one in the Google ID token; tutors are given a password, parents have none until they set one."""
+    """Sign-up with Google, for parents and tutors (spec 4 R1.1, R1.4). The email is the verified one in the
+    Google ID token; there's no password until they set one with "Forgot password?"."""
 
     id_token: str
     use_google_photo: bool = False  # start with the Google account photo (R1b.3)
@@ -146,7 +140,6 @@ class TokenResponse(SQLModel):
 class UserRead(SQLModel):
     id: UUID
     email: str
-    work_email: str | None = None
     role: UserRole
     is_active: bool
     created_at: datetime
@@ -172,7 +165,6 @@ class MeResponse(SQLModel):
 
 
 class GoogleRegisterResponse(MeResponse):
-    """Tutors get their generated password, shown once (R1.2) and log in with it; parents are signed in."""
+    """A Google sign-up is signed in at once."""
 
-    password: str | None = None
-    access_token: str | None = None
+    access_token: str

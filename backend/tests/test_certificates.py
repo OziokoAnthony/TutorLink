@@ -185,7 +185,7 @@ def test_approving_without_a_verified_certificate_is_409(client, admin_headers, 
     assert helpers.vet(client, admin_headers, tutor).status_code == 200
 
 
-def test_public_profile_shows_badges_but_no_files_or_numbers(client, admin_headers):
+def test_public_profile_shows_badges_but_no_files_or_numbers(client, viewer, admin_headers):
     tutor = helpers.verified_tutor(client)
     for fields in (WAEC, {}, {}):  # a WAEC and two degrees: each type is one badge
         certificate = upload(client, tutor, **fields)
@@ -195,10 +195,10 @@ def test_public_profile_shows_badges_but_no_files_or_numbers(client, admin_heade
     helpers.take_exam(client, tutor)
     assert helpers.vet(client, admin_headers, tutor).status_code == 200
 
-    public = client.get(f"/v1/tutors/{tutor['id']}")
+    public = client.get(f"/v1/tutors/{tutor['id']}", headers=viewer)
     assert public.json()["nin_verified"] is True
     assert public.json()["verified_certificates"] == ["WAEC", "Degree"]
     for secret in ("file_url", "file_name", "certificates/", WAEC["exam_number"], "University of Lagos"):
         assert secret not in public.text
-    listed = next(t for t in client.get("/v1/tutors").json() if t["user_id"] == tutor["id"])
+    listed = next(t for t in client.get("/v1/tutors", headers=viewer).json() if t["user_id"] == tutor["id"])
     assert listed["verified_certificates"] == ["WAEC", "Degree"]

@@ -233,8 +233,8 @@ def offer(subjects=("Mathematics",), level: str = "senior_secondary", price: str
 
 
 def google_register(client, email: str, role: str = "tutor", **fields):
-    """Sign-up with Google: tutors' only way to register (spec 4 R1.1). For a tutor, defaults to
-    Anthony Ozioko in Lekki with one offer; for a parent, Ada Parent."""
+    """Sign-up with Google (spec 4 R1.1). For a tutor, defaults to Anthony Ozioko in Lekki with one offer;
+    for a parent, Ada Parent."""
     body = ({"first_name": "Anthony", "surname": "Ozioko", "area": "Lekki", "offers": [offer()]}
             if role == "tutor" else {"full_name": "Ada Parent"})
     body.update(fields)
@@ -244,16 +244,18 @@ def google_register(client, email: str, role: str = "tutor", **fields):
 
 def register_tutor(client, email: str | None = None, full_name: str = "Tunde Tutor", area: str = "Lekki",
                    offers: list | None = None, **offer_kwargs) -> dict:
-    """`full_name` is split into first name (first word) and surname (the rest). The tutor logs in with
-    the work email and PASSWORD (the `tutor_password` fixture stands in for the generated password)."""
+    """Signs up with email and PASSWORD. `full_name` is split into first name (first word) and surname
+    (the rest)."""
     email = email or unique_email("tutor")
     first_name, _, surname = full_name.partition(" ")
-    response = google_register(client, email, first_name=first_name, surname=surname, area=area,
-                               offers=offers or [offer(**offer_kwargs)])
+    response = client.post("/v1/auth/register", json={
+        "email": email, "password": PASSWORD, "role": "tutor", "first_name": first_name, "surname": surname,
+        "area": area, "offers": offers or [offer(**offer_kwargs)],
+    })
     assert response.status_code == 201, response.text
     user = response.json()["user"]
-    tutor = {"id": user["id"], "email": email, "work_email": user["work_email"],
-             "first_name": first_name, "surname": surname, "headers": login(client, user["work_email"])}
+    tutor = {"id": user["id"], "email": email, "first_name": first_name, "surname": surname,
+             "headers": login(client, email)}
     tutor["offer_id"] = client.get("/v1/tutors/profile/offers", headers=tutor["headers"]).json()[0]["id"]
     return tutor
 
@@ -473,10 +475,23 @@ def job_body(*, subjects=("Mathematics",), price: str = "6000.00", mode: str = "
     return body
 
 
-def post_job(client, parent: dict, **kwargs) -> dict:
+def submit_job(client, parent: dict, **kwargs) -> dict:
+    """A posted job, waiting for review (spec 2 R1.4)."""
     response = client.post("/v1/jobs", headers=parent["headers"], json=job_body(**kwargs))
     assert response.status_code == 201, response.text
     return response.json()
+
+
+def review_job(client, admin_headers: dict, job: dict, status: str = "open", note: str | None = None):
+    return client.patch(f"/v1/admin/jobs/{job['id']}", headers=admin_headers, json={"status": status, "note": note})
+
+
+def post_job(client, parent: dict, admin_headers: dict, **kwargs) -> dict:
+    """A posted job an admin approved: open to tutors."""
+    job = submit_job(client, parent, **kwargs)
+    response = review_job(client, admin_headers, job)
+    assert response.status_code == 200, response.text
+    return client.get(f"/v1/jobs/{job['id']}", headers=parent["headers"]).json()
 
 
 def apply_to_job(client, tutor: dict, job: dict, note: str | None = "I teach this every week."):
