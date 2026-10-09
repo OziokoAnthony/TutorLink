@@ -125,7 +125,7 @@ account number) the first time one of their bookings is accepted. Paystack repor
 Dedicated accounts and Transfers must be enabled on the Paystack account. `PAYSTACK_DVA_BANK` picks
 the bank for account numbers: `test-bank` in test mode.
 
-## Online lessons and recordings (Cloudflare R2)
+## Online lessons and recordings
 
 Every booking and job is `online` or `offline`. Booking or posting an online lesson needs
 `recording_consent: true`, and the time and text of the consent are stored. The tutor sets the
@@ -144,10 +144,11 @@ An online lesson's report needs its recording first. Video never passes through 
 lesson's parent, its tutor and admins only. The background jobs delete recordings 90 days after the
 lesson, unless a problem on that lesson is still open.
 
-With R2 configured, uploads go to the bucket through presigned URLs, so the bucket needs a CORS rule
+Files live in a private S3-compatible bucket (Backblaze B2 or Cloudflare R2: the `STORAGE_*` settings
+in `.env.example`). Uploads go to the bucket through presigned URLs, so the bucket needs a CORS rule
 allowing `PUT` (and `GET` for playback) from the frontend's origin with the `Content-Type` header.
-Without R2, files go to `LOCAL_STORAGE_DIR` through the signed `/v1/files/...` routes (development
-and tests only).
+Without a bucket, files go to `LOCAL_STORAGE_DIR` through the signed `/v1/files/...` routes
+(development and tests only).
 
 ## Notifications and emails (Resend)
 

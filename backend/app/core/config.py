@@ -41,11 +41,13 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     EXAM_MODEL: str = "claude-opus-5-5"
 
-    # Cloudflare R2 for uploaded files. While unset, files are kept under LOCAL_STORAGE_DIR (development only).
-    R2_ACCOUNT_ID: str = ""
-    R2_ACCESS_KEY_ID: str = ""
-    R2_SECRET_ACCESS_KEY: str = ""
-    R2_BUCKET: str = ""
+    # A private S3-compatible bucket for uploaded files (Backblaze B2, Cloudflare R2…). While unset, files are
+    # kept under LOCAL_STORAGE_DIR (development only).
+    STORAGE_ENDPOINT_URL: str = ""
+    STORAGE_REGION: str = "auto"
+    STORAGE_ACCESS_KEY_ID: str = ""
+    STORAGE_SECRET_ACCESS_KEY: str = ""
+    STORAGE_BUCKET: str = ""
     LOCAL_STORAGE_DIR: str = "storage"
 
     # Background jobs (expiries, due payments, payable earnings) run inside the API process.

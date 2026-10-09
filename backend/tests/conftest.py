@@ -103,7 +103,7 @@ def test_settings(monkeypatch, tmp_path):
     whatever the developer's .env holds."""
     monkeypatch.setattr(settings, "PAYSTACK_SECRET_KEY", "sk_test_tutorlink_tests")
     monkeypatch.setattr(settings, "PAYSTACK_WEBHOOK_SECRET", "sk_test_tutorlink_tests")
-    for name in ("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"):
+    for name in ("STORAGE_ENDPOINT_URL", "STORAGE_ACCESS_KEY_ID", "STORAGE_SECRET_ACCESS_KEY", "STORAGE_BUCKET"):
         monkeypatch.setattr(settings, name, "")
     monkeypatch.setattr(settings, "LOCAL_STORAGE_DIR", str(tmp_path / "storage"))
     monkeypatch.setattr(settings, "RUN_SCHEDULER", False)
