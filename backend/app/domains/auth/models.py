@@ -24,6 +24,8 @@ class User(BaseUUIDModel, table=True):
 
     email: str = Field(unique=True)  # everyone logs in with it, and every email goes here
     password_hash: str | None = None  # None for someone who signed up with Google and hasn't set one (R1.4)
+    # In every login token; raised on a password change or reset, which ends all of the user's sessions.
+    token_version: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     role: UserRole = Field(sa_type=pg_enum(UserRole, "user_role"))
     is_active: bool = Field(default=True, sa_column_kwargs={"server_default": sa.true()})
     photo_key: str | None = None  # profile picture in storage (spec 4 R1b)
@@ -47,6 +49,18 @@ class PasswordResetToken(BaseUUIDModel, table=True):
     token_hash: str = Field(unique=True)
     expires_at: datetime = Field(sa_type=sa.DateTime(timezone=True))
     used_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
+
+
+class RateLimitHit(SQLModel, table=True):
+    """One counted attempt (a failed login, a sign-up, a reset email…) for `auth.limits`. Kept in the
+    database so limits hold across restarts and server processes; rows older than a day are deleted."""
+
+    __tablename__ = "rate_limit_hits"
+    __table_args__ = (sa.Index("ix_rate_limit_hits_key_created_at", "key", "created_at"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    key: str  # e.g. "login-email:ada@example.com", "signup-ip:203.0.113.7"
+    created_at: datetime = Field(sa_type=sa.DateTime(timezone=True))
 
 
 # ---------- DTOs ----------
@@ -133,8 +147,12 @@ class ChangePasswordRequest(SQLModel):
 
 
 class TokenResponse(SQLModel):
+    """The browser also gets the token as an httpOnly cookie (`deps.SESSION_COOKIE`) and should use that;
+    the body is for API clients."""
+
     access_token: str
     token_type: str = "bearer"
+    role: UserRole
 
 
 class UserRead(SQLModel):

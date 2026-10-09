@@ -12,7 +12,7 @@ qualifications they want and the price they will pay, and let tutors come to the
 
 ### R1. Posting a job (parent)
 1. A parent creates a job with these fields:
-   - one or more subjects, one level, lesson mode (`online`/`offline`)
+   - one or more subjects from TutorLink's subject list, one level, lesson mode (`online`/`offline`)
    - area (required for offline)
    - the weekly times they want (one or more slots), start date, optional end date, billing period
    - qualifications wanted (free text, plus optional minimum certificate type from spec 4)

@@ -1,5 +1,4 @@
-import Cookies from 'js-cookie'
-import api, { TOKEN_COOKIE } from '@/lib/api'
+import api from '@/lib/api'
 import { toTutorProfile, type OfferInput } from '@/lib/tutors'
 import type { ParentProfile, Role, TutorToRate, UserMe } from '@/types'
 
@@ -44,35 +43,25 @@ export const ROLE_HOME: Record<Role, string> = {
   admin: '/admin/tutors',
 }
 
-function storeToken(accessToken: string): void {
-  Cookies.set(TOKEN_COOKIE, accessToken, {
-    expires: 1,
-    sameSite: 'strict',
-    secure: window.location.protocol === 'https:',
-  })
-}
-
 /** Creates a parent or tutor account with any email and a chosen password; they log in afterwards. */
 export async function register(input: RegisterInput): Promise<void> {
   await api.post<RawMe>('/auth/register', input)
 }
 
+// Signing in: the backend sets the httpOnly login cookie, so nothing here touches the token.
+
 /** Creates the account from a Google sign-in, for parents and tutors, and signs them in at once. */
 export async function registerWithGoogle(input: GoogleRegisterInput): Promise<void> {
-  const { data } = await api.post<RawMe & { access_token: string }>('/auth/google/register', input)
-  storeToken(data.access_token)
+  await api.post('/auth/google/register', input)
 }
 
-/** Logs in and stores the JWT cookie. */
 export async function login(email: string, password: string): Promise<void> {
-  const { data } = await api.post<{ access_token: string; token_type: string }>('/auth/login', { email, password })
-  storeToken(data.access_token)
+  await api.post('/auth/login', { email, password })
 }
 
 /** Parents and tutors. 404 when no account uses this Google email; admins get a 401. */
 export async function loginWithGoogle(idToken: string): Promise<void> {
-  const { data } = await api.post<{ access_token: string; token_type: string }>('/auth/google/login', { id_token: idToken })
-  storeToken(data.access_token)
+  await api.post('/auth/google/login', { id_token: idToken })
 }
 
 /** Emails a reset link if an account uses this email. The answer is the same either way. */
@@ -118,10 +107,7 @@ export async function removeUserPhoto(userId: string): Promise<void> {
   await api.delete(`/admin/users/${userId}/photo`)
 }
 
-export function logout(): void {
-  Cookies.remove(TOKEN_COOKIE)
-}
-
-export function hasToken(): boolean {
-  return Boolean(Cookies.get(TOKEN_COOKIE))
+/** Removes this browser's login cookie. */
+export async function logout(): Promise<void> {
+  await api.post('/auth/logout')
 }

@@ -4,7 +4,7 @@ The Next.js web app for TutorLink, where Nigerian parents find vetted home tutor
 lessons and pay ahead by bank transfer, and TutorLink pays tutors after the lessons. It talks to the
 TutorLink backend in [`../backend`](../backend) (FastAPI) at `NEXT_PUBLIC_API_URL`.
 
-Stack: Next.js 14 (App Router) · TypeScript (strict) · Tailwind CSS 3 · shadcn/ui · React Hook Form + Zod · Axios.
+Stack: Next.js 15 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS 3 · shadcn/ui · React Hook Form + Zod · Axios.
 What it does is specified in [`../specs/`](../specs/); `CLAUDE.md` covers how the code is organised.
 
 ## Run it

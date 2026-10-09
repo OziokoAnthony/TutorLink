@@ -19,7 +19,7 @@ models (`../backend/app/domains/*/models.py`) or `/docs` for the exact API shape
 
 ## Stack
 
-Next.js 14 (App Router) · TypeScript (strict) · Tailwind CSS · shadcn/ui (`components/ui/`) ·
+Next.js 15 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS · shadcn/ui (`components/ui/`) ·
 React Hook Form + Zod · Axios · sonner toasts · lucide icons.
 
 ## Where things live
@@ -58,6 +58,10 @@ React Hook Form + Zod · Axios · sonner toasts · lucide icons.
 
 ## Guardrails
 
+- The login token is an httpOnly cookie the backend sets: never store or read a token in the browser.
+  `lib/api.ts` sends `withCredentials` and `X-Requested-With: TutorLink` on every request.
+- `next.config.mjs` sets the Content-Security-Policy and other security headers: a new outside script,
+  image host or API needs adding there.
 - Every fee figure on screen comes from the API response for that reader.
 - A tutor's full bank account number appears only on admin pages; tutors see bank and last 4 digits.
 - `password_hash` never reaches the UI.

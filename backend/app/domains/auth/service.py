@@ -15,7 +15,7 @@ from app.core.security import (
     hash_token,
     verify_password,
 )
-from app.domains.auth import photos
+from app.domains.auth import limits, photos
 from app.domains.auth.models import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
@@ -141,7 +141,7 @@ def google_register(session: Session, data: GoogleRegisterRequest) -> GoogleRegi
             pass
     _welcome(user, data)
     return GoogleRegisterResponse(**build_me(session, user).model_dump(),
-                                  access_token=create_access_token(str(user.id), user.role.value))
+                                  access_token=issue_token(user))
 
 
 def google_login(session: Session, data: GoogleLoginRequest) -> TokenResponse:
@@ -156,21 +156,38 @@ def google_login(session: Session, data: GoogleLoginRequest) -> TokenResponse:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "This account has been deactivated")
     if user.role == UserRole.admin:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Admins log in with their email and password")
-    return TokenResponse(access_token=create_access_token(str(user.id), user.role.value))
+    return TokenResponse(access_token=issue_token(user), role=user.role)
 
 
-def login(session: Session, data: LoginRequest) -> TokenResponse:
+def login(session: Session, data: LoginRequest, ip: str) -> TokenResponse:
+    """Wrong passwords are counted per email and per IP; past the limit, even the right one gets 429 until
+    the window passes, so a password can't be guessed by brute force."""
+    limits.check(session, limits.LOGIN_EMAIL, data.email)
+    limits.check(session, limits.LOGIN_IP, ip)
     user = get_user_by_email(session, data.email)
     if user is None or not verify_password(data.password, user.password_hash) or not user.is_active:
+        limits.record(session, limits.LOGIN_EMAIL, data.email)
+        limits.record(session, limits.LOGIN_IP, ip)
+        session.commit()
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
             "Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return TokenResponse(access_token=create_access_token(str(user.id), user.role.value))
+    return TokenResponse(access_token=issue_token(user), role=user.role)
 
 
-def change_password(session: Session, user: User, data: ChangePasswordRequest) -> None:
+def issue_token(user: User) -> str:
+    return create_access_token(str(user.id), user.role.value, user.token_version)
+
+
+def _end_all_sessions(user: User) -> None:
+    """Every login token issued so far stops working (deps.get_current_user compares the version)."""
+    user.token_version += 1
+
+
+def change_password(session: Session, user: User, data: ChangePasswordRequest) -> str:
+    """Logs out every other device; returns a new token for this one."""
     if user.password_hash is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                             "You signed up with Google and have no password yet. "
@@ -178,8 +195,10 @@ def change_password(session: Session, user: User, data: ChangePasswordRequest) -
     if not verify_password(data.current_password, user.password_hash):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Your current password is incorrect")
     user.password_hash = get_password_hash(data.new_password)
+    _end_all_sessions(user)
     session.add(user)
     session.commit()
+    return issue_token(user)
 
 
 def forgot_password(session: Session, data: ForgotPasswordRequest) -> tuple[str, str, str] | None:
@@ -198,7 +217,8 @@ def forgot_password(session: Session, data: ForgotPasswordRequest) -> tuple[str,
 
 
 def reset_password(session: Session, data: ResetPasswordRequest) -> None:
-    """Sets a new password from a reset link (R0.7). Other devices stay logged in; the old password stops working."""
+    """Sets a new password from a reset link (R0.7). Every device is logged out and the old password stops
+    working, so whoever may have known it loses access."""
     reset = session.exec(
         select(PasswordResetToken).where(PasswordResetToken.token_hash == hash_token(data.token)).with_for_update()
     ).first()
@@ -207,6 +227,7 @@ def reset_password(session: Session, data: ResetPasswordRequest) -> None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                             "This link has expired or was already used. Ask for a new one with \"Forgot password?\".")
     user.password_hash = get_password_hash(data.new_password)
+    _end_all_sessions(user)
     session.add(user)
     # The link works once, and any older links stop working too.
     for pending in session.exec(select(PasswordResetToken).where(

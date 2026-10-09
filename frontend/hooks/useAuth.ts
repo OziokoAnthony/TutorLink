@@ -15,7 +15,7 @@ interface AuthContextValue {
   loginWithGoogle: (idToken: string) => Promise<void>
   /** After a sign-up that signed the user in: loads them and goes to their home page. */
   enter: () => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
   /** Re-fetches /auth/me (e.g. after profile changes or a rating). */
   refresh: () => Promise<void>
 }
@@ -27,11 +27,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserMe | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // The login cookie is httpOnly, so the only way to know who's logged in is to ask: a visitor gets a 401.
   const refresh = useCallback(async () => {
-    if (!auth.hasToken()) {
-      setUser(null)
-      return
-    }
     try {
       setUser(await auth.getMe())
     } catch {
@@ -39,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // On every page load: read the cookie and fetch /auth/me.
+  // On every page load: fetch /auth/me.
   useEffect(() => {
     refresh().finally(() => setLoading(false))
   }, [refresh])
@@ -61,8 +58,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await enter()
   }, [enter])
 
-  const logout = useCallback(() => {
-    auth.logout()
+  const logout = useCallback(async () => {
+    try {
+      await auth.logout()
+    } catch {
+      // Logged out here either way; the cookie expires by itself.
+    }
     setUser(null)
     router.push('/')
     router.refresh()

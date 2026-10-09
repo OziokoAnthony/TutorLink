@@ -17,6 +17,7 @@ from sqlmodel import Session
 from app.core import clock
 from app.core.config import settings
 from app.db.session import engine
+from app.domains.auth import limits
 from app.domains.bookings import service as bookings
 from app.domains.exam import service as exam
 from app.domains.lessons import service as lessons
@@ -40,6 +41,7 @@ def run_all(session: Session, now: datetime | None = None) -> dict[str, int]:
         "ended_bookings": bookings.end_finished_bookings(session, now),
         "deleted_recordings": lessons.delete_old_recordings(session, now),
         "closed_exam_attempts": exam.close_expired(session, now),
+        "old_rate_limit_hits": limits.delete_old(session, now),
     }
 
 

@@ -1,28 +1,33 @@
+# Local development only: never deploy this file.
 # Pinned so the project (and its postgres_data volume) keeps this name wherever the file lives.
 name: tutorlink-backend
+
+# Every port is published on 127.0.0.1 only, so other machines on the same network (a café's Wi-Fi, an office)
+# can't reach the API, the database or Adminer. POSTGRES_PASSWORD comes from .env, which compose reads too.
 
 services:
   app:
     build: .
-    ports: ["8000:8000"]
+    ports: ["127.0.0.1:8000:8000"]
     env_file: .env
     environment:
       # Inside the container, "localhost" is the app itself — point at the db service instead.
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/tutorlink_db
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/tutorlink_db
     depends_on: [db]
 
   db:
     image: postgres:16
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      # Used only when the volume is first created; to change it later, ALTER USER and update .env.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: tutorlink_db
-    ports: ["5435:5432"]  # host 5435: 5432 is a local Windows Postgres, 5433-5434 are taken by WSL
+    ports: ["127.0.0.1:5435:5432"]  # host 5435: 5432 is a local Windows Postgres, 5433-5434 are taken by WSL
     volumes: [postgres_data:/var/lib/postgresql/data]
 
   adminer:
     image: adminer
-    ports: ["8080:8080"]
+    ports: ["127.0.0.1:8080:8080"]
     depends_on: [db]
 
 volumes:

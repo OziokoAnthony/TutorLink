@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,7 +19,8 @@ import { errorMessage } from '@/lib/api'
 import { chooseApplicant, closeJob, getApplicants, getJob, updateJob } from '@/lib/jobs'
 import type { Applicant, Job, JobInput } from '@/types'
 
-export default function ParentJobPage({ params }: { params: { id: string } }) {
+export default function ParentJobPage() {
+  const params = useParams<{ id: string }>()
   const router = useRouter()
   const toast = useToast()
   const [job, setJob] = useState<Job | null>(null)

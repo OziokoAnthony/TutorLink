@@ -32,22 +32,28 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def _key_for(dedicated: str, purpose: bytes) -> bytes:
+    """A key for one job: from its own setting, or (unset, while developing) derived from SECRET_KEY as
+    before the keys were split, so existing hashes and encrypted values stay valid."""
+    return hmac.new((dedicated or settings.SECRET_KEY).encode(), purpose, hashlib.sha256).digest()
+
+
 def hash_nin(nin: str) -> str:
     """A one-way, keyed hash of a NIN, so one NIN verifies one account (spec 4 R3.6) without storing it.
     Keyed because there are only 10^11 NINs: a plain hash could be reversed by trying them all.
-    Changing SECRET_KEY changes every hash, so already-verified NINs could then verify again."""
-    key = hmac.new(settings.SECRET_KEY.encode(), b"tutorlink-nin", hashlib.sha256).digest()
+    Changing NIN_HASH_KEY changes every hash, so already-verified NINs could then verify again."""
+    key = _key_for(settings.NIN_HASH_KEY, b"tutorlink-nin")
     return hmac.new(key, nin.encode(), hashlib.sha256).hexdigest()
 
 
 def _fernet() -> Fernet:
-    key = hmac.new(settings.SECRET_KEY.encode(), b"tutorlink-secret-fields", hashlib.sha256).digest()
+    key = _key_for(settings.FIELD_ENCRYPTION_KEY, b"tutorlink-secret-fields")
     return Fernet(base64.urlsafe_b64encode(key))
 
 
 def encrypt(value: str) -> str:
     """Encrypts a short secret kept only until it's used, e.g. a WAEC/NECO checker PIN (spec 4 R4.2).
-    The key comes from SECRET_KEY: changing it makes stored values unreadable."""
+    The key comes from FIELD_ENCRYPTION_KEY: changing it makes stored values unreadable."""
     return _fernet().encrypt(value.encode()).decode()
 
 
@@ -59,11 +65,16 @@ def generate_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-def create_access_token(subject: str, role: str, expires_delta: timedelta | None = None) -> str:
-    expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
-    payload = {"sub": str(subject), "role": role, "exp": expire}
+def token_lifetime(role: str) -> timedelta:
+    """Admins' sessions are shorter: an admin token can approve tutors and send money."""
+    minutes = settings.ADMIN_TOKEN_EXPIRE_MINUTES if role == "admin" else settings.ACCESS_TOKEN_EXPIRE_MINUTES
+    return timedelta(minutes=minutes)
+
+
+def create_access_token(subject: str, role: str, version: int = 0, expires_delta: timedelta | None = None) -> str:
+    """`version` is the user's token_version: raising it (on a password change or reset) ends every session."""
+    expire = datetime.now(timezone.utc) + (expires_delta or token_lifetime(role))
+    payload = {"sub": str(subject), "role": role, "ver": version, "exp": expire}
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
 
 

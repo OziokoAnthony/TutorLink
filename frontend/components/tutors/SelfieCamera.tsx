@@ -38,7 +38,7 @@ export default function SelfieCamera({ onChange }: { onChange: (selfie: Blob | n
 
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview) }, [preview])
 
-  function use(blob: Blob | null) {
+  function choose(blob: Blob | null) {
     setPreview(blob ? URL.createObjectURL(blob) : null)
     onChange(blob)
   }
@@ -50,11 +50,11 @@ export default function SelfieCamera({ onChange }: { onChange: (selfie: Blob | n
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
     canvas.getContext('2d')?.drawImage(video, 0, 0)
-    canvas.toBlob((blob) => { if (blob) { use(blob); stop() } }, 'image/jpeg', 0.9)
+    canvas.toBlob((blob) => { if (blob) { choose(blob); stop() } }, 'image/jpeg', 0.9)
   }
 
   function retake() {
-    use(null)
+    choose(null)
     if (state === 'live') start()
   }
 
@@ -73,7 +73,7 @@ export default function SelfieCamera({ onChange }: { onChange: (selfie: Blob | n
       <div className="space-y-1.5">
         <label htmlFor="selfie-file" className="text-sm font-medium">Selfie</label>
         <input id="selfie-file" type="file" accept="image/jpeg,image/png,image/webp" capture="user"
-          className="block text-sm" onChange={(e) => use(e.target.files?.[0] ?? null)} />
+          className="block text-sm" onChange={(e) => choose(e.target.files?.[0] ?? null)} />
         <p className="text-xs text-muted-foreground">We couldn&apos;t open your camera here. Take a clear photo of your face instead.</p>
       </div>
     )

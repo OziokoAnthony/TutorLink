@@ -11,6 +11,7 @@ from sqlmodel import Field, SQLModel
 from app.db.base import BaseUUIDModel, pg_enum
 from app.domains.certificates.models import CertificateType
 from app.domains.onboarding.models import NinCheckRead
+from app.domains.tutors import subjects as subject_list
 
 
 class VettingStatus(str, Enum):
@@ -125,7 +126,7 @@ class OfferIn(SQLModel):
 
     @model_validator(mode="after")
     def clean(self) -> "OfferIn":
-        self.subjects = clean_subjects(self.subjects)
+        self.subjects = subject_list.listed(clean_subjects(self.subjects))
         return self
 
 

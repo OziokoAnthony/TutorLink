@@ -16,11 +16,11 @@ identity checked against the national NIN database, certificates authenticated, 
 2. **Parents and tutors sign up the same way:** with any email address they use (Gmail, Yahoo, Outlook, iCloud or any other) and a password they choose, or with Google (R1). That email is their login, and every notification goes there.
 3. *Removed 2026-10-09:* tutors used to be given a TutorLink work email (`o.anthony@tutorlink.com`) and a generated password. Tutors who had one now log in with their own email (the one on their account) and the same password.
 4. A new tutor is emailed that their application is in and what to do next. No password is ever emailed.
-5. Any user can change their password from their profile (current password + new password).
+5. Any user can change their password from their profile (current password + new password). This logs out every other device (changed 2026-10-09).
 6. Admins choose their own password and log in with their own email.
 7. **Forgot password.** The login page has "Forgot password?". The user enters their email. If an account has that email, TutorLink emails it a link to set a new password.
 
-   The link works once and expires after **1 hour**. The response is the same whether or not the email has an account, so the form doesn't reveal who is registered. Setting a new password from the link doesn't log anyone out of another device, but the old password stops working.
+   The link works once and expires after **1 hour**. The response is the same whether or not the email has an account, so the form doesn't reveal who is registered. Setting a new password from the link logs out every device and the old password stops working, so whoever knew it loses access (changed 2026-10-09).
 
 ### R1. Google sign-in for parents and tutors (built 2026-10-08, changed 2026-10-09)
 1. The registration page offers **Continue with Google** or email and password, to parents and tutors alike. With Google, the verified Google email becomes their email (R0.2), and they complete the same profile fields (a tutor's first name and surname are prefilled from Google; area and at least one offer are required).
@@ -76,7 +76,7 @@ identity checked against the national NIN database, certificates authenticated, 
 
 ### R5. Qualifying exam (quiz) (built 2026-10-08)
 1. The quiz is TutorLink's **qualifying exam**. A tutor takes it from their dashboard after logging in, and passing it is the step that completes their registration (R2). No tutor becomes a Verified tutor without passing.
-2. **Questions are generated automatically** with the Claude API (Anthropic) into a question bank. They aim at complex, multi-step critical-thinking and problem-solving questions, not recall.
+2. **Questions are generated automatically** with the Claude API (Anthropic) into a question bank. They aim at complex, multi-step critical-thinking and problem-solving questions, not recall. Subjects come only from TutorLink's fixed subject list (tutors and job posts can't use free text), so nothing a tutor types can steer the prompt (added 2026-10-09).
    - Each question is multiple choice with 4 options and one correct answer, a short explanation, and a tag: either **general reasoning** or a **subject + level**.
    - Every generated question is checked by a second, independent Claude call that answers it without seeing the key. If its answer differs from the key, the question is discarded.
    - The bank is topped up in the background, so there are always at least **200 questions per subject and level** in use by tutors' offers, and **300 general reasoning** questions.

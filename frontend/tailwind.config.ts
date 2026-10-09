@@ -19,6 +19,9 @@ const config: Config = {
   		animation: {
   			'hero-zoom': 'hero-zoom 7.5s ease-out forwards'
   		},
+  		transitionDuration: {
+  			'1500': '1500ms'
+  		},
   		fontFamily: {
   			sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
   		},

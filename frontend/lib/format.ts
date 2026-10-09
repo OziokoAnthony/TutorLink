@@ -18,7 +18,8 @@ export const LEVELS: { value: Level; label: string }[] = [
   { value: 'international', label: 'International High School' },
 ]
 
-/** Common Nigerian school subjects, used for the browse filter and as suggestions for tutors. */
+/** Common Nigerian school subjects. Tutors and job posts can only use listed subjects; the backend has the
+ * same list (`app/domains/tutors/subjects.py`, kept in step by `tests/test_subjects.py`). */
 const NIGERIAN_SUBJECTS = [
   'Mathematics', 'English Language', 'Basic Science', 'Basic Technology', 'Social Studies',
   'Civic Education', 'Physics', 'Chemistry', 'Biology', 'Further Mathematics', 'Economics',
@@ -38,6 +39,12 @@ const INTERNATIONAL_SUBJECTS = [
 ]
 
 export const SUBJECTS = [...NIGERIAN_SUBJECTS, ...INTERNATIONAL_SUBJECTS]
+
+/** The listed spelling of a typed subject (ignoring capitals and extra spaces), or null if it isn't listed. */
+export function listedSubject(name: string): string | null {
+  const key = name.toLowerCase().split(/\s+/).filter(Boolean).join(' ')
+  return SUBJECTS.find((s) => s.toLowerCase() === key) ?? null
+}
 
 export function levelLabel(level?: Level): string {
   return LEVELS.find((l) => l.value === level)?.label ?? ''

@@ -1,4 +1,4 @@
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,8 +11,19 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     APP_ENV: str = "development"
-    SECRET_KEY: str
+    SECRET_KEY: str  # signs login tokens
+    # One key per job, so a leak of one doesn't give away the others. Unset, each is derived from SECRET_KEY
+    # (fine while developing); production requires all three, different from SECRET_KEY. Changing one later
+    # has a cost: FILE_SIGNING_KEY breaks file links already handed out, FIELD_ENCRYPTION_KEY makes stored
+    # checker PINs unreadable, and NIN_HASH_KEY lets already-verified NINs verify a second account.
+    FILE_SIGNING_KEY: str = ""
+    FIELD_ENCRYPTION_KEY: str = ""
+    NIN_HASH_KEY: str = ""
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+    ADMIN_TOKEN_EXPIRE_MINUTES: int = 240
+    # The login cookie's domain. Unset on localhost; in production the parent domain shared by the site and the
+    # API (e.g. "tutorlink.ng" for www.tutorlink.ng and api.tutorlink.ng), so the site's middleware can read it.
+    COOKIE_DOMAIN: str | None = None
     BASE_URL: str = "http://localhost:8000"
     FRONTEND_URL: str = "http://localhost:3000"
 
@@ -48,6 +59,12 @@ class Settings(BaseSettings):
     STORAGE_BUCKET: str = ""
     LOCAL_STORAGE_DIR: str = "storage"
 
+    # Limits on login, sign-up and password-reset attempts (app/domains/auth/limits.py).
+    RATE_LIMITS_ENABLED: bool = True
+    # True only behind a proxy or CDN that sets X-Forwarded-For (Render, Cloudflare…); otherwise anyone could
+    # fake their IP address with that header.
+    TRUST_PROXY_HEADERS: bool = False
+
     # Background jobs (expiries, due payments, payable earnings) run inside the API process.
     RUN_SCHEDULER: bool = True
     SCHEDULER_INTERVAL_SECONDS: int = 60
@@ -62,6 +79,17 @@ class Settings(BaseSettings):
         if len(v) < 32:
             raise ValueError("SECRET_KEY must be at least 32 characters")
         return v
+
+    @model_validator(mode="after")
+    def production_keys_are_separate(self) -> "Settings":
+        if self.APP_ENV != "production":
+            return self
+        for name in ("FILE_SIGNING_KEY", "FIELD_ENCRYPTION_KEY", "NIN_HASH_KEY"):
+            value = getattr(self, name)
+            if is_placeholder(value) or len(value) < 32 or value == self.SECRET_KEY:
+                raise ValueError(f"In production, {name} must be its own random key of 32+ characters, "
+                                 "different from SECRET_KEY")
+        return self
 
 
 settings = Settings()

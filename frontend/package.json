@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 127.0.0.1",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -19,12 +19,11 @@
     "axios": "^1.20.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "js-cookie": "^3.0.8",
     "lucide-react": "^1.52.0",
-    "next": "14.2.35",
+    "next": "15.5.27",
     "next-themes": "^0.4.6",
-    "react": "^18",
-    "react-dom": "^18",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "react-hook-form": "^7.89.0",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",
@@ -32,14 +31,17 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/js-cookie": "^3.0.6",
     "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "eslint": "^8",
-    "eslint-config-next": "14.2.35",
-    "postcss": "^8",
+    "eslint-config-next": "^15.5.27",
+    "postcss": "^8.5.29",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
+  },
+  "overrides": {
+    "postcss": "^8.5.29",
+    "postcss-selector-parser": "^7.1.6"
   }
 }

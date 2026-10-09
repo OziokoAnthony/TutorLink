@@ -66,7 +66,8 @@ def delete(key: str) -> None:
 
 
 def local_signature(key: str, expires: int) -> str:
-    return hmac.new(settings.SECRET_KEY.encode(), f"{key}:{expires}".encode(), hashlib.sha256).hexdigest()
+    secret = settings.FILE_SIGNING_KEY or settings.SECRET_KEY  # unset while developing
+    return hmac.new(secret.encode(), f"{key}:{expires}".encode(), hashlib.sha256).hexdigest()
 
 
 def url(key: str, expires_in: int = 900) -> str:

@@ -14,6 +14,7 @@ from sqlmodel import Field, SQLModel
 from app.db.base import BaseUUIDModel, pg_enum
 from app.domains.bookings.models import BillingPeriod, LessonMode, LongText
 from app.domains.certificates.models import CertificateType, certificate_type_enum
+from app.domains.tutors import subjects as subject_list
 from app.domains.tutors.models import EducationLevel, WeeklyTime, clean_subjects, education_level_enum
 
 
@@ -116,7 +117,7 @@ class JobIn(SQLModel):
 
     @model_validator(mode="after")
     def check(self) -> "JobIn":
-        self.subjects = clean_subjects(self.subjects)
+        self.subjects = subject_list.listed(clean_subjects(self.subjects))
         if self.mode == LessonMode.offline and not self.area:
             raise ValueError("area is required for offline lessons")
         if self.end_date is not None and self.end_date < self.start_date:

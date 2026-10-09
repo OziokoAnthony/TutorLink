@@ -1,32 +1,27 @@
 import axios from 'axios'
-import Cookies from 'js-cookie'
 
-export const TOKEN_COOKIE = 'tutorlink_token'
-
+/**
+ * The login token lives in an httpOnly cookie the backend sets (`tutorlink_token`): page scripts can't read
+ * it, so an injected script can't steal it. Every request sends the cookie, and the header the backend
+ * requires on cookie-authenticated changes, which other sites can't send (CSRF protection).
+ */
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/v1',
+  withCredentials: true,
+  headers: { 'X-Requested-With': 'TutorLink' },
 })
 
-// Attach JWT to every request
-api.interceptors.request.use((config) => {
-  const token = Cookies.get(TOKEN_COOKIE)
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
-
-// Handle 401 globally — redirect to login.
-// Exception: a 401 from a login or Google sign-up request means "wrong password"; the page shows it.
-const SIGN_IN_PATHS = ['/auth/login', '/auth/google/login', '/auth/google/register']
+// Handle 401 globally: redirect to login. Except where a 401 is an expected answer: a wrong password on a
+// sign-in request (the page shows it), and /auth/me for a visitor who isn't logged in.
+const NO_REDIRECT_PATHS = ['/auth/login', '/auth/google/login', '/auth/google/register', '/auth/me']
 
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const isLoginRequest = SIGN_IN_PATHS.some((path) => error.config?.url?.endsWith(path))
-    if (error.response?.status === 401 && !isLoginRequest) {
-      Cookies.remove(TOKEN_COOKIE)
-      window.location.href = '/login'
+    const expected = NO_REDIRECT_PATHS.some((path) => error.config?.url?.endsWith(path))
+    if (error.response?.status === 401 && !expected) {
+      // The session ended (expired, or a password change elsewhere): drop the stale cookie, then log in.
+      api.post('/auth/logout').finally(() => { window.location.href = '/login' })
     }
     return Promise.reject(error)
   }

@@ -20,8 +20,10 @@ import { formatNaira, levelLabel, slotText } from '@/lib/format'
 import { getReviews } from '@/lib/reviews'
 import { getAvailability, getTutor } from '@/lib/tutors'
 import type { Review, TutorAvailability, TutorProfile } from '@/types'
+import { useParams } from 'next/navigation'
 
-export default function TutorProfilePage({ params }: { params: { id: string } }) {
+export default function TutorProfilePage() {
+  const params = useParams<{ id: string }>()
   const { user } = useAuth()
   const [tutor, setTutor] = useState<TutorProfile | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])

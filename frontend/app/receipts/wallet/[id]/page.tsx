@@ -8,8 +8,10 @@ import { errorMessage } from '@/lib/api'
 import { formatNaira } from '@/lib/format'
 import { getReceipt } from '@/lib/wallet'
 import type { ParentReceipt } from '@/types'
+import { useParams } from 'next/navigation'
 
-export default function ParentReceiptPage({ params }: { params: { id: string } }) {
+export default function ParentReceiptPage() {
+  const params = useParams<{ id: string }>()
   const [receipt, setReceipt] = useState<ParentReceipt | null>(null)
   const [error, setError] = useState<string | null>(null)
 

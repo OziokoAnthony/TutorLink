@@ -51,13 +51,13 @@ def test_pending_list_is_admin_only_and_shows_pending(client, admin_headers):
 def test_filters_match_any_offer_by_subject_level_and_area(client, viewer, admin_headers):
     sciences = helpers.approved_tutor(client, admin_headers, area="Lekki Phase 1",
                                       subjects=["Mathematics", "Physics"])
-    english = helpers.approved_tutor(client, admin_headers, area="Surulere", subjects=["English"], level="primary")
+    english = helpers.approved_tutor(client, admin_headers, area="Surulere", subjects=["English Language"], level="primary")
 
     assert listed_ids(client, viewer, subject="physics") == {sciences["id"]}
     assert listed_ids(client, viewer, subject="mathematics") == {sciences["id"]}
     assert listed_ids(client, viewer, level="primary") == {english["id"]}
     assert listed_ids(client, viewer, area="lekki") == {sciences["id"]}
-    assert listed_ids(client, viewer, subject="English", level="senior_secondary") == set()
+    assert listed_ids(client, viewer, subject="English Language", level="senior_secondary") == set()
 
 
 def test_international_high_school_level(client, viewer, admin_headers):
@@ -125,16 +125,16 @@ def test_profile_endpoints_are_tutor_only(client):
 def test_tutor_adds_edits_and_removes_offers(client):
     tutor = helpers.register_tutor(client)
     created = client.post("/v1/tutors/profile/offers", headers=tutor["headers"], json=helpers.offer(
-        subjects=["English", " english ", "Literature"], level="junior_secondary", price="3000.00",
+        subjects=["English Language", " english  language ", "Literature in English"], level="junior_secondary", price="3000.00",
         windows=[{"day_of_week": 5, "start_time": "10:00", "end_time": "12:00"}],
     ))
     assert created.status_code == 201
-    assert created.json()["subjects"] == ["English", "Literature"]  # duplicates dropped
+    assert created.json()["subjects"] == ["English Language", "Literature in English"]  # duplicates dropped
 
     edited = client.put(f"/v1/tutors/profile/offers/{created.json()['id']}", headers=tutor["headers"],
-                        json=helpers.offer(subjects=["English"], price="3500.00"))
+                        json=helpers.offer(subjects=["English Language"], price="3500.00"))
     assert edited.status_code == 200
-    assert edited.json()["price"] == "3500.00" and edited.json()["subjects"] == ["English"]
+    assert edited.json()["price"] == "3500.00" and edited.json()["subjects"] == ["English Language"]
 
     assert client.delete(f"/v1/tutors/profile/offers/{created.json()['id']}", headers=tutor["headers"]).status_code == 204
     assert len(client.get("/v1/tutors/profile/offers", headers=tutor["headers"]).json()) == 1

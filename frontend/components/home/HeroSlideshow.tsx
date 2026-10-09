@@ -52,7 +52,7 @@ export default function HeroSlideshow() {
     <div className="absolute inset-0 overflow-hidden bg-neutral-900">
       {SLIDES.map((slide, i) => (
         <div key={slide.src} aria-hidden={i !== current}
-             className={cn('absolute inset-0 transition-opacity duration-[1500ms] ease-in-out',
+             className={cn('absolute inset-0 transition-opacity duration-1500 ease-in-out',
                            i === current ? 'opacity-100' : 'opacity-0')}>
           <Image
             key={shown[i]} src={slide.src} alt={slide.alt} fill priority={i === 0} sizes="100vw"

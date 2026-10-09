@@ -211,8 +211,8 @@ def test_reset_link_sets_a_new_password_once(client, outbox):
     assert reset(client, token).status_code == 204
     assert password_login(client, tutor["email"]).status_code == 401  # the old password stops working
     assert password_login(client, tutor["email"], "brand-new-password").status_code == 200
-    # Already-issued sessions keep working.
-    assert client.get("/v1/auth/me", headers=tutor["headers"]).status_code == 200
+    # Every session is ended, so whoever knew the old password is logged out too.
+    assert client.get("/v1/auth/me", headers=tutor["headers"]).status_code == 401
 
     assert reset(client, token, "another-password").status_code == 422  # works once
 

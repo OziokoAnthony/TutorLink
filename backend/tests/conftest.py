@@ -4,6 +4,7 @@ The schema is built by running the real Alembic migrations (down to base, then u
 so the migrations are exercised on every test run. Tables are truncated before each test.
 """
 
+from http.cookiejar import DefaultCookiePolicy
 from pathlib import Path
 
 import pytest
@@ -73,16 +74,31 @@ def db(engine):
         yield session
 
 
+class _NoCookies(DefaultCookiePolicy):
+    def set_ok(self, cookie, request):
+        return False
+
+
 @pytest.fixture
 def client(engine):
+    """Keeps no cookies, so each request is as the Bearer header says: a login cookie would otherwise make
+    "anonymous" requests act as whoever logged in last. tests/test_sessions.py tests the cookie itself."""
     def override_get_session():
         with Session(engine) as session:
             yield session
 
     app.dependency_overrides[get_session] = override_get_session
     with TestClient(app) as test_client:
+        test_client.cookies.jar.set_policy(_NoCookies())
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def browser(client):
+    """The same client, keeping cookies like a browser."""
+    client.cookies.jar.set_policy(DefaultCookiePolicy())
+    return client
 
 
 @pytest.fixture(autouse=True)
@@ -106,6 +122,8 @@ def test_settings(monkeypatch, tmp_path):
         monkeypatch.setattr(settings, name, "")
     monkeypatch.setattr(settings, "LOCAL_STORAGE_DIR", str(tmp_path / "storage"))
     monkeypatch.setattr(settings, "RUN_SCHEDULER", False)
+    # Every test signs up from the same address; tests/test_limits.py switches limits back on.
+    monkeypatch.setattr(settings, "RATE_LIMITS_ENABLED", False)
 
 
 @pytest.fixture(autouse=True)

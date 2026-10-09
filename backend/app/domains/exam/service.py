@@ -42,6 +42,7 @@ from app.domains.exam.models import (
     ExamQuestion,
     ExamStatus,
 )
+from app.domains.tutors import subjects as subject_list
 from app.domains.tutors.models import (
     EducationLevel,
     TutorOffer,
@@ -95,9 +96,14 @@ def _active_filter():
 
 
 def _tags_from(rows) -> list[Tag]:
+    """Only listed subjects: an offer saved before the list was enforced may hold free text, which must never
+    reach Claude's prompt."""
     tags: dict[Tag, Tag] = {}
     for subject, level in rows:
-        tag = Tag(subject.strip().lower(), level, subject.strip())
+        name = subject_list.canonical(subject)
+        if name is None:
+            continue
+        tag = Tag(name.lower(), level, name)
         tags.setdefault(tag, tag)
     return sorted(tags.values(), key=lambda t: (t.subject_key, t.level.value))
 
@@ -371,7 +377,8 @@ def start_attempt(session: Session, user: User) -> AttemptView:
                             f"You've used all {ATTEMPTS_PER_ROUND} attempts. You can try again after {at} (WAT).")
     tags = tutor_tags(session, user.id)
     if not tags:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Add an offer first: the exam covers the subjects you teach")
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "Add an offer with subjects from TutorLink's list first: the exam covers the subjects you teach")
 
     questions = _pick(session, user.id, tags)
     attempt = ExamAttempt(tutor_id=user.id, started_at=now, deadline=now + timedelta(minutes=MINUTES),
