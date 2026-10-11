@@ -17,7 +17,7 @@ RUN uv sync --frozen --no-dev
 
 # Run as an ordinary user, not root: a flaw in the app then can't take over the container. It owns /app so
 # `uv run` (migrations, create_admin) and the local storage folder still work.
-RUN useradd --create-home --uid 1000 app && chown -R app:app /app
+RUN chmod +x /app/start.sh && useradd --create-home --uid 1000 app && chown -R app:app /app
 USER app
 
 EXPOSE 8000
