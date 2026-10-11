@@ -36,6 +36,8 @@ class ApplicationStatus(str, Enum):
 
 class JobPost(BaseUUIDModel, table=True):
     __tablename__ = "job_posts"
+    # Tutors browse open jobs newest first (migration 0011).
+    __table_args__ = (sa.Index("ix_job_posts_status_created_at", "status", "created_at"),)
 
     parent_id: UUID = Field(foreign_key="users.id", index=True)
     subjects: list[str] = Field(sa_type=ARRAY(sa.String))
