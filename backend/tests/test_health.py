@@ -18,3 +18,8 @@ def test_request_id_header_is_generated(client):
 def test_request_id_header_is_echoed(client):
     response = client.get("/v1/health", headers={"X-Request-ID": "abc-123"})
     assert response.headers["X-Request-ID"] == "abc-123"
+
+
+def test_api_answers_are_never_cached(client):
+    """A CDN or proxy in front of the API (Vercel forwarding /api/v1) must not keep one user's answer."""
+    assert client.get("/v1/health").headers["Cache-Control"] == "no-store"

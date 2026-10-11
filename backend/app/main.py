@@ -44,6 +44,9 @@ async def security_headers(request: Request, call_next):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
+    # Answers are per user: no browser, CDN or proxy (e.g. Vercel forwarding /api/v1) may keep one and hand it to
+    # someone else. Routes that may be cached (local files) set their own Cache-Control.
+    response.headers.setdefault("Cache-Control", "no-store")
     if not request.url.path.startswith(("/docs", "/redoc", "/v1/files/")):
         response.headers.setdefault("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
     if settings.BASE_URL.startswith("https://"):

@@ -66,6 +66,8 @@ React Hook Form + Zod · Axios · sonner toasts · lucide icons.
 
 - The login token is an httpOnly cookie the backend sets: never store or read a token in the browser.
   `lib/api.ts` sends `withCredentials` and `X-Requested-With: TutorLink` on every request.
+- With `API_PROXY_TARGET` set (free hosting addresses), `next.config.mjs` forwards `/api/v1` to the API and
+  `NEXT_PUBLIC_API_URL` is `/api/v1`, so the login cookie belongs to the site's own address.
 - `next.config.mjs` sets the Content-Security-Policy and other security headers: a new outside script,
   image host or API needs adding there.
 - Every fee figure on screen comes from the API response for that reader.

@@ -32,7 +32,7 @@ def test_production_needs_its_own_key_for_each_job():
 
 
 @pytest.mark.parametrize("name, bad", [
-    *[(name, "") for name in LIVE if name not in ("PAYSTACK_DVA_BANK", "DOJAH_BASE_URL")],
+    *[(name, "") for name in LIVE if name not in ("PAYSTACK_DVA_BANK", "DOJAH_BASE_URL", "COOKIE_DOMAIN")],
     ("RESEND_API_KEY", "re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"),  # the .env.example placeholder
     ("DOJAH_APP_ID", "your_dojah_app_id"),
     ("PAYSTACK_SECRET_KEY", "sk_test_" + "p" * 40),
@@ -45,6 +45,11 @@ def test_production_needs_live_services(name, bad):
     assert make()
     with pytest.raises(ValidationError, match=name):
         make(**{name: bad})
+
+
+def test_production_runs_without_a_cookie_domain():
+    """The site can forward /api/v1 to the API on free addresses (*.vercel.app), where no domain is shared."""
+    assert make(COOKIE_DOMAIN="")
 
 
 def test_development_runs_without_services():
