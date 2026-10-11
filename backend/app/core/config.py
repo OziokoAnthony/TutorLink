@@ -92,5 +92,30 @@ class Settings(BaseSettings):
                                  "different from SECRET_KEY")
         return self
 
+    @model_validator(mode="after")
+    def production_services_are_live(self) -> "Settings":
+        """Without these, production would start and then fail quietly: files saved to the container's disk and
+        lost on redeploy, no emails (so no password resets), no payments, and no NIN checks (so no tutor can be
+        approved). Google sign-in and Claude stay optional: their features say they're off."""
+        if self.APP_ENV != "production":
+            return self
+        missing = [name for name in ("PAYSTACK_SECRET_KEY", "PAYSTACK_WEBHOOK_SECRET", "RESEND_API_KEY",
+                                     "DOJAH_APP_ID", "DOJAH_SECRET_KEY", "STORAGE_ENDPOINT_URL",
+                                     "STORAGE_ACCESS_KEY_ID", "STORAGE_SECRET_ACCESS_KEY", "STORAGE_BUCKET",
+                                     "COOKIE_DOMAIN")
+                   if is_placeholder(getattr(self, name) or "")]
+        if self.PAYSTACK_SECRET_KEY.startswith("sk_test_"):
+            missing.append("PAYSTACK_SECRET_KEY (a live sk_live_ key, not a test key)")
+        if self.PAYSTACK_DVA_BANK == "test-bank":
+            missing.append("PAYSTACK_DVA_BANK (a live bank such as titan-paystack, not test-bank)")
+        if "sandbox" in self.DOJAH_BASE_URL:
+            missing.append("DOJAH_BASE_URL (https://api.dojah.io, not the sandbox)")
+        for name in ("BASE_URL", "FRONTEND_URL"):
+            if not getattr(self, name).startswith("https://"):
+                missing.append(f"{name} (an https:// address)")
+        if missing:
+            raise ValueError("In production, set: " + "; ".join(missing))
+        return self
+
 
 settings = Settings()

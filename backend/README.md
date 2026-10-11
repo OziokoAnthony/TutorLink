@@ -33,24 +33,30 @@ The API refuses to start without these (`app/core/config.py` checks them). Gener
 | `FILE_SIGNING_KEY` | `APP_ENV=production` | Its own 32+ character key, different from `SECRET_KEY`. Signs file links. |
 | `FIELD_ENCRYPTION_KEY` | `APP_ENV=production` | Its own 32+ character key, different from `SECRET_KEY`. Encrypts WAEC/NECO checker PINs. |
 | `NIN_HASH_KEY` | `APP_ENV=production` | Its own 32+ character key, different from `SECRET_KEY`. Hashes NINs. |
+| `PAYSTACK_SECRET_KEY`, `PAYSTACK_WEBHOOK_SECRET` | `APP_ENV=production` | Live keys (`sk_live_…`), not test keys. |
+| `PAYSTACK_DVA_BANK` | `APP_ENV=production` | A live bank such as `titan-paystack`, not `test-bank`. |
+| `RESEND_API_KEY` | `APP_ENV=production` | Without it no email is sent, so password reset doesn't work. |
+| `DOJAH_APP_ID`, `DOJAH_SECRET_KEY`, `DOJAH_BASE_URL` | `APP_ENV=production` | Live keys and `https://api.dojah.io`, not the sandbox. Without them no tutor can be approved. |
+| `STORAGE_ENDPOINT_URL`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_BUCKET` | `APP_ENV=production` | The bucket. Without it, files would go to the container's disk and be lost on redeploy. |
+| `COOKIE_DOMAIN` | `APP_ENV=production` | The domain the site and the API share (e.g. `tutorlink.ng`), so the site's middleware can see the login cookie. |
+| `BASE_URL`, `FRONTEND_URL` | `APP_ENV=production` | `https://` addresses: the login cookie is then marked Secure and HSTS is sent. |
 
-`docker compose` also refuses to start without `POSTGRES_PASSWORD` in `.env`.
+When several are missing, the error lists them all. `docker compose` also refuses to start without
+`POSTGRES_PASSWORD` in `.env`.
 
 Don't change the three production keys once real data exists: a new `FILE_SIGNING_KEY` breaks file links
 already handed out, a new `FIELD_ENCRYPTION_KEY` makes stored checker PINs unreadable, and a new
 `NIN_HASH_KEY` lets an already-verified NIN verify a second account.
 
+In development all of these can stay empty: payments, emails and NIN checks are then off, and uploaded files go
+to a local folder.
+
 The API starts without these, but set them in production:
 
-- `COOKIE_DOMAIN`: the domain the site and the API share (e.g. `tutorlink.ng`). Without it, the site's
-  middleware can't see the login cookie, and logged-in users are sent back to the login page.
 - `TRUST_PROXY_HEADERS=true`, only behind a proxy or CDN (Render, Cloudflare). Without it, rate limits count
   the proxy's address, so one person's failed logins can block everyone.
-- `BASE_URL` and `FRONTEND_URL` with `https://`: the login cookie is then marked Secure and HSTS is sent.
-- Paystack, Resend, Google, Dojah and Anthropic keys: without them, those features are off (payments,
-  emails, Google sign-in, NIN checks, exam generation).
-- The `STORAGE_*` bucket settings: without them, uploaded files go to a local folder, which is for
-  development only.
+- `GOOGLE_CLIENT_ID` and `ANTHROPIC_API_KEY`: without them, Google sign-in, exam generation and the help
+  assistant are off.
 
 ## Admin accounts
 

@@ -11,8 +11,9 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 1. `feature-1-bookings-and-payments.md`: offers, booking requests, prepaid bank-transfer payments, hidden fees, lessons, problems and refunds, tutor payouts. **Built.**
 2. `feature-2-job-posts.md`: parents post jobs with their own price, approved tutors apply, choosing one books them. **Built.**
 3. `feature-3-online-lessons.md`: online or offline lessons, meeting links, recording consent, lesson recordings uploaded straight to R2. **Built.**
-4. `feature-4-tutor-onboarding.md`: Google sign-in, work emails, profile pictures, NIN verification, certificates, the qualifying exam. **Built.**
-5. `feature-5-international.md` (draft: location, NGN/USD, job visibility by country)
+4. `feature-4-tutor-onboarding.md`: sign-up with email or Google, password reset, profile pictures, NIN verification, certificates, the qualifying exam. **Built.**
+5. `feature-5-international.md` (draft: location, NGN/USD, job visibility by country). Not built.
+6. `feature-6-feedback-and-help.md`: feedback to the TutorLink team, admin replies, the Claude help assistant. **Built.**
 
 Read the spec before changing a feature it covers. Requirement ids (R1.2, R5.3…) are the shared
 vocabulary: cite them in docstrings and tests where a rule is enforced. Each spec's acceptance
@@ -97,13 +98,16 @@ Alembic migration per spec or build step in `alembic/versions/`.
   `users.token_version`; `auth.service._end_all_sessions` raises it on a password change or reset. Admin
   tokens last `ADMIN_TOKEN_EXPIRE_MINUTES` (4 h). The test `client` keeps no cookies; use `browser` for them.
 - **Rate limits.** `app/domains/auth/limits.py`: rules per email and per IP on login failures, sign-ups,
-  Google sign-in and reset emails, counted in `rate_limit_hits`. Off in tests (`RATE_LIMITS_ENABLED`) except
-  `tests/test_limits.py`.
+  Google sign-in and reset emails, and per user on feedback and help questions (spec 6), counted in
+  `rate_limit_hits`. Off in tests (`RATE_LIMITS_ENABLED`) except `tests/test_limits.py`.
 - **Subjects.** Only `app/domains/tutors/subjects.py` subjects are accepted for offers and jobs, because they
   reach Claude's exam prompt (where they're also fenced as data). The frontend list in `lib/format.ts` must
   match (`tests/test_subjects.py`).
 - **Keys.** `SECRET_KEY` signs tokens; `FILE_SIGNING_KEY`, `FIELD_ENCRYPTION_KEY` and `NIN_HASH_KEY` do their own
   jobs (derived from `SECRET_KEY` while unset in development; required and distinct in production).
+- **Production settings.** With `APP_ENV=production`, `config.py` also refuses to start without live Paystack,
+  Resend, Dojah and bucket settings, `COOKIE_DOMAIN` and `https://` URLs (`production_services_are_live`).
+  A new setting production can't work without belongs in that list.
 - **Errors.** Raise `HTTPException` with a plain-English `detail` the frontend can show as is:
   404 when it doesn't exist, 403 for the wrong role or someone else's resource, 409 for a state
   conflict, 422 for invalid input.
