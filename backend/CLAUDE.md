@@ -11,8 +11,9 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 1. `feature-1-bookings-and-payments.md`: offers, booking requests, prepaid bank-transfer payments, hidden fees, lessons, problems and refunds, tutor payouts. **Built.**
 2. `feature-2-job-posts.md`: parents post jobs with their own price, approved tutors apply, choosing one books them. **Built.**
 3. `feature-3-online-lessons.md`: online or offline lessons, meeting links, recording consent, lesson recordings uploaded straight to R2. **Built.**
-4. `feature-4-tutor-onboarding.md`
-5. `feature-5-international.md` (draft: location, NGN/USD, job visibility by country)
+4. `feature-4-tutor-onboarding.md`: sign-up with email or Google, password reset, profile pictures, NIN verification, certificates, the qualifying exam. **Built.**
+5. `feature-5-international.md` (draft: location, NGN/USD, job visibility by country). Not built.
+6. `feature-6-feedback-and-help.md`: feedback to the TutorLink team, admin replies, the Claude help assistant. **Built.**
 
 Read the spec before changing a feature it covers. Requirement ids (R1.2, R5.3…) are the shared
 vocabulary: cite them in docstrings and tests where a rule is enforced. Each spec's acceptance
@@ -60,13 +61,53 @@ Alembic migration per spec or build step in `alembic/versions/`.
 - **Time-based rules** (expiry, release, due periods, flags, payable earnings) are functions in the
   domain services, called by `app/jobs.py`. Write them as idempotent catch-up passes over `now`.
 - **Ids.** `tutor_id` and `parent_id` are always `users.id`, in URLs and in tables.
-- **Tutor work emails.** Each tutor is assigned `users.work_email` at registration
-  (`app/domains/auth/work_email.py`: surname initial + "." + first name @ `TUTOR_EMAIL_DOMAIN`,
-  e.g. `o.anthony@tutorlink.com`, numbered on a clash). It is the tutor's only login and never
-  changes, even when they rename themselves. Tutors don't choose a password: `security.generate_password()`
-  makes one, and both are emailed to `users.email`, their personal address, where every email is sent
-  (nothing is ever sent to the work email). Tests pin the generated password to `helpers.PASSWORD`
-  (`tutor_password` fixture). Parents and admins choose a password and log in with `users.email`.
+- **Accounts (spec 4 R0, R1).** Parents and tutors sign up the same way: any email and a chosen
+  password (`POST /auth/register`), or Google (`POST /auth/google/register`, signed in at once).
+  `users.email` is everyone's login and where every email goes. Google ID tokens are verified only in
+  `app/core/google.py`; someone who signed up with Google has `password_hash = NULL` until they use
+  "Forgot password?". Admins can't use Google. Tutor work emails were removed (migration 0019).
+  In tests, `helpers.register_tutor` signs up with email and `helpers.PASSWORD`;
+  `helpers.google_token(email, …)` mints tokens the `google` fixture accepts, and
+  `helpers.google_register` signs up through Google.
+- **Password reset (spec 4 R0.7).** `password_reset_tokens` stores only a SHA-256 of each link's
+  token; a link works once, for an hour, and `/auth/forgot-password` answers the same for any email.
+- **Tutor onboarding (spec 4 R2, R3).** `app/domains/onboarding/` holds the checklist
+  (`GET /onboarding`) and NIN verification (`POST /onboarding/nin`). Dojah is called only in
+  `app/core/dojah.py`; tests answer it with `helpers.dojah` (a `FakeDojah`: `dojah.add(first, surname)`
+  registers a NIN record). `nin_verifications` never holds the full NIN, the NIN record's name, its photo
+  or the selfie: only last 4 digits and `security.hash_nin` (keyed by `SECRET_KEY`). A verified NIN sets
+  `tutor_profiles.nin_verified_at`, which locks the tutor's name except for admins.
+  `onboarding.missing_for_approval` is the one list of what approval needs; `helpers.approved_tutor`
+  goes through it (picture, NIN, a verified certificate, a passed exam, then vetting).
+  `helpers.verified_tutor` stops after the NIN, `helpers.certified_tutor` after the certificate,
+  `helpers.ready_tutor` after the exam.
+- **Certificates (spec 4 R4).** `app/domains/certificates/`: files are private in storage and reach only
+  their tutor and admins as short-lived links. A WAEC/NECO checker PIN is stored with `security.encrypt`
+  and erased when an admin reviews the certificate. `CertificateType` is shared with job posts'
+  minimum certificate (one `certificate_type` enum).
+- **Qualifying exam (spec 4 R5).** `app/domains/exam/`. Claude is called only in `app/core/claude.py`
+  (model `EXAM_MODEL`, structured JSON output, `fallbacks: "default"` for refusals): one call writes a
+  batch of questions, a second answers each without the key, and only agreeing questions are kept.
+  Generation runs in a background thread (`exam.request_generation`), started on demand when an attempt
+  can't be filled and by `jobs.run_once` (`top_up_bank`, outside `run_all`). In tests the `claude` fixture
+  fakes Claude (`helpers.FakeClaude`, whose right options end in `helpers.CORRECT`) and runs generation at
+  once; `helpers.take_exam(client, tutor, right=N)` takes a whole attempt.
+- **Sessions.** Login responses set the token as an httpOnly cookie (`deps.SESSION_COOKIE`, SameSite=Lax,
+  `COOKIE_DOMAIN` in production); `get_current_user` also accepts a Bearer header (API clients, tests).
+  A cookie-authenticated POST/PUT/PATCH/DELETE needs `X-Requested-With: TutorLink` (CSRF). Tokens carry
+  `users.token_version`; `auth.service._end_all_sessions` raises it on a password change or reset. Admin
+  tokens last `ADMIN_TOKEN_EXPIRE_MINUTES` (4 h). The test `client` keeps no cookies; use `browser` for them.
+- **Rate limits.** `app/domains/auth/limits.py`: rules per email and per IP on login failures, sign-ups,
+  Google sign-in and reset emails, and per user on feedback and help questions (spec 6), counted in
+  `rate_limit_hits`. Off in tests (`RATE_LIMITS_ENABLED`) except `tests/test_limits.py`.
+- **Subjects.** Only `app/domains/tutors/subjects.py` subjects are accepted for offers and jobs, because they
+  reach Claude's exam prompt (where they're also fenced as data). The frontend list in `lib/format.ts` must
+  match (`tests/test_subjects.py`).
+- **Keys.** `SECRET_KEY` signs tokens; `FILE_SIGNING_KEY`, `FIELD_ENCRYPTION_KEY` and `NIN_HASH_KEY` do their own
+  jobs (derived from `SECRET_KEY` while unset in development; required and distinct in production).
+- **Production settings.** With `APP_ENV=production`, `config.py` also refuses to start without live Paystack,
+  Resend, Dojah and bucket settings, `COOKIE_DOMAIN` and `https://` URLs (`production_services_are_live`).
+  A new setting production can't work without belongs in that list.
 - **Errors.** Raise `HTTPException` with a plain-English `detail` the frontend can show as is:
   404 when it doesn't exist, 403 for the wrong role or someone else's resource, 409 for a state
   conflict, 422 for invalid input.
@@ -74,7 +115,8 @@ Alembic migration per spec or build step in `alembic/versions/`.
 ## Guardrails
 
 - `password_hash` stays out of every response model.
-- `GET /tutors` and `GET /tutors/{id}` return approved tutors only.
+- `GET /tutors` and `GET /tutors/{id}` return approved tutors only, and with `/tutors/{id}/schedule` and `/reviews` need a logged-in parent or admin (`deps.can_see_tutors`): anonymous visitors and tutors can't browse tutors.
+- A job post reaches tutors only once an admin approves it (spec 2 R1.4); `helpers.post_job` approves, `helpers.submit_job` leaves it pending.
 - A forged, duplicate or unverified webhook leaves the database unchanged.
 - An earning is paid at most once; a failed transfer makes it payable again.
 - Placeholder secrets (`is_placeholder`) are treated as unset: the app refuses a placeholder

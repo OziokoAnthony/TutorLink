@@ -30,6 +30,7 @@ export interface OfferInput {
 
 export interface TutorProfileInput {
   first_name: string
+  middle_name?: string
   surname: string
   phone?: string
   bio?: string

@@ -8,7 +8,9 @@ from sqlmodel import Session, select
 from app.db.base import utcnow
 from app.domains.auth import photos as photos_service
 from app.domains.auth.models import User
+from app.domains.certificates import service as certificates_service
 from app.domains.notifications import service as notifications
+from app.domains.onboarding import service as onboarding_service
 from app.domains.reviews import service as review_service
 from app.domains.tutors.models import (
     EducationLevel,
@@ -19,12 +21,12 @@ from app.domains.tutors.models import (
     TutorOfferWindow,
     TutorProfile,
     TutorProfileRead,
+    TutorName,
     TutorProfileUpsert,
     TutorPublic,
     VetRequest,
     VettingStatus,
     WeeklyTime,
-    clean_name_part,
 )
 
 
@@ -75,8 +77,14 @@ def _build(session: Session, profiles: list[TutorProfile], read_model):
     offers = _offers_for(session, user_ids)
     photos = photos_service.urls_for(session, user_ids)
     ratings = review_service.rating_stats(session, user_ids)
+    # Tutors and admins see the latest NIN check (spec 4 R3.9); the public never does.
+    nin_checks = onboarding_service.latest_checks(session, user_ids) if read_model is TutorProfileRead else {}
+    badges = certificates_service.verified_types(session, user_ids) if read_model is TutorPublic else {}
     return [
         read_model.model_validate(p, update={
+            **({"nin_check": nin_checks.get(p.user_id)} if read_model is TutorProfileRead else {}),
+            **({"nin_verified": p.nin_verified_at is not None, "verified_certificates": badges.get(p.user_id, [])}
+               if read_model is TutorPublic else {}),
             "offers": offers[p.user_id],
             "price_from": min((o.price for o in offers[p.user_id]), default=None),
             "photo_url": photos.get(p.user_id),
@@ -97,12 +105,25 @@ def _build_public_list(session: Session, profiles: list[TutorProfile]) -> list[T
 
 # ---------- Tutor self-service ----------
 
+def _name_fields(name: TutorName) -> dict:
+    return {"first_name": name.first_name, "middle_name": name.middle_name, "surname": name.surname,
+            "full_name": f"{name.first_name} {name.surname}"}
+
+
+def _name_changes(profile: TutorProfile, name: TutorName) -> bool:
+    return (profile.first_name, profile.middle_name, profile.surname) != (name.first_name, name.middle_name,
+                                                                          name.surname)
+
+
 def upsert_profile(session: Session, user: User, data: TutorProfileUpsert) -> TutorProfileRead:
     # Changing a name doesn't change the work email: it stays the tutor's login.
-    fields = data.model_dump()
-    fields["first_name"], fields["surname"] = clean_name_part(data.first_name), clean_name_part(data.surname)
-    fields["full_name"] = f"{fields['first_name']} {fields['surname']}"
+    fields = {**data.model_dump(), **_name_fields(data)}
     profile = get_profile_by_user_id(session, user.id)
+    if profile is not None and profile.nin_verified_at is not None and _name_changes(profile, data):
+        # Verified against the NIN record, so only an admin can change it (spec 4 R3.5).
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "Your name is verified against your NIN and can't be changed. "
+                            "Contact TutorLink support if it needs correcting.")
     if profile is None:
         profile = TutorProfile(user_id=user.id, **fields)
     else:
@@ -248,6 +269,9 @@ def vet_tutor(session: Session, admin: User, tutor_user_id: UUID, data: VetReque
     profile = get_profile_by_user_id(session, tutor_user_id)
     if profile is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tutor not found")
+    if data.status == "approved" and (missing := onboarding_service.missing_for_approval(session, profile)):
+        # Rejecting is always allowed; approving needs every onboarding check (spec 4 R2.3).
+        raise HTTPException(status.HTTP_409_CONFLICT, f"This tutor can't be approved yet: {', '.join(missing)}")
 
     profile.vetting_status = VettingStatus(data.status)
     profile.vetting_note = data.note
@@ -262,6 +286,20 @@ def vet_tutor(session: Session, admin: User, tutor_user_id: UUID, data: VetReque
         notifications.tutor_approved(tutor.email, profile.full_name)
     else:
         notifications.tutor_rejected(tutor.email, profile.full_name, profile.vetting_note)
+    return build_profile_read(session, profile)
+
+
+def admin_rename(session: Session, tutor_user_id: UUID, name: TutorName) -> TutorProfileRead:
+    """Only admins change a NIN-verified tutor's name (spec 4 R3.5), e.g. to fix a typo the NIN record
+    confirms. The NIN stays verified and the work email doesn't change."""
+    profile = get_profile_by_user_id(session, tutor_user_id)
+    if profile is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tutor not found")
+    for field, value in _name_fields(name).items():
+        setattr(profile, field, value)
+    session.add(profile)
+    session.commit()
+    session.refresh(profile)
     return build_profile_read(session, profile)
 
 

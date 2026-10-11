@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { RatingSummary } from '@/components/reviews/StarRating'
 import Avatar from '@/components/shared/Avatar'
+import VerificationBadges from '@/components/tutors/VerificationBadges'
 import { formatNaira, levelLabel } from '@/lib/format'
 import type { Offer, TutorProfile } from '@/types'
 
@@ -30,6 +31,7 @@ export default function TutorCard({ tutor }: { tutor: TutorProfile }) {
             </p>
           </div>
         </div>
+        <VerificationBadges tutor={tutor} compact />
         <RatingSummary average={tutor.average_rating} count={tutor.rating_count} />
         <div className="flex flex-wrap gap-1.5">
           {subjectBadges(tutor.offers).map((s) => <Badge key={s} variant="secondary">{s}</Badge>)}

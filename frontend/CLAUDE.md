@@ -11,15 +11,16 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 1. `feature-1-bookings-and-payments.md`: offers, booking requests, prepaid bank-transfer payments, hidden fees, lessons, problems and refunds, tutor payouts. **Built.**
 2. `feature-2-job-posts.md`: parents post jobs with their own price, approved tutors apply, choosing one books them. **Built.**
 3. `feature-3-online-lessons.md`: online or offline lessons, meeting links, recording consent, lesson recordings uploaded straight to R2. **Built.**
-4. `feature-4-tutor-onboarding.md`
-5. `feature-5-international.md` (draft: location, NGN/USD, job visibility by country)
+4. `feature-4-tutor-onboarding.md`: sign-up with email or Google, password reset, profile pictures, NIN verification, certificates, the qualifying exam. **Built.**
+5. `feature-5-international.md` (draft: location, NGN/USD, job visibility by country). Not built.
+6. `feature-6-feedback-and-help.md`: feedback to the TutorLink team, admin replies, the Claude help assistant. **Built.**
 
 Read the spec before changing a feature it covers, and check the backend's request and response
 models (`../backend/app/domains/*/models.py`) or `/docs` for the exact API shape.
 
 ## Stack
 
-Next.js 14 (App Router) · TypeScript (strict) · Tailwind CSS · shadcn/ui (`components/ui/`) ·
+Next.js 15 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS · shadcn/ui (`components/ui/`) ·
 React Hook Form + Zod · Axios · sonner toasts · lucide icons.
 
 ## Where things live
@@ -27,7 +28,10 @@ React Hook Form + Zod · Axios · sonner toasts · lucide icons.
 - `app/`: pages. Parent pages under `dashboard/parent/`, tutor pages under `dashboard/tutor/`,
   admin pages under `admin/`, printable receipts under `receipts/`.
 - `lib/`: every API call, one module per backend domain (`bookings`, `lessons`, `wallet`,
-  `payouts`, `tutors`, `notifications`, `auth`). Pages import these; Axios stays inside `lib/`.
+  `payouts`, `tutors`, `notifications`, `auth`, `feedback`). Pages import these; Axios stays inside `lib/`.
+- `app/privacy`, `app/terms`: the privacy notice and terms. The business details they name are in `lib/legal.ts`;
+  while any is empty both pages show a draft banner. Update them when a feature changes what data is collected
+  or a rule they describe.
 - `lib/format.ts`: all display text for enums (status labels, issue kinds, billing periods),
   money, dates and times. `components/shared/StatusBadge.tsx`: the coloured badge for each status.
 - `types/index.ts`: every API type.
@@ -58,6 +62,10 @@ React Hook Form + Zod · Axios · sonner toasts · lucide icons.
 
 ## Guardrails
 
+- The login token is an httpOnly cookie the backend sets: never store or read a token in the browser.
+  `lib/api.ts` sends `withCredentials` and `X-Requested-With: TutorLink` on every request.
+- `next.config.mjs` sets the Content-Security-Policy and other security headers: a new outside script,
+  image host or API needs adding there.
 - Every fee figure on screen comes from the API response for that reader.
 - A tutor's full bank account number appears only on admin pages; tutors see bank and last 4 digits.
 - `password_hash` never reaches the UI.

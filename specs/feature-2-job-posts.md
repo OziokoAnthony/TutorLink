@@ -12,18 +12,21 @@ qualifications they want and the price they will pay, and let tutors come to the
 
 ### R1. Posting a job (parent)
 1. A parent creates a job with these fields:
-   - one or more subjects, one level, lesson mode (`online`/`offline`)
+   - one or more subjects from TutorLink's subject list, one level, lesson mode (`online`/`offline`)
    - area (required for offline)
    - the weekly times they want (one or more slots), start date, optional end date, billing period
    - qualifications wanted (free text, plus optional minimum certificate type from spec 4)
    - other requirements (free text)
    - one price per lesson (P, > 0), whatever the number of subjects
    - **child's strengths** and **child's weaknesses** (both required, free text, 10-1,000 characters each)
-2. Job statuses: `open → ongoing → completed`, or `closed` (by the parent, only while open).
-   - **open**: has no limit; it stays up until the parent picks a tutor or closes it.
+2. Job statuses: `pending → open → ongoing → completed`, or `rejected` by an admin, or `closed` (by the parent, any time before a tutor is chosen).
+   - **pending**: waiting for an admin's review (R1.4). Tutors can't see it.
+   - **rejected**: an admin turned it down with a reason the parent sees. The parent can edit it, which sends it back to pending.
+   - **open**: approved; has no limit; it stays up until the parent picks a tutor or closes it.
    - **ongoing**: from the moment the parent picks a tutor, for as long as the resulting booking is awaiting payment or active.
    - **completed**: set automatically when that booking ends (spec 1 R2.3). A completed job is no longer shown to tutors.
-3. A parent can edit an open job anytime, including subjects, times and price. Existing applicants are notified of the change and their applications stay; any applicant whose bookings now clash with the new times is withdrawn automatically and told why. An ongoing or completed job can't be edited.
+3. A parent can edit a pending, rejected or open job anytime, including subjects, times and price. Existing applicants are notified of the change and their applications stay; any applicant whose bookings now clash with the new times is withdrawn automatically and told why. An ongoing or completed job can't be edited.
+4. **Every job is checked before tutors see it** (added 2026-10-09). A new or edited job is `pending` until an admin approves it (`open`) or rejects it with a reason. Admins see the queue at `/admin/jobs`, oldest change first. The parent is notified either way. While an edited job is pending, tutors who applied can still see it and withdraw, but the parent can't choose a tutor until it's approved again. Jobs already open when this was added stay open.
 
 ### R2. Browsing and applying (tutor)
 1. Only **approved** tutors can browse and apply.
@@ -42,7 +45,7 @@ qualifications they want and the price they will pay, and let tutors come to the
 5. When the booking ends, the job becomes `completed` automatically.
 
 ### R4. Notifications
-New applicant (parent) · chosen (tutor) · job taken (other applicants) · job completed (parent).
+New applicant (parent) · chosen (tutor) · job taken (other applicants) · job completed (parent) · job approved or not approved (parent).
 
 ## Non-goals
 - Tutors counter-offering a different price.
@@ -61,3 +64,4 @@ New applicant (parent) · chosen (tutor) · job taken (other applicants) · job 
 - [x] When the booking is released, the job is `open` again. When the booking ends, the job is `completed`.
 - [x] The parent can list applicants on their own job and open each applicant's profile.
 - [x] Only the owning parent can view applicants, edit, close or accept.
+- [x] A new job is `pending` and hidden from tutors until an admin approves it; rejecting needs a reason the parent sees; editing sends it back to `pending`; only admins can review.

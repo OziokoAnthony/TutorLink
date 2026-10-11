@@ -8,8 +8,10 @@ import { errorMessage } from '@/lib/api'
 import { formatDate, formatNaira, formatPercent } from '@/lib/format'
 import { getPayoutReceipt } from '@/lib/payouts'
 import type { PayoutReceipt } from '@/types'
+import { useParams } from 'next/navigation'
 
-export default function PayoutReceiptPage({ params }: { params: { id: string } }) {
+export default function PayoutReceiptPage() {
+  const params = useParams<{ id: string }>()
   const [receipt, setReceipt] = useState<PayoutReceipt | null>(null)
   const [error, setError] = useState<string | null>(null)
 

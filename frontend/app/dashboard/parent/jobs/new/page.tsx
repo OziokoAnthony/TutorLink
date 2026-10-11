@@ -22,7 +22,7 @@ export default function NewJobPage() {
   async function submit(input: JobInput) {
     try {
       const job = await postJob(input)
-      toast.success('Job posted! Approved tutors can now apply.')
+      toast.success("Job posted! We'll check it and let you know when tutors can see it.")
       router.push(`/dashboard/parent/jobs/${job.id}`)
     } catch (error) {
       toast.error(errorMessage(error))

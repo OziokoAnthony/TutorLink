@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import Choice from '@/components/shared/Choice'
 import RecordingConsent from '@/components/shared/RecordingConsent'
-import { BILLING_PERIODS, CERTIFICATES, DAYS, LEVELS, SUBJECTS, formatTime, toISODate } from '@/lib/format'
+import { BILLING_PERIODS, CERTIFICATES, DAYS, LEVELS, SUBJECTS, formatTime, listedSubject, toISODate } from '@/lib/format'
 import type { BillingPeriod, CertificateType, Job, JobInput, LessonMode, Level, WeeklyTime } from '@/types'
 
 const NONE = 'none'
@@ -27,6 +27,7 @@ export default function JobForm({ initial, submitLabel, onSubmit, onCancel }: {
   const tomorrow = useMemo(() => { const d = new Date(); d.setDate(d.getDate() + 1); return toISODate(d) }, [])
   const [subjects, setSubjects] = useState<string[]>(initial?.subjects ?? [])
   const [subjectDraft, setSubjectDraft] = useState('')
+  const [subjectProblem, setSubjectProblem] = useState<string | null>(null)
   const [level, setLevel] = useState<Level>(initial?.level ?? 'primary')
   const [mode, setMode] = useState<LessonMode>(initial?.mode ?? 'offline')
   const [area, setArea] = useState(initial?.area ?? '')
@@ -47,8 +48,14 @@ export default function JobForm({ initial, submitLabel, onSubmit, onCancel }: {
   const [busy, setBusy] = useState(false)
 
   function addSubject(name: string) {
-    const clean = name.trim()
-    if (clean && !subjects.some((s) => s.toLowerCase() === clean.toLowerCase())) setSubjects([...subjects, clean])
+    if (!name.trim()) return
+    const listed = listedSubject(name)
+    if (!listed) {
+      setSubjectProblem('Choose a subject from the list.')
+      return
+    }
+    if (!subjects.includes(listed)) setSubjects([...subjects, listed])
+    setSubjectProblem(null)
     setSubjectDraft('')
   }
 
@@ -111,12 +118,13 @@ export default function JobForm({ initial, submitLabel, onSubmit, onCancel }: {
           ))}
         </div>
         <div className="flex gap-2">
-          <Input id="job-subject" list="job-subject-list" placeholder="Type or pick a subject" value={subjectDraft}
+          <Input id="job-subject" list="job-subject-list" placeholder="Pick a subject" value={subjectDraft}
             onChange={(e) => setSubjectDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSubject(subjectDraft) } }} />
           <datalist id="job-subject-list">{SUBJECTS.map((s) => <option key={s} value={s} />)}</datalist>
           <Button type="button" variant="outline" onClick={() => addSubject(subjectDraft)}>Add</Button>
         </div>
+        {subjectProblem && <p role="alert" className="text-xs text-destructive">{subjectProblem}</p>}
         <p className="text-xs text-muted-foreground">One price covers every subject in a lesson.</p>
       </div>
 
@@ -228,6 +236,9 @@ export default function JobForm({ initial, submitLabel, onSubmit, onCancel }: {
       </div>
 
       {problem && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{problem}</p>}
+      <p className="rounded-md bg-accent px-3 py-2 text-sm">
+        Every job post is checked by TutorLink before tutors can see it. We&apos;ll let you know when it&apos;s live.
+      </p>
       <div className="flex gap-2">
         <Button type="submit" disabled={busy}>{busy ? 'Saving…' : submitLabel}</Button>
         {onCancel && <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>Cancel</Button>}

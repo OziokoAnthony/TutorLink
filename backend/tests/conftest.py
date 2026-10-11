@@ -4,6 +4,7 @@ The schema is built by running the real Alembic migrations (down to base, then u
 so the migrations are exercised on every test run. Tables are truncated before each test.
 """
 
+from http.cookiejar import DefaultCookiePolicy
 from pathlib import Path
 
 import pytest
@@ -15,10 +16,13 @@ from sqlalchemy.engine import make_url
 from sqlmodel import Session, SQLModel
 
 from app.core import clock as clock_module
+from app.core import claude as claude_client
+from app.core import dojah as dojah_client
+from app.core import google as google_client
 from app.core import paystack as paystack_client
 from app.core import security
 from app.core.config import settings
-from app.domains.auth import service as auth_service
+from app.domains.exam import service as exam_service
 from app.db import models  # noqa: F401  (registers every table for TRUNCATE)
 from app.db.session import get_session
 from app.domains.notifications import service as notifications
@@ -70,16 +74,31 @@ def db(engine):
         yield session
 
 
+class _NoCookies(DefaultCookiePolicy):
+    def set_ok(self, cookie, request):
+        return False
+
+
 @pytest.fixture
 def client(engine):
+    """Keeps no cookies, so each request is as the Bearer header says: a login cookie would otherwise make
+    "anonymous" requests act as whoever logged in last. tests/test_sessions.py tests the cookie itself."""
     def override_get_session():
         with Session(engine) as session:
             yield session
 
     app.dependency_overrides[get_session] = override_get_session
     with TestClient(app) as test_client:
+        test_client.cookies.jar.set_policy(_NoCookies())
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def browser(client):
+    """The same client, keeping cookies like a browser."""
+    client.cookies.jar.set_policy(DefaultCookiePolicy())
+    return client
 
 
 @pytest.fixture(autouse=True)
@@ -99,17 +118,55 @@ def test_settings(monkeypatch, tmp_path):
     whatever the developer's .env holds."""
     monkeypatch.setattr(settings, "PAYSTACK_SECRET_KEY", "sk_test_tutorlink_tests")
     monkeypatch.setattr(settings, "PAYSTACK_WEBHOOK_SECRET", "sk_test_tutorlink_tests")
-    for name in ("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"):
+    for name in ("STORAGE_ENDPOINT_URL", "STORAGE_ACCESS_KEY_ID", "STORAGE_SECRET_ACCESS_KEY", "STORAGE_BUCKET"):
         monkeypatch.setattr(settings, name, "")
     monkeypatch.setattr(settings, "LOCAL_STORAGE_DIR", str(tmp_path / "storage"))
     monkeypatch.setattr(settings, "RUN_SCHEDULER", False)
+    # Every test signs up from the same address; tests/test_limits.py switches limits back on.
+    monkeypatch.setattr(settings, "RATE_LIMITS_ENABLED", False)
 
 
 @pytest.fixture(autouse=True)
-def tutor_password(monkeypatch):
-    """Tutors are emailed a generated password; tests get the known helpers.PASSWORD instead."""
-    monkeypatch.setattr(auth_service, "generate_password", lambda: helpers.PASSWORD)
-    return helpers.PASSWORD
+def google(monkeypatch):
+    """Google ID tokens are checked against helpers.GOOGLE_KEY instead of Google's published keys, and the
+    Google account photo is a generated image (no network). Set `google.photo = None` for no photo."""
+    class FakeGoogle:
+        photo: bytes | None = helpers.image_bytes()
+        fetched: list[str] = []
+
+        def fetch_photo(self, url):
+            self.fetched.append(url)
+            return self.photo if url else None
+
+    fake = FakeGoogle()
+    fake.fetched = []
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", helpers.GOOGLE_CLIENT_ID)
+    monkeypatch.setattr(google_client, "signing_key", lambda token: helpers.GOOGLE_KEY.public_key())
+    monkeypatch.setattr(google_client, "fetch_photo", fake.fetch_photo)
+    return fake
+
+
+@pytest.fixture(autouse=True)
+def dojah(monkeypatch):
+    """A fake Dojah: NIN lookups are answered by helpers.dojah, never over the network (spec 4 R3)."""
+    fake = helpers.FakeDojah()
+    monkeypatch.setattr(helpers, "dojah", fake)
+    monkeypatch.setattr(dojah_client, "lookup_nin", fake.lookup_nin)
+    return fake
+
+
+@pytest.fixture(autouse=True)
+def claude(monkeypatch, engine):
+    """A fake Claude for the exam bank (spec 4 R5.2), answered by helpers.claude. Generation that would
+    run in the background runs at once, on the test database."""
+    fake = helpers.FakeClaude()
+    monkeypatch.setattr(helpers, "claude", fake)
+    monkeypatch.setattr(claude_client, "generate_questions", fake.generate_questions)
+    monkeypatch.setattr(claude_client, "answer_question", fake.answer_question)
+    monkeypatch.setattr(claude_client, "available", lambda: True)
+    monkeypatch.setattr(exam_service, "run_in_background", lambda fn, *args: fn(*args))
+    monkeypatch.setattr(exam_service, "new_session", lambda: Session(engine))
+    return fake
 
 
 @pytest.fixture(autouse=True)
@@ -134,3 +191,9 @@ def clock(monkeypatch):
 @pytest.fixture
 def admin_headers(client, db):
     return helpers.create_admin(client, db)
+
+
+@pytest.fixture
+def viewer(client):
+    """Headers of a logged-in parent: only parents and admins can see tutors."""
+    return helpers.register_parent(client)["headers"]

@@ -13,11 +13,15 @@ from sqlmodel import Field, SQLModel
 
 from app.db.base import BaseUUIDModel, pg_enum
 from app.domains.bookings.models import BillingPeriod, LessonMode, LongText
+from app.domains.certificates.models import CertificateType, certificate_type_enum
+from app.domains.tutors import subjects as subject_list
 from app.domains.tutors.models import EducationLevel, WeeklyTime, clean_subjects, education_level_enum
 
 
 class JobStatus(str, Enum):
-    open = "open"  # tutors can see and apply; no time limit
+    pending = "pending"  # posted or edited, waiting for an admin to review it; tutors can't see it (R1.4)
+    rejected = "rejected"  # an admin turned it down with a note; the parent can edit it to resubmit
+    open = "open"  # approved: tutors can see and apply; no time limit
     ongoing = "ongoing"  # a tutor was chosen; its booking is awaiting payment or active
     completed = "completed"  # that booking ended
     closed = "closed"  # the parent closed it while open
@@ -27,19 +31,6 @@ class ApplicationStatus(str, Enum):
     applied = "applied"
     withdrawn = "withdrawn"  # by the tutor, or automatically when an edit made it clash (R1.3)
     chosen = "chosen"
-
-
-class CertificateType(str, Enum):
-    """Certificate types a tutor can upload (spec 4 R3); a job can ask for one as a minimum."""
-
-    waec = "WAEC"
-    neco = "NECO"
-    nabteb = "NABTEB"
-    nce = "NCE"
-    degree = "Degree"
-    pgde = "PGDE"
-    trcn = "TRCN"
-    other = "Other"
 
 
 # ---------- Tables ----------
@@ -58,14 +49,16 @@ class JobPost(BaseUUIDModel, table=True):
     price: Decimal = Field(max_digits=10, decimal_places=2)  # P, set by the parent
     qualifications: str = Field(sa_type=sa.Text)
     min_certificate: CertificateType | None = Field(default=None,
-                                                    sa_type=pg_enum(CertificateType, "certificate_type"))
+                                                    sa_type=certificate_type_enum)
     other_requirements: str | None = Field(default=None, sa_type=sa.Text)
     child_strengths: str = Field(sa_type=sa.Text)
     child_weaknesses: str = Field(sa_type=sa.Text)
     recording_consent_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))  # online only
     recording_consent_text: str | None = Field(default=None, sa_type=sa.Text)
-    status: JobStatus = Field(default=JobStatus.open, sa_type=pg_enum(JobStatus, "job_status"),
-                              sa_column_kwargs={"server_default": JobStatus.open.value})
+    status: JobStatus = Field(default=JobStatus.pending, sa_type=pg_enum(JobStatus, "job_status"),
+                              sa_column_kwargs={"server_default": JobStatus.pending.value})
+    review_note: str | None = Field(default=None, sa_type=sa.Text)  # why an admin rejected it
+    reviewed_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
     # While ongoing or completed. bookings.job_id points back here, so this key is created separately
     # (use_alter) to break the cycle between the two tables.
     booking_id: UUID | None = Field(default=None, sa_column=sa.Column(
@@ -124,11 +117,27 @@ class JobIn(SQLModel):
 
     @model_validator(mode="after")
     def check(self) -> "JobIn":
-        self.subjects = clean_subjects(self.subjects)
+        self.subjects = subject_list.listed(clean_subjects(self.subjects))
         if self.mode == LessonMode.offline and not self.area:
             raise ValueError("area is required for offline lessons")
         if self.end_date is not None and self.end_date < self.start_date:
             raise ValueError("end_date must be on or after start_date")
+        return self
+
+
+class JobReviewIn(SQLModel):
+    """An admin's decision on a pending job (R1.4)."""
+
+    status: JobStatus
+    note: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def check(self) -> "JobReviewIn":
+        if self.status not in (JobStatus.open, JobStatus.rejected):
+            raise ValueError("status must be 'open' (approve) or 'rejected'")
+        self.note = (self.note or "").strip() or None
+        if self.status == JobStatus.rejected and not self.note:
+            raise ValueError("say why the job is rejected, so the parent can fix it")
         return self
 
 
@@ -171,6 +180,17 @@ class JobParentView(JobBase):
     parent_price_per_lesson: Decimal  # fee included, as an amount only (spec 1 R1.2)
     booking_id: UUID | None
     applicant_count: int = 0
+    review_note: str | None  # why it was rejected
+
+
+class JobAdminView(JobBase):
+    """A job in the admin review queue: who posted it, and the review so far (R1.4)."""
+
+    parent_id: UUID
+    parent_name: str | None
+    review_note: str | None
+    reviewed_at: datetime | None
+    updated_at: datetime
 
 
 class JobTutorView(JobBase):

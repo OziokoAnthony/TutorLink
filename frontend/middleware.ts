@@ -17,13 +17,14 @@ const AREA_ROLE: [string, Role][] = [
 ]
 
 /**
- * Reads `role` from the JWT payload for routing only. The signature isn't checked here;
- * the backend verifies the token and enforces permissions on every API call.
+ * Reads `role` from the JWT payload for routing only; null once it has expired. The signature isn't
+ * checked here; the backend verifies the token and enforces permissions on every API call.
  */
 function roleFromToken(token: string): Role | null {
   try {
     const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
-    const role = JSON.parse(atob(payload)).role
+    const { role, exp } = JSON.parse(atob(payload))
+    if (typeof exp === 'number' && exp * 1000 <= Date.now()) return null
     return role === 'parent' || role === 'tutor' || role === 'admin' ? role : null
   } catch {
     return null
@@ -33,6 +34,21 @@ function roleFromToken(token: string): Role | null {
 export function middleware(request: NextRequest) {
   const token = request.cookies.get('tutorlink_token')
   const { pathname } = request.nextUrl
+
+  // Someone already logged in who opens the log-in or sign-up page goes to their own home instead: tutors
+  // to the dashboard with their onboarding checklist, parents to theirs.
+  if (pathname === '/login' || pathname === '/register') {
+    const role = token ? roleFromToken(token.value) : null
+    return role ? NextResponse.redirect(new URL(ROLE_HOME[role], request.url)) : NextResponse.next()
+  }
+
+  // Tutors' profiles are for registered parents (and admins): visitors are asked to sign up as a parent.
+  if (pathname.startsWith('/tutors')) {
+    const role = token ? roleFromToken(token.value) : null
+    if (!role) return NextResponse.redirect(new URL('/register?role=parent&reason=tutors', request.url))
+    if (role === 'tutor') return NextResponse.redirect(new URL(ROLE_HOME.tutor, request.url))
+    return NextResponse.next()
+  }
 
   const protectedPrefixes = ['/dashboard', '/admin', '/receipts']
   const isProtected = protectedPrefixes.some(p => pathname.startsWith(p))
@@ -60,5 +76,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*', '/receipts/:path*'],
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/receipts/:path*', '/tutors', '/tutors/:path*', '/login', '/register'],
 }

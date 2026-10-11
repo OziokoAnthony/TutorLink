@@ -49,7 +49,9 @@ def rate(client, parent, tutor, rating, comment=None):
 
 
 def public_tutor(client, tutor) -> dict:
-    return client.get(f"/v1/tutors/{tutor['id']}").json()
+    """The tutor's profile as a parent sees it."""
+    viewer = helpers.register_parent(client)["headers"]
+    return client.get(f"/v1/tutors/{tutor['id']}", headers=viewer).json()
 
 
 def test_parent_with_completed_lesson_can_rate(client, teach, tutor):
@@ -102,10 +104,10 @@ def test_only_parents_can_rate(client, tutor, admin_headers):
                       json={"rating": 5}).status_code == 403
 
 
-def test_public_reviews_show_first_name_only(client, teach, tutor):
+def test_public_reviews_show_first_name_only(client, viewer, teach, tutor):
     parent = parent_with_completed_lesson(client, teach, tutor, full_name="Ada Okafor")
     rate(client, parent, tutor, 5, "  Excellent maths tutor  ")
-    response = client.get(f"/v1/tutors/{tutor['id']}/reviews")
+    response = client.get(f"/v1/tutors/{tutor['id']}/reviews", headers=viewer)
     assert response.status_code == 200
     review = response.json()[0]
     assert review["parent_first_name"] == "Ada"
@@ -115,9 +117,9 @@ def test_public_reviews_show_first_name_only(client, teach, tutor):
     assert parent["id"] not in response.text
 
 
-def test_reviews_of_unapproved_tutor_are_hidden(client):
+def test_reviews_of_unapproved_tutor_are_hidden(client, viewer):
     pending = helpers.register_tutor(client)
-    assert client.get(f"/v1/tutors/{pending['id']}/reviews").status_code == 404
+    assert client.get(f"/v1/tutors/{pending['id']}/reviews", headers=viewer).status_code == 404
 
 
 def test_unrated_tutor_has_no_average(client, tutor):
@@ -125,7 +127,7 @@ def test_unrated_tutor_has_no_average(client, tutor):
     assert public_tutor(client, tutor)["rating_count"] == 0
 
 
-def test_sort_by_rating_puts_best_first_and_unrated_last(client, teach, admin_headers):
+def test_sort_by_rating_puts_best_first_and_unrated_last(client, viewer, teach, admin_headers):
     good = helpers.approved_tutor(client, admin_headers, full_name="Zainab Good")
     best = helpers.approved_tutor(client, admin_headers, full_name="Yemi Best")
     unrated = helpers.approved_tutor(client, admin_headers, full_name="Aaron Unrated")
@@ -133,13 +135,13 @@ def test_sort_by_rating_puts_best_first_and_unrated_last(client, teach, admin_he
     rate(client, p1, good, 4)
     rate(client, p2, best, 5)
 
-    by_rating = [t["user_id"] for t in client.get("/v1/tutors", params={"sort": "rating"}).json()]
+    by_rating = [t["user_id"] for t in client.get("/v1/tutors", params={"sort": "rating"}, headers=viewer).json()]
     assert by_rating == [best["id"], good["id"], unrated["id"]]
-    by_name = [t["user_id"] for t in client.get("/v1/tutors").json()]
+    by_name = [t["user_id"] for t in client.get("/v1/tutors", headers=viewer).json()]
     assert by_name == [unrated["id"], best["id"], good["id"]]
 
 
-def test_more_ratings_win_a_tie(client, teach, admin_headers):
+def test_more_ratings_win_a_tie(client, viewer, teach, admin_headers):
     one_rating = helpers.approved_tutor(client, admin_headers, full_name="A One")
     two_ratings = helpers.approved_tutor(client, admin_headers, full_name="B Two")
     p1, p2, p3 = teach([(helpers.register_parent(client), one_rating), (helpers.register_parent(client), two_ratings),
@@ -147,7 +149,7 @@ def test_more_ratings_win_a_tie(client, teach, admin_headers):
     rate(client, p1, one_rating, 5)
     rate(client, p2, two_ratings, 5)
     rate(client, p3, two_ratings, 5)
-    by_rating = [t["user_id"] for t in client.get("/v1/tutors", params={"sort": "rating"}).json()]
+    by_rating = [t["user_id"] for t in client.get("/v1/tutors", params={"sort": "rating"}, headers=viewer).json()]
     assert by_rating == [two_ratings["id"], one_rating["id"]]
 
 

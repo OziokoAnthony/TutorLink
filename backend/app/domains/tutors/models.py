@@ -9,6 +9,9 @@ from pydantic import StringConstraints, model_validator
 from sqlmodel import Field, SQLModel
 
 from app.db.base import BaseUUIDModel, pg_enum
+from app.domains.certificates.models import CertificateType
+from app.domains.onboarding.models import NinCheckRead
+from app.domains.tutors import subjects as subject_list
 
 
 class VettingStatus(str, Enum):
@@ -21,6 +24,7 @@ class EducationLevel(str, Enum):
     primary = "primary"
     junior_secondary = "junior_secondary"
     senior_secondary = "senior_secondary"
+    international = "international"  # high school in an international curriculum (IGCSE, A-Level, IB, American)
 
 
 # Shared by tutor_offers.level and bookings.level (one PostgreSQL type).
@@ -33,7 +37,9 @@ class TutorProfile(BaseUUIDModel, table=True):
     __tablename__ = "tutor_profiles"
 
     user_id: UUID = Field(foreign_key="users.id", unique=True)
+    # Exactly as on the tutor's NIN record (spec 4 R3.1); locked once the NIN is verified (R3.5).
     first_name: str
+    middle_name: str | None = None
     surname: str
     full_name: str  # "first_name surname", kept for display everywhere
     phone: str | None = None
@@ -47,6 +53,7 @@ class TutorProfile(BaseUUIDModel, table=True):
     vetting_note: str | None = Field(default=None, sa_type=sa.Text)
     vetted_by: UUID | None = Field(default=None, foreign_key="users.id")
     vetted_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
+    nin_verified_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))  # spec 4 R3.4
 
 
 class TutorOffer(BaseUUIDModel, table=True):
@@ -119,7 +126,7 @@ class OfferIn(SQLModel):
 
     @model_validator(mode="after")
     def clean(self) -> "OfferIn":
-        self.subjects = clean_subjects(self.subjects)
+        self.subjects = subject_list.listed(clean_subjects(self.subjects))
         return self
 
 
@@ -139,9 +146,21 @@ def clean_name_part(value: str | None) -> str:
 NamePart = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
 
 
-class TutorProfileUpsert(SQLModel):
+class TutorName(SQLModel):
+    """A tutor's name exactly as on their NIN record (spec 4 R3.1)."""
+
     first_name: NamePart
+    middle_name: str | None = Field(default=None, max_length=100)  # only if the NIN record has one
     surname: NamePart
+
+    @model_validator(mode="after")
+    def clean_names(self) -> "TutorName":
+        self.first_name, self.surname = clean_name_part(self.first_name), clean_name_part(self.surname)
+        self.middle_name = clean_name_part(self.middle_name) or None
+        return self
+
+
+class TutorProfileUpsert(TutorName):
     phone: str | None = Field(default=None, max_length=30)
     bio: str | None = None
     area: str = Field(min_length=1, max_length=120)
@@ -153,6 +172,7 @@ class TutorProfileRead(SQLModel):
     id: UUID
     user_id: UUID
     first_name: str
+    middle_name: str | None
     surname: str
     full_name: str
     phone: str | None
@@ -161,6 +181,8 @@ class TutorProfileRead(SQLModel):
     vetting_status: VettingStatus
     vetting_note: str | None
     vetted_at: datetime | None
+    nin_verified_at: datetime | None
+    nin_check: NinCheckRead | None = None  # the latest NIN attempt (R3.9)
     created_at: datetime
     updated_at: datetime
     photo_url: str | None = None
@@ -171,7 +193,7 @@ class TutorProfileRead(SQLModel):
 
 
 class TutorPublic(SQLModel):
-    """Public listing shape: no contact or vetting details."""
+    """Public listing shape: no contact or vetting details, only the badges (spec 4 R4.4)."""
 
     id: UUID
     user_id: UUID
@@ -179,6 +201,8 @@ class TutorPublic(SQLModel):
     bio: str | None
     area: str
     photo_url: str | None = None
+    nin_verified: bool = False
+    verified_certificates: list[CertificateType] = []  # types only: no files or numbers
     offers: list[OfferRead] = []
     price_from: Decimal | None = None
     average_rating: Decimal | None = None  # 1.00-5.00, None until first rating

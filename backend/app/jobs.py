@@ -1,5 +1,6 @@
 """Time-based rules (spec 1): expiries, payment deadlines, next periods, reports and payable earnings;
-and deleting lesson recordings after 90 days (spec 3).
+deleting lesson recordings after 90 days (spec 3); closing timed-out exam attempts and topping up the
+exam's question bank (spec 4 R5).
 
 `run_all` is called every SCHEDULER_INTERVAL_SECONDS by the API process. A PostgreSQL advisory lock
 makes sure only one process runs it at a time, even with several API containers.
@@ -16,7 +17,9 @@ from sqlmodel import Session
 from app.core import clock
 from app.core.config import settings
 from app.db.session import engine
+from app.domains.auth import limits
 from app.domains.bookings import service as bookings
+from app.domains.exam import service as exam
 from app.domains.lessons import service as lessons
 
 logger = logging.getLogger(__name__)
@@ -37,6 +40,8 @@ def run_all(session: Session, now: datetime | None = None) -> dict[str, int]:
         "completed_lessons": lessons.complete_reported(session, now),
         "ended_bookings": bookings.end_finished_bookings(session, now),
         "deleted_recordings": lessons.delete_old_recordings(session, now),
+        "closed_exam_attempts": exam.close_expired(session, now),
+        "old_rate_limit_hits": limits.delete_old(session, now),
     }
 
 
@@ -47,7 +52,10 @@ def run_once() -> dict[str, int] | None:
             return None
         try:
             with Session(engine) as session:
-                return run_all(session)
+                counts = run_all(session)
+                # Starts Claude requests in the background; kept out of run_all so tests don't generate.
+                counts["exam_batches_started"] = exam.top_up_bank(session)
+                return counts
         finally:
             lock_conn.execute(text("SELECT pg_advisory_unlock(:id)"), {"id": ADVISORY_LOCK_ID})
             lock_conn.commit()

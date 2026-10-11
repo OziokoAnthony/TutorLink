@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { DAYS, LEVELS, SUBJECTS } from '@/lib/format'
+import { DAYS, LEVELS, SUBJECTS, listedSubject } from '@/lib/format'
 import type { OfferInput } from '@/lib/tutors'
 
 export const EMPTY_OFFER: OfferInput = {
@@ -32,12 +32,17 @@ export function offerProblem(offer: OfferInput): string | null {
 export default function OfferFields({ value, onChange }: { value: OfferInput; onChange: (next: OfferInput) => void }) {
   const id = useId()
   const [subjectText, setSubjectText] = useState('')
+  const [subjectProblem, setSubjectProblem] = useState<string | null>(null)
 
   function addSubject(name: string) {
-    const clean = name.trim()
-    if (clean && !value.subjects.some((s) => s.toLowerCase() === clean.toLowerCase())) {
-      onChange({ ...value, subjects: [...value.subjects, clean] })
+    if (!name.trim()) return
+    const listed = listedSubject(name)
+    if (!listed) {
+      setSubjectProblem('Choose a subject from the list.')
+      return
     }
+    if (!value.subjects.includes(listed)) onChange({ ...value, subjects: [...value.subjects, listed] })
+    setSubjectProblem(null)
     setSubjectText('')
   }
 
@@ -67,6 +72,7 @@ export default function OfferFields({ value, onChange }: { value: OfferInput; on
           <datalist id={`${id}-subjects`}>{SUBJECTS.map((s) => <option key={s} value={s} />)}</datalist>
           <Button type="button" variant="outline" onClick={() => addSubject(subjectText)}>Add</Button>
         </div>
+        {subjectProblem && <p role="alert" className="text-xs text-destructive">{subjectProblem}</p>}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">

@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlmodel import Session
 
-from app.core.deps import require_roles
+from app.core.deps import can_see_tutors, require_roles
 from app.db.session import get_session
 from app.domains.auth.models import User, UserRole
 from app.domains.tutors import service
@@ -15,6 +15,7 @@ from app.domains.tutors.models import (
     EducationLevel,
     OfferIn,
     OfferRead,
+    TutorName,
     TutorProfileRead,
     TutorProfileUpsert,
     TutorPublic,
@@ -63,13 +64,14 @@ def list_tutors(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     sort: Literal["name", "rating", "price"] = "name",
+    viewer: User = Depends(can_see_tutors),
     session: Session = Depends(get_session),
 ):
     return service.list_approved_tutors(session, subject, level, area, skip, limit, sort)
 
 
 @router.get("/{tutor_id}", response_model=TutorPublic)
-def get_tutor(tutor_id: UUID, session: Session = Depends(get_session)):
+def get_tutor(tutor_id: UUID, viewer: User = Depends(can_see_tutors), session: Session = Depends(get_session)):
     return service.get_public_tutor(session, tutor_id)
 
 
@@ -82,3 +84,10 @@ def vet_tutor(tutor_id: UUID, data: VetRequest, admin: User = Depends(admin_only
 @admin_router.get("/tutors/pending", response_model=list[TutorProfileRead])
 def list_pending(admin: User = Depends(admin_only), session: Session = Depends(get_session)):
     return service.list_pending_tutors(session)
+
+
+@admin_router.patch("/tutors/{tutor_id}/name", response_model=TutorProfileRead)
+def rename_tutor(tutor_id: UUID, data: TutorName, admin: User = Depends(admin_only),
+                 session: Session = Depends(get_session)):
+    """Changes a tutor's name, including a NIN-verified one the tutor can't change (spec 4 R3.5)."""
+    return service.admin_rename(session, tutor_id, data)

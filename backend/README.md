@@ -21,6 +21,43 @@ uv sync                         # local venv for tests
 Postgres from Docker is published on host port **5435**: 5432 is taken by a local Windows
 Postgres and 5433–5434 by WSL. Inside Docker the app reaches it at `db:5432`.
 
+## Required settings
+
+The API refuses to start without these (`app/core/config.py` checks them). Generate each key with
+`python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+
+| Setting | When | Rule |
+|---|---|---|
+| `SECRET_KEY` | always | 32+ characters, not the `.env.example` placeholder. Signs login tokens. |
+| `DATABASE_URL` | always | The Postgres connection URL. |
+| `FILE_SIGNING_KEY` | `APP_ENV=production` | Its own 32+ character key, different from `SECRET_KEY`. Signs file links. |
+| `FIELD_ENCRYPTION_KEY` | `APP_ENV=production` | Its own 32+ character key, different from `SECRET_KEY`. Encrypts WAEC/NECO checker PINs. |
+| `NIN_HASH_KEY` | `APP_ENV=production` | Its own 32+ character key, different from `SECRET_KEY`. Hashes NINs. |
+| `PAYSTACK_SECRET_KEY`, `PAYSTACK_WEBHOOK_SECRET` | `APP_ENV=production` | Live keys (`sk_live_…`), not test keys. |
+| `PAYSTACK_DVA_BANK` | `APP_ENV=production` | A live bank such as `titan-paystack`, not `test-bank`. |
+| `RESEND_API_KEY` | `APP_ENV=production` | Without it no email is sent, so password reset doesn't work. |
+| `DOJAH_APP_ID`, `DOJAH_SECRET_KEY`, `DOJAH_BASE_URL` | `APP_ENV=production` | Live keys and `https://api.dojah.io`, not the sandbox. Without them no tutor can be approved. |
+| `STORAGE_ENDPOINT_URL`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_BUCKET` | `APP_ENV=production` | The bucket. Without it, files would go to the container's disk and be lost on redeploy. |
+| `COOKIE_DOMAIN` | `APP_ENV=production` | The domain the site and the API share (e.g. `tutorlink.ng`), so the site's middleware can see the login cookie. |
+| `BASE_URL`, `FRONTEND_URL` | `APP_ENV=production` | `https://` addresses: the login cookie is then marked Secure and HSTS is sent. |
+
+When several are missing, the error lists them all. `docker compose` also refuses to start without
+`POSTGRES_PASSWORD` in `.env`.
+
+Don't change the three production keys once real data exists: a new `FILE_SIGNING_KEY` breaks file links
+already handed out, a new `FIELD_ENCRYPTION_KEY` makes stored checker PINs unreadable, and a new
+`NIN_HASH_KEY` lets an already-verified NIN verify a second account.
+
+In development all of these can stay empty: payments, emails and NIN checks are then off, and uploaded files go
+to a local folder.
+
+The API starts without these, but set them in production:
+
+- `TRUST_PROXY_HEADERS=true`, only behind a proxy or CDN (Render, Cloudflare). Without it, rate limits count
+  the proxy's address, so one person's failed logins can block everyone.
+- `GOOGLE_CLIENT_ID` and `ANTHROPIC_API_KEY`: without them, Google sign-in, exam generation and the help
+  assistant are off.
+
 ## Admin accounts
 
 Nobody can register as an admin. Create admins with the CLI script; it prompts for the
@@ -60,17 +97,18 @@ up, then truncate the tables before each test. Emails and Paystack calls are fak
 - Tutors register with `first_name`, `surname` and at least one offer (subjects, level, weekly
   windows, price). Their profile starts as `pending` and doesn't appear in `GET /v1/tutors` until an
   admin approves it.
-- **Tutor work emails.** Registration assigns each tutor a work email: initial of the surname, a
-  dot, the first name, at `TUTOR_EMAIL_DOMAIN` (`o.anthony@tutorlink.com`; the next Anthony Ozioko
-  gets `o.anthony2@…`). It's returned as `user.work_email` and is their only login: logging in with
-  their personal email gets a 401 naming the work email. Tutors don't send a `password` when they
-  register: TutorLink generates one and emails it, with the work email, to their personal email
-  (nothing is ever sent to the work email). `PUT /auth/me/password` changes it. Nobody can register
-  with an address at that domain. Parents and admins choose a password and log in with their own email.
+- **Accounts.** Parents and tutors sign up the same way: `POST /v1/auth/register` with any email and
+  a chosen password, or `POST /v1/auth/google/register` with a Google ID token (signed in at once).
+  Everyone logs in with their email (`/auth/login`) or Google (`/auth/google/login`, not for admins),
+  and every email goes to that address. `PUT /auth/me/password` changes a password. There are no
+  TutorLink work emails any more (removed in migration 0019).
+- **Seeing tutors.** `GET /v1/tutors`, `/tutors/{id}`, `/tutors/{id}/schedule` and `/reviews` need a
+  logged-in parent or admin.
 - The same booking or lesson comes back in a different shape for the parent, the tutor and the
   admin, so each side sees only its own fee figures (spec 1, R1).
-- **Job posts (spec 2).** Parents `POST /v1/jobs` with their own price per lesson. Approved tutors
-  browse open jobs (`GET /v1/jobs?subject=&level=&mode=&area=`), apply once
+- **Job posts (spec 2).** Parents `POST /v1/jobs` with their own price per lesson. The job is `pending`
+  until an admin approves it (`PATCH /v1/admin/jobs/{id}`, queue at `GET /v1/admin/jobs?status=pending`);
+  an edit sends it back for review. Approved tutors browse open jobs (`GET /v1/jobs?subject=&level=&mode=&area=`), apply once
   (`POST /v1/jobs/{id}/apply`) and can withdraw while the job is open. The parent lists applicants
   (`GET /v1/jobs/{id}/applications`) and chooses one
   (`POST /v1/jobs/{id}/applications/{application_id}/choose`), which creates a booking already
@@ -100,7 +138,7 @@ uv run python -m app.jobs
   `average_rating` (null until the first rating) and `rating_count`.
 - **Sorting:** `GET /v1/tutors?sort=rating` lists the best-rated tutors first. More ratings break
   ties, and unrated tutors come last.
-- **Reading reviews:** `GET /v1/tutors/{tutor_id}/reviews` is public and shows each parent's first
+- **Reading reviews:** `GET /v1/tutors/{tutor_id}/reviews` is for logged-in parents and admins and shows each parent's first
   name only.
 - **Rating prompts:** `GET /v1/auth/me` returns `tutors_to_rate` for parents.
 
@@ -125,7 +163,7 @@ account number) the first time one of their bookings is accepted. Paystack repor
 Dedicated accounts and Transfers must be enabled on the Paystack account. `PAYSTACK_DVA_BANK` picks
 the bank for account numbers: `test-bank` in test mode.
 
-## Online lessons and recordings (Cloudflare R2)
+## Online lessons and recordings
 
 Every booking and job is `online` or `offline`. Booking or posting an online lesson needs
 `recording_consent: true`, and the time and text of the consent are stored. The tutor sets the
@@ -144,10 +182,11 @@ An online lesson's report needs its recording first. Video never passes through 
 lesson's parent, its tutor and admins only. The background jobs delete recordings 90 days after the
 lesson, unless a problem on that lesson is still open.
 
-With R2 configured, uploads go to the bucket through presigned URLs, so the bucket needs a CORS rule
+Files live in a private S3-compatible bucket (Backblaze B2 or Cloudflare R2: the `STORAGE_*` settings
+in `.env.example`). Uploads go to the bucket through presigned URLs, so the bucket needs a CORS rule
 allowing `PUT` (and `GET` for playback) from the frontend's origin with the `Content-Type` header.
-Without R2, files go to `LOCAL_STORAGE_DIR` through the signed `/v1/files/...` routes (development
-and tests only).
+Without a bucket, files go to `LOCAL_STORAGE_DIR` through the signed `/v1/files/...` routes
+(development and tests only).
 
 ## Notifications and emails (Resend)
 
