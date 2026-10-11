@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/hooks/useAuth'
 import NotificationBell from '@/components/layout/NotificationBell'
+import ThemeToggle from '@/components/layout/ThemeToggle'
 import { LINKS } from '@/components/layout/Sidebar'
 
 function DashboardMenu({ links, label = 'Dashboard' }: { links: { href: string; label: string }[]; label?: string }) {
@@ -33,27 +34,30 @@ export default function Navbar() {
       <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
         <Link href="/" className="text-lg font-bold tracking-tight text-primary">TutorLink</Link>
 
-        {!loading && (
-          <div className="flex items-center gap-1">
-            {!user && (
-              <>
-                <Button variant="ghost" size="sm" asChild><Link href="/tutors">Browse Tutors</Link></Button>
-                <Button variant="ghost" size="sm" asChild><Link href="/login">Login</Link></Button>
-                <Button size="sm" asChild><Link href="/register">Register</Link></Button>
-              </>
-            )}
-            {user?.role === 'parent' && (
-              <>
-                <Button variant="ghost" size="sm" asChild><Link href="/tutors">Find Tutors</Link></Button>
-                <DashboardMenu links={LINKS.parent.filter((l) => l.href !== '/tutors')} />
-              </>
-            )}
-            {user?.role === 'tutor' && <DashboardMenu links={LINKS.tutor} />}
-            {user?.role === 'admin' && <DashboardMenu links={LINKS.admin} label="Admin" />}
-            {user && <NotificationBell />}
-            {user && <Button variant="outline" size="sm" className="ml-2" onClick={logout}>Logout</Button>}
-          </div>
-        )}
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          {!loading && (
+            <div className="flex items-center gap-1">
+              {!user && (
+                <>
+                  <Button variant="ghost" size="sm" asChild><Link href="/tutors">Browse Tutors</Link></Button>
+                  <Button variant="ghost" size="sm" asChild><Link href="/login">Login</Link></Button>
+                  <Button size="sm" asChild><Link href="/register">Register</Link></Button>
+                </>
+              )}
+              {user?.role === 'parent' && (
+                <>
+                  <Button variant="ghost" size="sm" asChild><Link href="/tutors">Find Tutors</Link></Button>
+                  <DashboardMenu links={LINKS.parent.filter((l) => l.href !== '/tutors')} />
+                </>
+              )}
+              {user?.role === 'tutor' && <DashboardMenu links={LINKS.tutor} />}
+              {user?.role === 'admin' && <DashboardMenu links={LINKS.admin} label="Admin" />}
+              {user && <NotificationBell />}
+              {user && <Button variant="outline" size="sm" className="ml-2" onClick={logout}>Logout</Button>}
+            </div>
+          )}
+        </div>
       </nav>
     </header>
   )
