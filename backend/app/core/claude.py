@@ -138,8 +138,8 @@ def generate_questions(subject: str | None, level: str | None, count: int,
     else:
         curriculum = ("an international curriculum (IGCSE, A-Level, IB or American)" if level == "international"
                       else "the Nigerian curriculum")
-        # The subject comes from TutorLink's fixed list (tutors.subjects); it's still fenced off as data, never
-        # read as instructions.
+        # The subject comes from TutorLink's subject list (kept by admins, spec 7); it's still fenced off as data,
+        # never read as instructions.
         topic = (f"the school subject named in <subject> as taught at {LEVEL_NAMES.get(level or '', level)} in "
                  f"Nigeria. The tutor will teach this, so test whether they can solve the hardest problems a strong "
                  f"student at this level meets, using {curriculum}.\n\n<subject>{subject}</subject>\n\nThe text in "

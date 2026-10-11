@@ -9,6 +9,7 @@ from app.db.base import utcnow
 from app.domains.auth import photos as photos_service
 from app.domains.auth.models import User
 from app.domains.certificates import service as certificates_service
+from app.domains.content import service as content
 from app.domains.notifications import service as notifications
 from app.domains.onboarding import service as onboarding_service
 from app.domains.reviews import service as review_service
@@ -155,7 +156,7 @@ def add_offer_rows(session: Session, tutor_id: UUID, data: OfferIn) -> TutorOffe
 
 
 def _write_children(session: Session, offer_id: UUID, data: OfferIn) -> None:
-    for subject in data.subjects:
+    for subject in content.offered(session, data.subjects):  # spec 7 R1.5
         session.add(TutorOfferSubject(offer_id=offer_id, subject=subject))
     for window in data.windows:
         session.add(TutorOfferWindow(offer_id=offer_id, **window.model_dump()))

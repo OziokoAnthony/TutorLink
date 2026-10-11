@@ -14,6 +14,7 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 4. `feature-4-tutor-onboarding.md`: sign-up with email or Google, password reset, profile pictures, NIN verification, certificates, the qualifying exam. **Built.**
 5. `feature-5-international.md` (draft: location, NGN/USD, job visibility by country). Not built.
 6. `feature-6-feedback-and-help.md`: feedback to the TutorLink team, admin replies, the Claude help assistant. **Built.**
+7. `feature-7-admin-content.md`: admins keep the subject list and the privacy notice, terms and disclaimer. **Built.**
 
 Read the spec before changing a feature it covers, and check the backend's request and response
 models (`../backend/app/domains/*/models.py`) or `/docs` for the exact API shape.
@@ -28,10 +29,11 @@ React Hook Form + Zod · Axios · sonner toasts · lucide icons.
 - `app/`: pages. Parent pages under `dashboard/parent/`, tutor pages under `dashboard/tutor/`,
   admin pages under `admin/`, printable receipts under `receipts/`.
 - `lib/`: every API call, one module per backend domain (`bookings`, `lessons`, `wallet`,
-  `payouts`, `tutors`, `notifications`, `auth`, `feedback`). Pages import these; Axios stays inside `lib/`.
-- `app/privacy`, `app/terms`: the privacy notice and terms. The business details they name are in `lib/legal.ts`;
-  while any is empty both pages show a draft banner. Update them when a feature changes what data is collected
-  or a rule they describe.
+  `payouts`, `tutors`, `notifications`, `auth`, `feedback`, `content`). Pages import these; Axios stays inside `lib/`.
+- `app/privacy`, `app/terms`, `app/disclaimer`: read from the API and edited by admins at `/admin/legal`
+  (spec 7). `components/legal/LegalText.tsx` renders their plain text as React text, never HTML.
+- Subjects come from the API through `useSubjects()` (`hooks/useSubjects.ts`); admins keep them at
+  `/admin/subjects`. There's no subject list in the frontend.
 - `lib/format.ts`: all display text for enums (status labels, issue kinds, billing periods),
   money, dates and times. `components/shared/StatusBadge.tsx`: the coloured badge for each status.
 - `types/index.ts`: every API type.

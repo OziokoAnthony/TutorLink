@@ -35,6 +35,8 @@ export const LINKS: Record<Role, { href: string; label: string }[]> = {
     { href: '/admin/withdrawals', label: 'Withdrawals' },
     { href: '/admin/fees', label: 'Fees' },
     { href: '/admin/feedback', label: 'Feedback' },
+    { href: '/admin/subjects', label: 'Subjects' },
+    { href: '/admin/legal', label: 'Legal pages' },
   ],
 }
 

@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import Choice from '@/components/shared/Choice'
 import RecordingConsent from '@/components/shared/RecordingConsent'
-import { BILLING_PERIODS, CERTIFICATES, DAYS, LEVELS, SUBJECTS, formatTime, listedSubject, toISODate } from '@/lib/format'
+import { useSubjects } from '@/hooks/useSubjects'
+import { BILLING_PERIODS, CERTIFICATES, DAYS, LEVELS, formatTime, listedSubject, toISODate } from '@/lib/format'
 import type { BillingPeriod, CertificateType, Job, JobInput, LessonMode, Level, WeeklyTime } from '@/types'
 
 const NONE = 'none'
@@ -26,6 +27,7 @@ export default function JobForm({ initial, submitLabel, onSubmit, onCancel }: {
 }) {
   const tomorrow = useMemo(() => { const d = new Date(); d.setDate(d.getDate() + 1); return toISODate(d) }, [])
   const [subjects, setSubjects] = useState<string[]>(initial?.subjects ?? [])
+  const subjectNames = useSubjects().map((s) => s.name)
   const [subjectDraft, setSubjectDraft] = useState('')
   const [subjectProblem, setSubjectProblem] = useState<string | null>(null)
   const [level, setLevel] = useState<Level>(initial?.level ?? 'primary')
@@ -49,7 +51,7 @@ export default function JobForm({ initial, submitLabel, onSubmit, onCancel }: {
 
   function addSubject(name: string) {
     if (!name.trim()) return
-    const listed = listedSubject(name)
+    const listed = listedSubject(name, subjectNames)
     if (!listed) {
       setSubjectProblem('Choose a subject from the list.')
       return
@@ -121,7 +123,7 @@ export default function JobForm({ initial, submitLabel, onSubmit, onCancel }: {
           <Input id="job-subject" list="job-subject-list" placeholder="Pick a subject" value={subjectDraft}
             onChange={(e) => setSubjectDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSubject(subjectDraft) } }} />
-          <datalist id="job-subject-list">{SUBJECTS.map((s) => <option key={s} value={s} />)}</datalist>
+          <datalist id="job-subject-list">{subjectNames.map((s) => <option key={s} value={s} />)}</datalist>
           <Button type="button" variant="outline" onClick={() => addSubject(subjectDraft)}>Add</Button>
         </div>
         {subjectProblem && <p role="alert" className="text-xs text-destructive">{subjectProblem}</p>}

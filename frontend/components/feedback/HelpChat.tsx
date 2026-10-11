@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { MessageCircle, Send, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -82,7 +83,10 @@ export default function HelpChat({ role }: { role: Role }) {
           <header className="flex items-center justify-between border-b px-4 py-3">
             <div>
               <p className="font-semibold">TutorLink help</p>
-              <p className="text-xs text-muted-foreground">Answers come from an AI assistant.</p>
+              <p className="text-xs text-muted-foreground">
+                Answers come from an AI assistant and may be wrong.{' '}
+                <Link href="/disclaimer" target="_blank" className="underline hover:text-foreground">Disclaimer</Link>
+              </p>
             </div>
             <Button variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close help chat">
               <X className="h-4 w-4" />

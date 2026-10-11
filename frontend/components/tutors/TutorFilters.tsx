@@ -3,13 +3,15 @@
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { LEVELS, SUBJECTS } from '@/lib/format'
+import { useSubjects } from '@/hooks/useSubjects'
+import { LEVELS } from '@/lib/format'
 import type { Level, TutorFiltersValue } from '@/types'
 
 const ANY = 'any'
 
 /** Subject, level and area filters, plus sort order. */
 export default function TutorFilters({ value, onChange }: { value: TutorFiltersValue; onChange: (value: TutorFiltersValue) => void }) {
+  const subjects = useSubjects()
   return (
     <div className="grid gap-3 rounded-lg border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4">
       <div className="space-y-1.5">
@@ -18,7 +20,7 @@ export default function TutorFilters({ value, onChange }: { value: TutorFiltersV
           <SelectTrigger id="filter-subject"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value={ANY}>All subjects</SelectItem>
-            {SUBJECTS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            {subjects.map((s) => <SelectItem key={s.name} value={s.name}>{s.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>

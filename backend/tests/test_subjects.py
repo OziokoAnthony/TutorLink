@@ -1,29 +1,15 @@
-"""Subjects come from TutorLink's fixed list (app/domains/tutors/subjects.py), so free text written by a tutor
-can never steer the Claude prompt that writes exam questions (spec 4 R5.2)."""
-
-import re
-from pathlib import Path
+"""Subjects come from TutorLink's subject list (the `subjects` table, kept by admins: spec 7 R1), so free text
+written by a tutor can never steer the Claude prompt that writes exam questions (spec 4 R5.2)."""
 
 from sqlmodel import select
 
 from app.core import claude as claude_client
 from app.domains.exam import service as exam_service
-from app.domains.tutors import subjects
 from app.domains.tutors.models import TutorOfferSubject
 from tests import helpers
 
-FRONTEND_FORMAT = Path(__file__).resolve().parents[2] / "frontend" / "lib" / "format.ts"
 # Taken before the autouse `claude` fixture replaces it with the fake.
 REAL_GENERATE_QUESTIONS = claude_client.generate_questions
-
-
-def test_the_frontend_offers_the_same_list():
-    source = FRONTEND_FORMAT.read_text(encoding="utf-8")
-    frontend = []
-    for name in ("NIGERIAN_SUBJECTS", "INTERNATIONAL_SUBJECTS"):
-        block = re.search(rf"const {name} = \[(.*?)\]", source, re.S).group(1)
-        frontend += re.findall(r"'([^']+)'", block)
-    assert tuple(frontend) == subjects.SUBJECTS
 
 
 def test_an_offer_with_a_subject_off_the_list_is_422(client):

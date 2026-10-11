@@ -12,7 +12,8 @@ import LoadingSpinner from '@/components/shared/LoadingSpinner'
 import PageHeader from '@/components/shared/PageHeader'
 import { useToast } from '@/hooks/useToast'
 import { errorMessage, errorStatus } from '@/lib/api'
-import { LEVELS, SUBJECTS } from '@/lib/format'
+import { useSubjects } from '@/hooks/useSubjects'
+import { LEVELS } from '@/lib/format'
 import { browseJobs, getMyApplications } from '@/lib/jobs'
 import type { Job, JobFiltersValue, LessonMode, Level } from '@/types'
 
@@ -20,6 +21,7 @@ const ANY = 'any'
 
 export default function TutorJobsPage() {
   const toast = useToast()
+  const subjects = useSubjects()
   const [tab, setTab] = useState<'browse' | 'mine'>('browse')
   const [filters, setFilters] = useState<JobFiltersValue>({})
   const [jobs, setJobs] = useState<Job[] | null>(null)
@@ -68,7 +70,7 @@ export default function TutorJobsPage() {
               <SelectTrigger id="jobs-subject"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ANY}>All subjects</SelectItem>
-                {SUBJECTS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                {subjects.map((s) => <SelectItem key={s.name} value={s.name}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

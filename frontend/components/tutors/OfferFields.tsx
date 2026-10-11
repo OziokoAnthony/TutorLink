@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { DAYS, LEVELS, SUBJECTS, listedSubject } from '@/lib/format'
+import { useSubjects } from '@/hooks/useSubjects'
+import { DAYS, LEVELS, listedSubject } from '@/lib/format'
 import type { OfferInput } from '@/lib/tutors'
 
 export const EMPTY_OFFER: OfferInput = {
@@ -31,12 +32,13 @@ export function offerProblem(offer: OfferInput): string | null {
 /** Editor for one offer: subjects (one or more), level, weekly times, one price per lesson. */
 export default function OfferFields({ value, onChange }: { value: OfferInput; onChange: (next: OfferInput) => void }) {
   const id = useId()
+  const subjectNames = useSubjects().map((s) => s.name)
   const [subjectText, setSubjectText] = useState('')
   const [subjectProblem, setSubjectProblem] = useState<string | null>(null)
 
   function addSubject(name: string) {
     if (!name.trim()) return
-    const listed = listedSubject(name)
+    const listed = listedSubject(name, subjectNames)
     if (!listed) {
       setSubjectProblem('Choose a subject from the list.')
       return
@@ -69,7 +71,7 @@ export default function OfferFields({ value, onChange }: { value: OfferInput; on
           <Input id={`${id}-subject`} list={`${id}-subjects`} placeholder="e.g. Mathematics" value={subjectText}
             onChange={(e) => setSubjectText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSubject(subjectText) } }} />
-          <datalist id={`${id}-subjects`}>{SUBJECTS.map((s) => <option key={s} value={s} />)}</datalist>
+          <datalist id={`${id}-subjects`}>{subjectNames.map((s) => <option key={s} value={s} />)}</datalist>
           <Button type="button" variant="outline" onClick={() => addSubject(subjectText)}>Add</Button>
         </div>
         {subjectProblem && <p role="alert" className="text-xs text-destructive">{subjectProblem}</p>}

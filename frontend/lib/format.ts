@@ -18,32 +18,11 @@ export const LEVELS: { value: Level; label: string }[] = [
   { value: 'international', label: 'International High School' },
 ]
 
-/** Common Nigerian school subjects. Tutors and job posts can only use listed subjects; the backend has the
- * same list (`app/domains/tutors/subjects.py`, kept in step by `tests/test_subjects.py`). */
-const NIGERIAN_SUBJECTS = [
-  'Mathematics', 'English Language', 'Basic Science', 'Basic Technology', 'Social Studies',
-  'Civic Education', 'Physics', 'Chemistry', 'Biology', 'Further Mathematics', 'Economics',
-  'Literature in English', 'Government', 'Geography', 'Agricultural Science', 'Computer Studies',
-  'Commerce', 'Accounting', 'French', 'Yoruba', 'Igbo', 'Hausa', 'Christian Religious Studies',
-  'Islamic Religious Studies', 'Verbal Reasoning', 'Quantitative Reasoning',
-]
-
-/** High school subjects of international schools (British IGCSE and A-Level, IB, American) that the
- * Nigerian list doesn't already cover, plus the international exams parents book prep for. */
-const INTERNATIONAL_SUBJECTS = [
-  'Additional Mathematics', 'Statistics', 'Combined Science', 'Computer Science', 'Business Studies',
-  'History', 'Global Perspectives', 'Environmental Management', 'Psychology', 'Sociology',
-  'English as a Second Language', 'Spanish', 'German', 'Mandarin Chinese', 'Art and Design',
-  'Design and Technology', 'Music', 'Physical Education', 'IB Theory of Knowledge',
-  'AP Calculus', 'SAT', 'ACT', 'IELTS', 'TOEFL',
-]
-
-export const SUBJECTS = [...NIGERIAN_SUBJECTS, ...INTERNATIONAL_SUBJECTS]
-
-/** The listed spelling of a typed subject (ignoring capitals and extra spaces), or null if it isn't listed. */
-export function listedSubject(name: string): string | null {
+/** The listed spelling of a typed subject (ignoring capitals and extra spaces), or null if it isn't one of
+ * `subjects` (the offered list from `useSubjects`, spec 7 R1). */
+export function listedSubject(name: string, subjects: string[]): string | null {
   const key = name.toLowerCase().split(/\s+/).filter(Boolean).join(' ')
-  return SUBJECTS.find((s) => s.toLowerCase() === key) ?? null
+  return subjects.find((s) => s.toLowerCase() === key) ?? null
 }
 
 export function levelLabel(level?: Level): string {
@@ -96,6 +75,11 @@ export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-GB', {
     weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos',
   })
+}
+
+/** The Nigerian date of an ISO timestamp, e.g. "11 October 2026". */
+export function formatDayOf(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Lagos' })
 }
 
 /** 0.08 -> "8%" */

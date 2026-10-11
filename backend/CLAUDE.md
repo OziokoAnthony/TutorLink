@@ -14,6 +14,7 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 4. `feature-4-tutor-onboarding.md`: sign-up with email or Google, password reset, profile pictures, NIN verification, certificates, the qualifying exam. **Built.**
 5. `feature-5-international.md` (draft: location, NGN/USD, job visibility by country). Not built.
 6. `feature-6-feedback-and-help.md`: feedback to the TutorLink team, admin replies, the Claude help assistant. **Built.**
+7. `feature-7-admin-content.md`: admins keep the subject list and the privacy notice, terms and disclaimer. **Built.**
 
 Read the spec before changing a feature it covers. Requirement ids (R1.2, R5.3…) are the shared
 vocabulary: cite them in docstrings and tests where a rule is enforced. Each spec's acceptance
@@ -100,9 +101,13 @@ Alembic migration per spec or build step in `alembic/versions/`.
 - **Rate limits.** `app/domains/auth/limits.py`: rules per email and per IP on login failures, sign-ups,
   Google sign-in and reset emails, and per user on feedback and help questions (spec 6), counted in
   `rate_limit_hits`. Off in tests (`RATE_LIMITS_ENABLED`) except `tests/test_limits.py`.
-- **Subjects.** Only `app/domains/tutors/subjects.py` subjects are accepted for offers and jobs, because they
-  reach Claude's exam prompt (where they're also fenced as data). The frontend list in `lib/format.ts` must
-  match (`tests/test_subjects.py`).
+- **Subjects (spec 7 R1).** The `subjects` table, kept by admins (`app/domains/content/`), is the only source:
+  offers and jobs are checked with `content.offered(session, names)` when saved (a 422 otherwise), because subject
+  names reach Claude's exam prompt (where they're also fenced as data). A removed subject (`is_offered = false`)
+  stays on existing offers and in the exam. Tests start with `content/defaults.py`'s list, re-seeded after each
+  truncate.
+- **Legal pages (spec 7 R2).** `legal_documents` holds every published version of the privacy notice, terms and
+  disclaimer; the latest is shown. The text is plain (`## `, `- `, `**bold**`), never HTML.
 - **Keys.** `SECRET_KEY` signs tokens; `FILE_SIGNING_KEY`, `FIELD_ENCRYPTION_KEY` and `NIN_HASH_KEY` do their own
   jobs (derived from `SECRET_KEY` while unset in development; required and distinct in production).
 - **Production settings.** With `APP_ENV=production`, `config.py` also refuses to start without live Paystack,

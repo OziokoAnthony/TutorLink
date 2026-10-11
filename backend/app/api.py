@@ -12,6 +12,8 @@ from app.domains.bookings.router import router as bookings_router
 from app.domains.bookings.router import tutor_router as tutor_schedule_router
 from app.domains.certificates.router import admin_router as admin_certificates_router
 from app.domains.certificates.router import router as certificates_router
+from app.domains.content.router import admin_router as admin_content_router
+from app.domains.content.router import router as content_router
 from app.domains.exam.router import admin_router as admin_exam_router
 from app.domains.exam.router import router as exam_router
 from app.domains.feedback.router import admin_router as admin_feedback_router
@@ -46,6 +48,7 @@ for router in (
     wallet_router, banks_router, admin_withdrawals_router,
     earnings_router, admin_payouts_router,
     feedback_router, help_router, admin_feedback_router,
+    content_router, admin_content_router,
     fees_router, notifications_router, files_router, webhooks_router,
 ):
     api_router.include_router(router)

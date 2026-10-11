@@ -25,6 +25,8 @@ from app.core.config import settings
 from app.domains.exam import service as exam_service
 from app.db import models  # noqa: F401  (registers every table for TRUNCATE)
 from app.db.session import get_session
+from app.domains.content import defaults
+from app.domains.content.models import Subject, SubjectGroup, subject_key
 from app.domains.notifications import service as notifications
 from app.domains.payments import service as payments_service
 from app.main import app
@@ -63,9 +65,16 @@ def engine():
 
 @pytest.fixture(autouse=True)
 def clean_tables(engine):
+    """Empties every table, then puts back the starting subjects, which every offer and job needs (spec 7 R1.1)."""
     tables = ", ".join(table.name for table in SQLModel.metadata.sorted_tables)
     with engine.begin() as conn:
         conn.execute(text(f"TRUNCATE {tables} CASCADE"))
+    with Session(engine) as session:
+        session.add_all(Subject(name=name, key=subject_key(name), group=group)
+                        for group, names in ((SubjectGroup.nigerian, defaults.NIGERIAN),
+                                             (SubjectGroup.international, defaults.INTERNATIONAL))
+                        for name in names)
+        session.commit()
 
 
 @pytest.fixture

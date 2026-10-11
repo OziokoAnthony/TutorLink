@@ -20,6 +20,7 @@ from app.domains.auth.models import User
 from app.domains.bookings import schedule
 from app.domains.bookings import service as bookings
 from app.domains.bookings.models import RECORDING_CONSENT, BookingParentView, LessonMode
+from app.domains.content import service as content
 from app.domains.fees import service as fees_service
 from app.domains.job_posts.models import (
     ApplicantView,
@@ -163,6 +164,11 @@ def my_applications(session: Session, tutor: User) -> list[JobTutorView]:
 
 # ---------- Posting and editing (parent) ----------
 
+def _check(session: Session, data: JobIn, now: datetime) -> None:
+    data.subjects = content.offered(session, data.subjects)  # spec 7 R1.5
+    _check_times(data, now)
+
+
 def _check_times(data: JobIn, now: datetime) -> None:
     for i, slot in enumerate(data.slots):
         if any(schedule.overlaps(slot, other) for other in data.slots[i + 1:]):
@@ -193,7 +199,7 @@ def post_job(session: Session, parent: User, data: JobIn, now: datetime | None =
     now = now or clock.now()
     if parent.photo_key is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Add a profile picture before posting a job")
-    _check_times(data, now)
+    _check(session, data, now)
     job = JobPost(parent_id=parent.id, **data.model_dump(exclude={"slots", "recording_consent"}),
                   created_at=now, updated_at=now)
     _write(session, job, data, now)
@@ -211,7 +217,7 @@ def update_job(session: Session, parent: User, job_id: UUID, data: JobIn,
     job = _own(session, parent, job_id, lock=True)
     if job.status not in EDITABLE:
         raise HTTPException(status.HTTP_409_CONFLICT, f"A {job.status.value} job can't be edited")
-    _check_times(data, now)
+    _check(session, data, now)
     _write(session, job, data, now)
     job.status = JobStatus.pending
     job.review_note = None

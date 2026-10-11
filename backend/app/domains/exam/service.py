@@ -42,7 +42,7 @@ from app.domains.exam.models import (
     ExamQuestion,
     ExamStatus,
 )
-from app.domains.tutors import subjects as subject_list
+from app.domains.content import service as content
 from app.domains.tutors.models import (
     EducationLevel,
     TutorOffer,
@@ -95,12 +95,13 @@ def _active_filter():
     return ExamQuestion.retired_at.is_(None)
 
 
-def _tags_from(rows) -> list[Tag]:
-    """Only listed subjects: an offer saved before the list was enforced may hold free text, which must never
-    reach Claude's prompt."""
+def _tags_from(session: Session, rows) -> list[Tag]:
+    """Only listed subjects (offered or removed, spec 7 R1.4): an offer saved before the list was enforced may
+    hold free text, which must never reach Claude's prompt."""
+    names = content.all_names(session)
     tags: dict[Tag, Tag] = {}
     for subject, level in rows:
-        name = subject_list.canonical(subject)
+        name = names.get(" ".join(subject.lower().split()))
         if name is None:
             continue
         tag = Tag(name.lower(), level, name)
@@ -110,7 +111,7 @@ def _tags_from(rows) -> list[Tag]:
 
 def tutor_tags(session: Session, tutor_id: UUID) -> list[Tag]:
     """The subjects and levels of the tutor's active offers."""
-    return _tags_from(session.exec(
+    return _tags_from(session, session.exec(
         select(TutorOfferSubject.subject, TutorOffer.level)
         .join(TutorOffer, TutorOffer.id == TutorOfferSubject.offer_id)
         .where(TutorOffer.tutor_id == tutor_id, TutorOffer.is_active == True)  # noqa: E712
@@ -119,7 +120,7 @@ def tutor_tags(session: Session, tutor_id: UUID) -> list[Tag]:
 
 def tags_in_use(session: Session) -> list[Tag]:
     """Every subject and level in some tutor's active offer: the bank keeps these filled (R5.2)."""
-    return _tags_from(session.exec(
+    return _tags_from(session, session.exec(
         select(TutorOfferSubject.subject, TutorOffer.level)
         .join(TutorOffer, TutorOffer.id == TutorOfferSubject.offer_id)
         .where(TutorOffer.is_active == True)  # noqa: E712

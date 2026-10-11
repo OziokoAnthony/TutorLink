@@ -620,3 +620,33 @@ export interface JobFiltersValue {
   mode?: LessonMode
   area?: string
 }
+
+// ---------- Subjects and legal pages, kept by admins (spec 7) ----------
+
+export type SubjectGroup = 'nigerian' | 'international'
+
+export interface Subject {
+  name: string
+  group: SubjectGroup
+}
+
+export interface SubjectAdmin extends Subject {
+  id: string
+  is_offered: boolean
+  /** Active tutor offers that teach it. */
+  offers: number
+}
+
+export type LegalKind = 'privacy' | 'terms' | 'disclaimer'
+
+export interface LegalDocument {
+  kind: LegalKind
+  body: string
+  published_at: string
+}
+
+export interface LegalVersion extends LegalDocument {
+  id: string
+  /** The publishing admin's email; null for the starting version. */
+  published_by: string | null
+}

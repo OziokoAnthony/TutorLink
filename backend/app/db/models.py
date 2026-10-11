@@ -3,6 +3,7 @@
 from app.domains.auth import models as auth_models  # noqa: F401
 from app.domains.bookings import models as bookings_models  # noqa: F401
 from app.domains.certificates import models as certificates_models  # noqa: F401
+from app.domains.content import models as content_models  # noqa: F401
 from app.domains.exam import models as exam_models  # noqa: F401
 from app.domains.feedback import models as feedback_models  # noqa: F401
 from app.domains.fees import models as fees_models  # noqa: F401
