@@ -11,7 +11,7 @@ import Choice from '@/components/shared/Choice'
 import RecordingConsent from '@/components/shared/RecordingConsent'
 import { useSubjects } from '@/hooks/useSubjects'
 import { BILLING_PERIODS, CERTIFICATES, DAYS, LEVELS, formatTime, listedSubject, toISODate } from '@/lib/format'
-import type { BillingPeriod, CertificateType, Job, JobInput, LessonMode, Level, WeeklyTime } from '@/types'
+import type { BillingPeriod, CertificateType, Job, JobInput, LessonMode, Level, TutorFiltersValue, WeeklyTime } from '@/types'
 
 const NONE = 'none'
 const toMinutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
@@ -19,20 +19,22 @@ const overlaps = (a: WeeklyTime, b: WeeklyTime) => a.day_of_week === b.day_of_we
   && toMinutes(a.start_time) < toMinutes(b.end_time) && toMinutes(a.end_time) > toMinutes(b.start_time)
 
 /** Post a job, or edit an open one: what to teach, when, where, the price per lesson and about the child. */
-export default function JobForm({ initial, submitLabel, onSubmit, onCancel }: {
+export default function JobForm({ initial, suggested, submitLabel, onSubmit, onCancel }: {
   initial?: Job
+  /** What the parent searched for on Find Tutors, as a starting point for a new job. */
+  suggested?: TutorFiltersValue
   submitLabel: string
   onSubmit: (input: JobInput) => Promise<void>
   onCancel?: () => void
 }) {
   const tomorrow = useMemo(() => { const d = new Date(); d.setDate(d.getDate() + 1); return toISODate(d) }, [])
-  const [subjects, setSubjects] = useState<string[]>(initial?.subjects ?? [])
+  const [subjects, setSubjects] = useState<string[]>(initial?.subjects ?? (suggested?.subject ? [suggested.subject] : []))
   const subjectNames = useSubjects().map((s) => s.name)
   const [subjectDraft, setSubjectDraft] = useState('')
   const [subjectProblem, setSubjectProblem] = useState<string | null>(null)
-  const [level, setLevel] = useState<Level>(initial?.level ?? 'primary')
+  const [level, setLevel] = useState<Level>(initial?.level ?? suggested?.level ?? 'primary')
   const [mode, setMode] = useState<LessonMode>(initial?.mode ?? 'offline')
-  const [area, setArea] = useState(initial?.area ?? '')
+  const [area, setArea] = useState(initial?.area ?? suggested?.area ?? '')
   const [consent, setConsent] = useState(initial?.mode === 'online')
   const [slots, setSlots] = useState<WeeklyTime[]>(initial?.slots.map((s) => ({
     ...s, start_time: formatTime(s.start_time), end_time: formatTime(s.end_time),

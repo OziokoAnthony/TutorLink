@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import JobForm from '@/components/jobs/JobForm'
@@ -12,10 +13,21 @@ import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import { errorMessage } from '@/lib/api'
 import { postJob } from '@/lib/jobs'
-import type { JobInput } from '@/types'
+import type { JobInput, Level } from '@/types'
 
 export default function NewJobPage() {
+  return <Suspense fallback={<LoadingSpinner />}><NewJob /></Suspense>
+}
+
+function NewJob() {
   const router = useRouter()
+  // From Find Tutors: what the parent searched for and didn't find.
+  const params = useSearchParams()
+  const suggested = {
+    subject: params.get('subject') ?? undefined,
+    level: (params.get('level') as Level | null) ?? undefined,
+    area: params.get('area') ?? undefined,
+  }
   const toast = useToast()
   const { user } = useAuth()
 
@@ -39,7 +51,7 @@ export default function NewJobPage() {
           action={<Button asChild><Link href="/dashboard/parent">Add my picture</Link></Button>} />
       ) : (
         <Card><CardContent className="pt-6">
-          <JobForm submitLabel="Post job" onSubmit={submit} onCancel={() => router.push('/dashboard/parent/jobs')} />
+          <JobForm suggested={suggested} submitLabel="Post job" onSubmit={submit} onCancel={() => router.push('/dashboard/parent/jobs')} />
         </CardContent></Card>
       )}
     </>
