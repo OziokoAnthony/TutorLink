@@ -1,2 +1,5 @@
 # Local Claude Code settings (per machine)
 .claude/settings.local.json
+
+# Cloudflare CLI cache
+.cloudflare/
