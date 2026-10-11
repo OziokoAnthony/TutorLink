@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import AuthShell from '@/components/auth/AuthShell'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -55,37 +56,39 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-md px-4 py-16">
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle className="text-2xl">Log in</CardTitle>
-          <CardDescription>Welcome back to TutorLink.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-            <FormField id="email" label="Email" error={errors.email?.message}>
-              <Input id="email" type="email" autoComplete="email" {...register('email')} aria-invalid={!!errors.email} />
-            </FormField>
-            <FormField id="password" label="Password" error={errors.password?.message}>
-              <Input id="password" type="password" autoComplete="current-password" {...register('password')} aria-invalid={!!errors.password} />
-            </FormField>
-            <p className="-mt-2 text-right text-sm">
-              <Link href="/forgot-password" className="text-primary hover:underline">Forgot password?</Link>
-            </p>
-            {formError && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{formError}</p>}
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? 'Logging in…' : 'Log in'}
-            </Button>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" />
-            </div>
-            <GoogleButton onCredential={onGoogle} />
-            <p className="text-center text-sm text-muted-foreground">
-              New to TutorLink? <Link href="/register" className="font-medium text-primary hover:underline">Create an account</Link>
-            </p>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+    <AuthShell>
+      <div className="mx-auto flex w-full max-w-md px-4 py-16">
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="text-2xl">Log in</CardTitle>
+            <CardDescription>Welcome back to TutorLink.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+              <FormField id="email" label="Email" error={errors.email?.message}>
+                <Input id="email" type="email" autoComplete="email" {...register('email')} aria-invalid={!!errors.email} />
+              </FormField>
+              <FormField id="password" label="Password" error={errors.password?.message}>
+                <Input id="password" type="password" autoComplete="current-password" {...register('password')} aria-invalid={!!errors.password} />
+              </FormField>
+              <p className="-mt-2 text-right text-sm">
+                <Link href="/forgot-password" className="text-primary hover:underline">Forgot password?</Link>
+              </p>
+              {formError && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{formError}</p>}
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? 'Logging in…' : 'Log in'}
+              </Button>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" />
+              </div>
+              <GoogleButton onCredential={onGoogle} />
+              <p className="text-center text-sm text-muted-foreground">
+                New to TutorLink? <Link href="/register" className="font-medium text-primary hover:underline">Create an account</Link>
+              </p>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </AuthShell>
   )
 }
