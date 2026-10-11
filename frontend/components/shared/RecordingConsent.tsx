@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { RECORDING_CONSENT } from '@/lib/format'
 
 /** The consent a parent must give before booking or posting online lessons (spec 3 R1.4). */
@@ -9,7 +10,8 @@ export default function RecordingConsent({ checked, onChange }: { checked: boole
       <span>
         I agree: {RECORDING_CONSENT}
         <span className="block text-xs text-muted-foreground">
-          The tutor uploads each lesson&apos;s recording. Only you, the tutor and TutorLink can watch it, and it&apos;s deleted after 90 days.
+          The tutor uploads each lesson&apos;s recording. Only you, the tutor and TutorLink can watch it, and it&apos;s deleted after 90 days.{' '}
+          <Link href="/privacy" target="_blank" className="underline hover:text-foreground">Privacy notice</Link>
         </span>
       </span>
     </label>

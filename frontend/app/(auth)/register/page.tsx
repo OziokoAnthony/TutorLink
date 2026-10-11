@@ -266,6 +266,11 @@ function Register() {
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? 'Creating account…' : 'Create account'}
             </Button>
+            <p className="text-center text-xs text-muted-foreground">
+              By creating an account you agree to our{' '}
+              <Link href="/terms" target="_blank" className="underline hover:text-foreground">terms of service</Link> and{' '}
+              <Link href="/privacy" target="_blank" className="underline hover:text-foreground">privacy notice</Link>.
+            </p>
             <p className="text-center text-sm text-muted-foreground">
               Already have an account? <Link href="/login" className="font-medium text-primary hover:underline">Log in</Link>
             </p>
