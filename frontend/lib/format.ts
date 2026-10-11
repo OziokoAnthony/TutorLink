@@ -1,5 +1,5 @@
 import type {
-  ApplicationStatus, BillingPeriod, BookingStatus, CertificateStatus, CertificateType, JobStatus, EarningStatus, IssueKind, Level, LessonStatus, PeriodStatus, RefundStatus,
+  ApplicationStatus, BillingPeriod, BookingStatus, CertificateStatus, CertificateType, JobStatus, EarningStatus, FeedbackKind, IssueKind, Level, LessonStatus, PeriodStatus, RefundStatus,
   TransferStatus, VettingStatus, WeeklyTime,
 } from '@/types'
 
@@ -145,6 +145,17 @@ export const ISSUE_KINDS: { value: Exclude<IssueKind, 'no_report'>; label: strin
 export const ISSUE_KIND_LABEL: Record<IssueKind, string> = {
   ...Object.fromEntries(ISSUE_KINDS.map((k) => [k.value, k.label])) as Record<Exclude<IssueKind, 'no_report'>, string>,
   no_report: 'Tutor did not report the lesson',
+}
+
+export const FEEDBACK_KINDS: { value: FeedbackKind; label: string; hint: string }[] = [
+  { value: 'problem', label: 'A problem', hint: 'Something is wrong or not working' },
+  { value: 'suggestion', label: 'A suggestion', hint: 'An idea to make TutorLink better' },
+  { value: 'question', label: 'A question', hint: 'Something you want to know' },
+  { value: 'praise', label: 'Praise', hint: 'Something you liked' },
+]
+
+export const FEEDBACK_KIND_LABEL: Record<FeedbackKind, string> = {
+  problem: 'Problem', suggestion: 'Suggestion', question: 'Question', praise: 'Praise',
 }
 
 export const VETTING_STATUS_LABEL: Record<VettingStatus, string> = {

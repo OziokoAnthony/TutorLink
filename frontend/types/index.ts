@@ -524,6 +524,30 @@ export interface NotificationList {
   items: AppNotification[]
 }
 
+// ---------- Feedback and the help assistant (spec 6) ----------
+
+export type FeedbackKind = 'problem' | 'suggestion' | 'praise' | 'question'
+
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface Feedback {
+  id: string
+  kind: FeedbackKind
+  message: string
+  transcript: ChatMessage[] | null
+  reply: string | null
+  replied_at: string | null
+  created_at: string
+  // Admin only
+  user_id?: string
+  user_name?: string | null
+  user_email?: string
+  user_role?: Role
+}
+
 // ---------- Job posts (spec 2) ----------
 
 /** What a parent sends to post or edit a job. */

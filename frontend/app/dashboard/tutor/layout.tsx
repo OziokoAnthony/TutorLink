@@ -1,5 +1,11 @@
+import HelpChat from '@/components/feedback/HelpChat'
 import DashboardShell from '@/components/layout/DashboardShell'
 
 export default function TutorLayout({ children }: { children: React.ReactNode }) {
-  return <DashboardShell role="tutor">{children}</DashboardShell>
+  return (
+    <DashboardShell role="tutor">
+      {children}
+      <HelpChat role="tutor" />
+    </DashboardShell>
+  )
 }

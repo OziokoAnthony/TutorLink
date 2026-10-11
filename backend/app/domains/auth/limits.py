@@ -39,6 +39,11 @@ RESET_EMAIL = Rule("reset-email", 3, timedelta(hours=1),
                    "We've already sent several reset links. Check your inbox and spam folder, or try again later.")
 RESET_IP = Rule("reset-ip", 10, timedelta(hours=1), TRY_LATER)
 RESET_USE_IP = Rule("reset-use-ip", 10, timedelta(minutes=15), TRY_LATER)
+# Feedback and the help assistant (spec 6 R1.3, R3.5), per user id.
+FEEDBACK_USER = Rule("feedback-user", 10, timedelta(hours=1),
+                     "You've sent a lot of feedback in the last hour. Please try again later.")
+HELP_USER = Rule("help-user", 30, timedelta(hours=1),
+                 "You've asked a lot of questions in the last hour. Please try again later, or send us feedback.")
 
 
 def client_ip(request: Request) -> str:

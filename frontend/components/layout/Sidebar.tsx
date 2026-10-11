@@ -13,6 +13,7 @@ export const LINKS: Record<Role, { href: string; label: string }[]> = {
     { href: '/dashboard/parent/lessons', label: 'Lessons' },
     { href: '/dashboard/parent/wallet', label: 'Payments & Receipts' },
     { href: '/tutors', label: 'Find Tutors' },
+    { href: '/dashboard/parent/feedback', label: 'Help & feedback' },
   ],
   tutor: [
     { href: '/dashboard/tutor', label: 'Overview' },
@@ -21,6 +22,7 @@ export const LINKS: Record<Role, { href: string; label: string }[]> = {
     { href: '/dashboard/tutor/lessons', label: 'Lessons' },
     { href: '/dashboard/tutor/earnings', label: 'Earnings & Receipts' },
     { href: '/dashboard/tutor/profile', label: 'Profile & Offers' },
+    { href: '/dashboard/tutor/feedback', label: 'Help & feedback' },
   ],
   admin: [
     { href: '/admin/tutors', label: 'Vet Tutors' },
@@ -32,6 +34,7 @@ export const LINKS: Record<Role, { href: string; label: string }[]> = {
     { href: '/admin/refunds', label: 'Refunds' },
     { href: '/admin/withdrawals', label: 'Withdrawals' },
     { href: '/admin/fees', label: 'Fees' },
+    { href: '/admin/feedback', label: 'Feedback' },
   ],
 }
 

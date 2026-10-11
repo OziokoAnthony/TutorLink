@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     # Claude writes and checks the qualifying exam's questions (spec 4 R5.2).
     ANTHROPIC_API_KEY: str = ""
     EXAM_MODEL: str = "claude-opus-5-5"
+    HELP_MODEL: str = "claude-opus-5-5"  # the help assistant (spec 6 R3)
 
     # A private S3-compatible bucket for uploaded files (Backblaze B2, Cloudflare R2…). While unset, files are
     # kept under LOCAL_STORAGE_DIR (development only).
