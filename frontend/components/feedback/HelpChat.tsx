@@ -15,6 +15,9 @@ const GREETING: Record<'parent' | 'tutor', string> = {
   tutor: 'Hi! Ask me about getting verified, the quiz, bookings, lesson reports or getting paid.',
 }
 
+// R3.5: a conversation holds at most 40 messages, which is also the most the backend accepts.
+const MAX_MESSAGES = 40
+
 /**
  * Spec 6 R3: the help assistant, a chat bubble on every parent and tutor page. The conversation stays in the
  * browser (it survives moving between dashboard pages) until the user sends it to the TutorLink team.
@@ -33,17 +36,20 @@ export default function HelpChat({ role }: { role: Role }) {
 
   if (role === 'admin') return null
 
+  // Room for one more question and its answer.
+  const full = messages.length + 2 > MAX_MESSAGES
+
   async function ask(e?: React.FormEvent) {
     e?.preventDefault()
     const question = draft.trim()
-    if (!question || thinking) return
+    if (!question || thinking || full) return
     const next: ChatMessage[] = [...messages, { role: 'user', content: question }]
     setMessages(next)
     setDraft('')
     setSentToTeam(false)
     setThinking(true)
     try {
-      const reply = await askHelp(next.slice(-40))
+      const reply = await askHelp(next)
       setMessages([...next, { role: 'assistant', content: reply }])
     } catch (err) {
       toast.error(errorMessage(err))
@@ -58,7 +64,7 @@ export default function HelpChat({ role }: { role: Role }) {
     const first = messages.find((m) => m.role === 'user')?.content ?? ''
     setSending(true)
     try {
-      await sendFeedback('question', `From the help chat: ${first}`.slice(0, 2000), messages.slice(-40))
+      await sendFeedback('question', `From the help chat: ${first}`.slice(0, 2000), messages)
       setSentToTeam(true)
       toast.success("Sent. The TutorLink team will reply in your notifications and by email.")
     } catch (err) {
@@ -100,15 +106,25 @@ export default function HelpChat({ role }: { role: Role }) {
                   {sending ? 'Sending…' : 'Not answered? Send to the TutorLink team'}
                 </button>
               )}
+              {full && (
+                <p className="mt-1 text-muted-foreground">
+                  This chat is full.{' '}
+                  <button type="button" onClick={() => { setMessages([]); setSentToTeam(false) }}
+                    className="font-medium text-primary underline-offset-4 hover:underline">
+                    Start a new chat
+                  </button>
+                </p>
+              )}
             </div>
           )}
 
           <form onSubmit={ask} className="flex items-end gap-2 border-t p-3">
-            <Textarea rows={2} maxLength={4000} value={draft} placeholder="Type your question"
+            <Textarea rows={2} maxLength={4000} value={draft} disabled={full}
+              placeholder={full ? 'This chat is full' : 'Type your question'}
               aria-label="Your question" className="min-h-0 resize-none"
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask() } }} />
-            <Button type="submit" size="icon" disabled={thinking || !draft.trim()} aria-label="Send">
+            <Button type="submit" size="icon" disabled={thinking || full || !draft.trim()} aria-label="Send">
               <Send className="h-4 w-4" />
             </Button>
           </form>
