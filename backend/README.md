@@ -38,7 +38,6 @@ The API refuses to start without these (`app/core/config.py` checks them). Gener
 | `RESEND_API_KEY` | `APP_ENV=production` | Without it no email is sent, so password reset doesn't work. |
 | `DOJAH_APP_ID`, `DOJAH_SECRET_KEY`, `DOJAH_BASE_URL` | `APP_ENV=production` | Live keys and `https://api.dojah.io`, not the sandbox. Without them no tutor can be approved. |
 | `STORAGE_ENDPOINT_URL`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_BUCKET` | `APP_ENV=production` | The bucket. Without it, files would go to the container's disk and be lost on redeploy. |
-| `COOKIE_DOMAIN` | `APP_ENV=production` | The domain the site and the API share (e.g. `tutorlink.ng`), so the site's middleware can see the login cookie. |
 | `BASE_URL`, `FRONTEND_URL` | `APP_ENV=production` | `https://` addresses: the login cookie is then marked Secure and HSTS is sent. |
 
 When several are missing, the error lists them all. `docker compose` also refuses to start without
@@ -55,6 +54,9 @@ The API starts without these, but set them in production:
 
 - `TRUST_PROXY_HEADERS=true`, only behind a proxy or CDN (Render, Cloudflare). Without it, rate limits count
   the proxy's address, so one person's failed logins can block everyone.
+- `COOKIE_DOMAIN`, when the site and the API are on sibling subdomains (e.g. `tutorlink.ng` for `tutorlink.ng`
+  and `api.tutorlink.ng`), so the site's middleware can see the login cookie. Leave it empty when the site forwards
+  `/api/v1` to the API (free `*.vercel.app` addresses: the frontend's `API_PROXY_TARGET`).
 - `GOOGLE_CLIENT_ID` and `ANTHROPIC_API_KEY`: without them, Google sign-in, exam generation and the help
   assistant are off.
 

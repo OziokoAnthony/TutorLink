@@ -93,8 +93,9 @@ Alembic migration per spec or build step in `alembic/versions/`.
   can't be filled and by `jobs.run_once` (`top_up_bank`, outside `run_all`). In tests the `claude` fixture
   fakes Claude (`helpers.FakeClaude`, whose right options end in `helpers.CORRECT`) and runs generation at
   once; `helpers.take_exam(client, tutor, right=N)` takes a whole attempt.
-- **Sessions.** Login responses set the token as an httpOnly cookie (`deps.SESSION_COOKIE`, SameSite=Lax,
-  `COOKIE_DOMAIN` in production); `get_current_user` also accepts a Bearer header (API clients, tests).
+- **Sessions.** Login responses set the token as an httpOnly cookie (`deps.SESSION_COOKIE`, SameSite=Lax;
+  `COOKIE_DOMAIN` when the site and API share a parent domain, unset when the site forwards `/api/v1`);
+  `get_current_user` also accepts a Bearer header (API clients, tests). Every response is `Cache-Control: no-store`.
   A cookie-authenticated POST/PUT/PATCH/DELETE needs `X-Requested-With: TutorLink` (CSRF). Tokens carry
   `users.token_version`; `auth.service._end_all_sessions` raises it on a password change or reset. Admin
   tokens last `ADMIN_TOKEN_EXPIRE_MINUTES` (4 h). The test `client` keeps no cookies; use `browser` for them.
@@ -111,7 +112,7 @@ Alembic migration per spec or build step in `alembic/versions/`.
 - **Keys.** `SECRET_KEY` signs tokens; `FILE_SIGNING_KEY`, `FIELD_ENCRYPTION_KEY` and `NIN_HASH_KEY` do their own
   jobs (derived from `SECRET_KEY` while unset in development; required and distinct in production).
 - **Production settings.** With `APP_ENV=production`, `config.py` also refuses to start without live Paystack,
-  Resend, Dojah and bucket settings, `COOKIE_DOMAIN` and `https://` URLs (`production_services_are_live`).
+  Resend, Dojah and bucket settings and `https://` URLs (`production_services_are_live`).
   A new setting production can't work without belongs in that list.
 - **Errors.** Raise `HTTPException` with a plain-English `detail` the frontend can show as is:
   404 when it doesn't exist, 403 for the wrong role or someone else's resource, 409 for a state

@@ -21,8 +21,10 @@ class Settings(BaseSettings):
     NIN_HASH_KEY: str = ""
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     ADMIN_TOKEN_EXPIRE_MINUTES: int = 240
-    # The login cookie's domain. Unset on localhost; in production the parent domain shared by the site and the
-    # API (e.g. "tutorlink.ng" for www.tutorlink.ng and api.tutorlink.ng), so the site's middleware can read it.
+    # The login cookie's domain: the parent domain when the site and the API are on sibling subdomains (e.g.
+    # "tutorlink.ng" for tutorlink.ng and api.tutorlink.ng), so the site's middleware can read it. Unset on
+    # localhost, and when the site forwards /api/v1 to the API (free *.vercel.app addresses): the cookie then
+    # belongs to the site's own address.
     COOKIE_DOMAIN: str | None = None
     BASE_URL: str = "http://localhost:8000"
     FRONTEND_URL: str = "http://localhost:3000"
@@ -101,8 +103,7 @@ class Settings(BaseSettings):
             return self
         missing = [name for name in ("PAYSTACK_SECRET_KEY", "PAYSTACK_WEBHOOK_SECRET", "RESEND_API_KEY",
                                      "DOJAH_APP_ID", "DOJAH_SECRET_KEY", "STORAGE_ENDPOINT_URL",
-                                     "STORAGE_ACCESS_KEY_ID", "STORAGE_SECRET_ACCESS_KEY", "STORAGE_BUCKET",
-                                     "COOKIE_DOMAIN")
+                                     "STORAGE_ACCESS_KEY_ID", "STORAGE_SECRET_ACCESS_KEY", "STORAGE_BUCKET")
                    if is_placeholder(getattr(self, name) or "")]
         if self.PAYSTACK_SECRET_KEY.startswith("sk_test_"):
             missing.append("PAYSTACK_SECRET_KEY (a live sk_live_ key, not a test key)")
