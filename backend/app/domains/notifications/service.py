@@ -105,16 +105,24 @@ def mark_read(session: Session, user_id: UUID, notification_id: UUID | None) -> 
 
 # ---------- Account emails (email only) ----------
 
-def tutor_application_received(to: str, name: str, work_email: str, password: str) -> None:
-    """Sends the tutor their login: work email and generated password. Their work email never gets mail."""
+def tutor_application_received(to: str, name: str) -> None:
+    """Tells a new tutor their application is in and what to do next."""
     send_email(
         to,
         "We received your application",
         _wrap(name, "<p>Thanks for applying to tutor on TutorLink. We'll review your profile and get back to you soon.</p>"
-                    "<p>Log in to TutorLink with:</p>"
-                    f"<p>Email: <strong>{escape(work_email)}</strong><br>Password: <strong>{escape(password)}</strong></p>"
-                    "<p>You can change your password in your profile once you've logged in. "
-                    "Your TutorLink email is only for logging in: we'll keep sending messages to this address.</p>"),
+                    "<p>Log in with this email address to finish the steps on your dashboard: your picture, NIN, "
+                    "a certificate and the qualifying exam.</p>"),
+    )
+
+
+def password_reset_email(name: str, link: str) -> tuple[str, str]:
+    """(subject, html) of the "Forgot password?" email (spec 4 R0.7)."""
+    return "Reset your TutorLink password", _wrap(
+        name,
+        "<p>To set a new password, open this link. It works once and expires in 1 hour.</p>"
+        f'<p><a href="{escape(link)}">Set a new password</a></p>'
+        "<p>If you didn't ask for this, you can ignore this email: your password stays the same.</p>",
     )
 
 

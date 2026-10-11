@@ -29,7 +29,8 @@ def urls_for(session: Session, user_ids) -> dict[UUID, str]:
     return {uid: storage.url(key, URL_SECONDS) for uid, key in rows}
 
 
-def _square_jpeg(data: bytes) -> bytes:
+def square_jpeg(data: bytes, label: str = "Profile pictures") -> bytes:
+    """A JPG, PNG or WebP image as a 512x512 JPEG (also used for the NIN selfie, spec 4 R3.2)."""
     try:
         image = Image.open(io.BytesIO(data))
         image_format = image.format
@@ -37,7 +38,7 @@ def _square_jpeg(data: bytes) -> bytes:
     except (UnidentifiedImageError, OSError):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The file is not a JPG, PNG or WebP image")
     if image_format not in ALLOWED_FORMATS:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Profile pictures must be JPG, PNG or WebP")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{label} must be JPG, PNG or WebP")
     image = ImageOps.exif_transpose(image).convert("RGB")
     image = ImageOps.fit(image, (SIZE, SIZE), Image.Resampling.LANCZOS)
     out = io.BytesIO()
@@ -45,15 +46,15 @@ def _square_jpeg(data: bytes) -> bytes:
     return out.getvalue()
 
 
-def read_upload(file: UploadFile) -> bytes:
+def read_upload(file: UploadFile, label: str = "Profile pictures") -> bytes:
     data = file.file.read(MAX_BYTES + 1)
     if len(data) > MAX_BYTES:
-        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Profile pictures can be at most 5 MB")
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, f"{label} can be at most 5 MB")
     return data
 
 
 def set_photo(session: Session, user: User, data: bytes) -> str:
-    jpeg = _square_jpeg(data)
+    jpeg = square_jpeg(data)
     key = f"photos/{user.id}/{uuid4().hex}.jpg"
     storage.save(key, jpeg, "image/jpeg")
     old_key = user.photo_key

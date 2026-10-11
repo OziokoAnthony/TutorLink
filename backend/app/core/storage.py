@@ -1,4 +1,5 @@
-"""Private file storage: Cloudflare R2 when configured, otherwise a local folder (development only).
+"""Private file storage: an S3-compatible bucket (Backblaze B2, Cloudflare R2…) when configured, otherwise a
+local folder (development only).
 
 Files are never public. Callers hand out short-lived signed URLs from `url()`.
 """
@@ -18,20 +19,25 @@ for _type, _ext in (("video/mp4", ".mp4"), ("video/webm", ".webm"), ("video/quic
     mimetypes.add_type(_type, _ext)
 
 
-def r2_configured() -> bool:
-    return all([settings.R2_ACCOUNT_ID, settings.R2_ACCESS_KEY_ID, settings.R2_SECRET_ACCESS_KEY, settings.R2_BUCKET])
+def bucket_configured() -> bool:
+    return all([settings.STORAGE_ENDPOINT_URL, settings.STORAGE_ACCESS_KEY_ID, settings.STORAGE_SECRET_ACCESS_KEY,
+                settings.STORAGE_BUCKET])
 
 
 @lru_cache
-def _r2_client():
-    import boto3  # imported lazily: only needed when R2 is configured
+def _client():
+    import boto3  # imported lazily: only needed when a bucket is configured
+    from botocore.config import Config
 
     return boto3.client(
         "s3",
-        endpoint_url=f"https://{settings.R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
-        aws_access_key_id=settings.R2_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
-        region_name="auto",
+        endpoint_url=settings.STORAGE_ENDPOINT_URL,
+        aws_access_key_id=settings.STORAGE_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.STORAGE_SECRET_ACCESS_KEY,
+        region_name=settings.STORAGE_REGION,
+        # B2 and R2 reject the checksum headers newer boto3 adds by default.
+        config=Config(signature_version="s3v4", request_checksum_calculation="when_required",
+                      response_checksum_validation="when_required"),
     )
 
 
@@ -44,8 +50,8 @@ def _local_path(key: str) -> Path:
 
 
 def save(key: str, data: bytes, content_type: str) -> None:
-    if r2_configured():
-        _r2_client().put_object(Bucket=settings.R2_BUCKET, Key=key, Body=data, ContentType=content_type)
+    if bucket_configured():
+        _client().put_object(Bucket=settings.STORAGE_BUCKET, Key=key, Body=data, ContentType=content_type)
         return
     path = _local_path(key)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -53,21 +59,22 @@ def save(key: str, data: bytes, content_type: str) -> None:
 
 
 def delete(key: str) -> None:
-    if r2_configured():
-        _r2_client().delete_object(Bucket=settings.R2_BUCKET, Key=key)
+    if bucket_configured():
+        _client().delete_object(Bucket=settings.STORAGE_BUCKET, Key=key)
         return
     _local_path(key).unlink(missing_ok=True)
 
 
 def local_signature(key: str, expires: int) -> str:
-    return hmac.new(settings.SECRET_KEY.encode(), f"{key}:{expires}".encode(), hashlib.sha256).hexdigest()
+    secret = settings.FILE_SIGNING_KEY or settings.SECRET_KEY  # unset while developing
+    return hmac.new(secret.encode(), f"{key}:{expires}".encode(), hashlib.sha256).hexdigest()
 
 
 def url(key: str, expires_in: int = 900) -> str:
     """A URL that lets whoever holds it read the file for `expires_in` seconds."""
-    if r2_configured():
-        return _r2_client().generate_presigned_url(
-            "get_object", Params={"Bucket": settings.R2_BUCKET, "Key": key}, ExpiresIn=expires_in,
+    if bucket_configured():
+        return _client().generate_presigned_url(
+            "get_object", Params={"Bucket": settings.STORAGE_BUCKET, "Key": key}, ExpiresIn=expires_in,
         )
     expires = int(time.time()) + expires_in
     return f"{settings.BASE_URL}/v1/files/{quote(key)}?expires={expires}&sig={local_signature(key, expires)}"
@@ -84,10 +91,10 @@ def read_local(key: str) -> tuple[bytes, str] | None:
 def upload_url(key: str, content_type: str, size: int, expires_in: int = 900) -> str:
     """A URL the browser PUTs the file to directly, so large files never pass through the API. The
     content type and exact size are part of the signature: a different file is refused."""
-    if r2_configured():
-        return _r2_client().generate_presigned_url(
+    if bucket_configured():
+        return _client().generate_presigned_url(
             "put_object",
-            Params={"Bucket": settings.R2_BUCKET, "Key": key, "ContentType": content_type, "ContentLength": size},
+            Params={"Bucket": settings.STORAGE_BUCKET, "Key": key, "ContentType": content_type, "ContentLength": size},
             ExpiresIn=expires_in,
         )
     expires = int(time.time()) + expires_in
@@ -102,11 +109,11 @@ def upload_signing_key(key: str, content_type: str, size: int) -> str:
 
 def head(key: str) -> tuple[int, str] | None:
     """(size in bytes, content type) of a stored file, or None if there is no such file."""
-    if r2_configured():
+    if bucket_configured():
         from botocore.exceptions import ClientError
 
         try:
-            found = _r2_client().head_object(Bucket=settings.R2_BUCKET, Key=key)
+            found = _client().head_object(Bucket=settings.STORAGE_BUCKET, Key=key)
         except ClientError:
             return None
         return int(found["ContentLength"]), found.get("ContentType") or "application/octet-stream"

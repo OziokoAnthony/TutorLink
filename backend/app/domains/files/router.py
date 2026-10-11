@@ -1,5 +1,5 @@
-"""Serves and receives files in local storage via signed links (development only, while R2 isn't
-configured). With R2, the browser reads and uploads with R2's own signed URLs instead."""
+"""Serves and receives files in local storage via signed links (development only, while no bucket is
+configured). With a bucket, the browser reads and uploads with the bucket's own signed URLs instead."""
 
 import hmac
 import time
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/files", tags=["files"])
 
 @router.get("/{key:path}")
 def get_file(key: str, expires: int, sig: str):
-    if storage.r2_configured():
+    if storage.bucket_configured():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
     if expires < time.time() or not hmac.compare_digest(sig, storage.local_signature(key, expires)):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Link expired or invalid")
@@ -29,8 +29,8 @@ def get_file(key: str, expires: int, sig: str):
 
 @router.put("/{key:path}", status_code=status.HTTP_204_NO_CONTENT)
 async def put_file(key: str, request: Request, expires: int, size: int, type: str, sig: str):
-    """The local stand-in for an R2 presigned upload: the body must be exactly `size` bytes."""
-    if storage.r2_configured():
+    """The local stand-in for a bucket presigned upload: the body must be exactly `size` bytes."""
+    if storage.bucket_configured():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
     expected = storage.local_signature(storage.upload_signing_key(key, type, size), expires)
     if expires < time.time() or not hmac.compare_digest(sig, expected):

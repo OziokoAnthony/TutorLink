@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,7 +19,8 @@ import { errorMessage } from '@/lib/api'
 import { chooseApplicant, closeJob, getApplicants, getJob, updateJob } from '@/lib/jobs'
 import type { Applicant, Job, JobInput } from '@/types'
 
-export default function ParentJobPage({ params }: { params: { id: string } }) {
+export default function ParentJobPage() {
+  const params = useParams<{ id: string }>()
   const router = useRouter()
   const toast = useToast()
   const [job, setJob] = useState<Job | null>(null)
@@ -38,7 +39,7 @@ export default function ParentJobPage({ params }: { params: { id: string } }) {
   async function save(input: JobInput) {
     try {
       setJob(await updateJob(params.id, input))
-      toast.success('Job updated. Applicants have been told.')
+      toast.success("Job updated. We'll check the changes before tutors see it again.")
       setEditing(false)
       load()
     } catch (error) {
@@ -71,18 +72,32 @@ export default function ParentJobPage({ params }: { params: { id: string } }) {
 
   if (!job || !applicants) return <LoadingSpinner />
   const open = job.status === 'open'
+  // Editable and closable until a tutor is chosen; an edit goes back for review.
+  const editable = open || job.status === 'pending' || job.status === 'rejected'
 
   return (
     <>
       <PageHeader title="Your job" description={open ? 'Tutors can apply until you choose one or close the job.' : undefined}
         action={<Button variant="outline" asChild><Link href="/dashboard/parent/jobs">All my jobs</Link></Button>} />
       <div className="space-y-6">
+        {job.status === 'pending' && (
+          <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            TutorLink is checking your job. Tutors will see it once it&apos;s approved, and we&apos;ll let you know.
+          </p>
+        )}
+        {job.status === 'rejected' && (
+          <div className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <p className="font-medium">Your job wasn&apos;t approved.</p>
+            {job.review_note && <p className="mt-1">Reason: {job.review_note}</p>}
+            <p className="mt-1">Edit it to fix the problem and it will be checked again.</p>
+          </div>
+        )}
         {editing ? (
           <Card><CardContent className="pt-6">
             <JobForm initial={job} submitLabel="Save changes" onSubmit={save} onCancel={() => setEditing(false)} />
           </CardContent></Card>
         ) : (
-          <JobSummary job={job} full actions={open && (
+          <JobSummary job={job} full actions={editable && (
             <>
               <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Edit</Button>
               <Button size="sm" variant="outline" onClick={() => setClosing(true)}>Close job</Button>

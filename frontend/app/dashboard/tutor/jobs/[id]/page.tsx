@@ -11,8 +11,10 @@ import PageHeader from '@/components/shared/PageHeader'
 import { errorMessage } from '@/lib/api'
 import { getJob } from '@/lib/jobs'
 import type { Job } from '@/types'
+import { useParams } from 'next/navigation'
 
-export default function TutorJobPage({ params }: { params: { id: string } }) {
+export default function TutorJobPage() {
+  const params = useParams<{ id: string }>()
   const [job, setJob] = useState<Job | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
 

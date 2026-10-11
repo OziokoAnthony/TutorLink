@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
-from app.core.deps import require_roles
+from app.core.deps import can_see_tutors, require_roles
 from app.db.session import get_session
 from app.domains.auth.models import User, UserRole
 from app.domains.reviews import service
@@ -28,6 +28,7 @@ def tutor_reviews(
     tutor_id: UUID,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
+    viewer: User = Depends(can_see_tutors),
     session: Session = Depends(get_session),
 ):
     return service.list_public_reviews(session, tutor_id, skip, limit)

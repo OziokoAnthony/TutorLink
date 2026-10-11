@@ -8,13 +8,24 @@ from app.db.session import get_session
 from app.domains.auth.models import User, UserRole
 from app.domains.bookings.models import BookingParentView, LessonMode
 from app.domains.job_posts import service
-from app.domains.job_posts.models import ApplicantView, ApplicationIn, JobIn, JobParentView, JobTutorView
+from app.domains.job_posts.models import (
+    ApplicantView,
+    ApplicationIn,
+    JobAdminView,
+    JobIn,
+    JobParentView,
+    JobReviewIn,
+    JobStatus,
+    JobTutorView,
+)
 from app.domains.tutors.models import EducationLevel
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+admin_router = APIRouter(prefix="/admin/jobs", tags=["admin"])
 
 parent_only = require_roles([UserRole.parent])
 tutor_only = require_roles([UserRole.tutor])
+admin_only = require_roles([UserRole.admin])
 
 
 @router.post("", response_model=JobParentView, status_code=status.HTTP_201_CREATED)
@@ -78,3 +89,17 @@ def choose(job_id: UUID, application_id: UUID, parent: User = Depends(parent_onl
            session: Session = Depends(get_session)):
     """Books the applicant from the job: taken at once, awaiting payment (spec 2 R3.2)."""
     return service.choose(session, parent, job_id, application_id)
+
+
+@admin_router.get("", response_model=list[JobAdminView])
+def admin_jobs(status_filter: JobStatus | None = Query(None, alias="status"),
+               admin: User = Depends(admin_only), session: Session = Depends(get_session)):
+    """Oldest change first. `?status=pending` is the review queue (spec 2 R1.4)."""
+    return service.admin_list(session, status_filter)
+
+
+@admin_router.patch("/{job_id}", response_model=JobAdminView)
+def review_job(job_id: UUID, data: JobReviewIn, admin: User = Depends(admin_only),
+               session: Session = Depends(get_session)):
+    """Approve (`open`) or reject with a note the parent sees (spec 2 R1.4)."""
+    return service.review(session, job_id, data)

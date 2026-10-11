@@ -1,7 +1,7 @@
 import api from '@/lib/api'
 import { toBooking } from '@/lib/bookings'
 import { numbers } from '@/lib/convert'
-import type { Applicant, Booking, Job, JobFiltersValue, JobInput } from '@/types'
+import type { Applicant, Booking, Job, JobFiltersValue, JobInput, JobStatus } from '@/types'
 
 const MONEY = ['price', 'parent_price_per_lesson', 'tutor_fee_rate', 'tutor_earning_per_lesson'] as const
 
@@ -75,5 +75,19 @@ export async function applyToJob(id: string, note?: string): Promise<Job> {
 
 export async function withdrawFromJob(id: string): Promise<Job> {
   const { data } = await api.post(`/jobs/${id}/withdraw`)
+  return toJob(data)
+}
+
+// ---------- Admin ----------
+
+/** Oldest change first; `pending` is the review queue (spec 2 R1.4). */
+export async function getAdminJobs(status?: JobStatus): Promise<Job[]> {
+  const { data } = await api.get<unknown[]>('/admin/jobs', { params: status ? { status } : {} })
+  return data.map(toJob)
+}
+
+/** Approve (`open`) or reject with a note the parent sees. */
+export async function reviewJob(id: string, status: 'open' | 'rejected', note?: string): Promise<Job> {
+  const { data } = await api.patch(`/admin/jobs/${id}`, { status, note: note || null })
   return toJob(data)
 }

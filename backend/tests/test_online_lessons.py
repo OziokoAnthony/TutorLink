@@ -70,8 +70,8 @@ def test_online_job_without_recording_consent_is_rejected(client, parent):
     assert client.post("/v1/jobs", headers=parent["headers"], json=body).status_code == 422
 
 
-def test_booking_from_an_online_job_keeps_the_consent(client, parent, tutor):
-    job = helpers.post_job(client, parent, mode="online", area=None)
+def test_booking_from_an_online_job_keeps_the_consent(client, admin_headers, parent, tutor):
+    job = helpers.post_job(client, parent, admin_headers, mode="online", area=None)
     helpers.apply_to_job(client, tutor, job)
     assert helpers.choose_applicant(client, parent, job, tutor).json()["recording_consent_at"]
 

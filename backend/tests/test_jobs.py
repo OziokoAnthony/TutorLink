@@ -22,8 +22,8 @@ def tutor(client, admin_headers):
 
 
 @pytest.fixture
-def job(client, parent):
-    return helpers.post_job(client, parent)
+def job(client, parent, admin_headers):
+    return helpers.post_job(client, parent, admin_headers)
 
 
 def browse(client, tutor, **params):
@@ -39,7 +39,7 @@ def job_status(client, parent, job) -> str:
 # ---------- Posting ----------
 
 def test_parent_posts_a_job_and_sees_their_price_but_no_tutor_fee(client, job):
-    assert job["status"] == "open"
+    assert job["status"] == "open"  # approved by the fixture
     assert job["price"] == "6000.00" and job["parent_price_per_lesson"] == "6600.00"
     assert not TUTOR_ONLY & job.keys()
 
@@ -67,12 +67,72 @@ def test_only_parents_post_jobs(client, tutor):
     assert client.post("/v1/jobs", headers=tutor["headers"], json=helpers.job_body()).status_code == 403
 
 
-def test_three_subjects_one_price_found_by_any_of_them(client, parent, tutor):
-    job = helpers.post_job(client, parent, subjects=["Mathematics", "Physics", "Chemistry"], price="7000.00")
+def test_three_subjects_one_price_found_by_any_of_them(client, admin_headers, parent, tutor):
+    job = helpers.post_job(client, parent, admin_headers, subjects=["Mathematics", "Physics", "Chemistry"], price="7000.00")
     assert job["price"] == "7000.00"
     for subject in ("Mathematics", "physics", "CHEMISTRY"):
         assert [j["id"] for j in browse(client, tutor, subject=subject)] == [job["id"]]
     assert browse(client, tutor, subject="Biology") == []
+
+
+# ---------- Review (admin, R1.4) ----------
+
+def test_a_new_job_waits_for_review_and_tutors_cannot_see_it(client, parent, tutor):
+    job = helpers.submit_job(client, parent)
+    assert job["status"] == "pending"
+    assert browse(client, tutor) == []
+    assert client.get(f"/v1/jobs/{job['id']}", headers=tutor["headers"]).status_code == 404
+    assert helpers.apply_to_job(client, tutor, job).status_code == 409
+
+
+def test_approving_opens_the_job_and_tells_the_parent(client, admin_headers, parent, tutor):
+    job = helpers.submit_job(client, parent)
+    queue = client.get("/v1/admin/jobs", headers=admin_headers, params={"status": "pending"}).json()
+    assert job["id"] in [j["id"] for j in queue]
+    assert next(j for j in queue if j["id"] == job["id"])["parent_name"] == "Ada Okafor"
+
+    reviewed = helpers.review_job(client, admin_headers, job)
+    assert reviewed.status_code == 200 and reviewed.json()["status"] == "open"
+    assert [j["id"] for j in browse(client, tutor)] == [job["id"]]
+    notes = client.get("/v1/notifications/me", headers=parent["headers"]).json()
+    assert notes["items"][0]["title"] == "Your job is live"
+    assert helpers.review_job(client, admin_headers, job).status_code == 409  # already reviewed
+
+
+def test_rejecting_needs_a_reason_the_parent_sees(client, admin_headers, parent, tutor):
+    job = helpers.submit_job(client, parent)
+    assert helpers.review_job(client, admin_headers, job, "rejected").status_code == 422
+    assert helpers.review_job(client, admin_headers, job, "rejected", note="Phone number in the text").status_code == 200
+    mine = client.get(f"/v1/jobs/{job['id']}", headers=parent["headers"]).json()
+    assert mine["status"] == "rejected" and mine["review_note"] == "Phone number in the text"
+    assert browse(client, tutor) == []
+
+    # Editing it sends it back for review.
+    edited = client.put(f"/v1/jobs/{job['id']}", headers=parent["headers"], json=helpers.job_body())
+    assert edited.json()["status"] == "pending" and edited.json()["review_note"] is None
+
+
+def test_only_admins_review_jobs(client, parent, tutor):
+    job = helpers.submit_job(client, parent)
+    assert client.get("/v1/admin/jobs", headers=parent["headers"]).status_code == 403
+    assert helpers.review_job(client, parent["headers"], job).status_code == 403
+    assert helpers.review_job(client, tutor["headers"], job).status_code == 403
+
+
+def test_an_edited_job_is_hidden_until_approved_again(client, admin_headers, parent, tutor, job):
+    helpers.apply_to_job(client, tutor, job)
+    edited = client.put(f"/v1/jobs/{job['id']}", headers=parent["headers"], json=helpers.job_body(price="6500.00"))
+    assert edited.json()["status"] == "pending"
+    assert browse(client, tutor) == []
+    assert client.get(f"/v1/jobs/{job['id']}", headers=tutor["headers"]).status_code == 200  # they applied
+    assert helpers.choose_applicant(client, parent, job, tutor).status_code == 409
+    helpers.review_job(client, admin_headers, job)
+    assert helpers.choose_applicant(client, parent, job, tutor).status_code == 201
+
+
+def test_a_pending_job_can_be_closed(client, parent):
+    job = helpers.submit_job(client, parent)
+    assert client.post(f"/v1/jobs/{job['id']}/close", headers=parent["headers"]).json()["status"] == "closed"
 
 
 # ---------- Browsing (tutor) ----------
@@ -94,9 +154,9 @@ def test_tutor_sees_earning_first_name_and_picture_but_nothing_private(client, t
     assert not (PARENT_ONLY | PRIVATE) & detail.keys()
 
 
-def test_filters_by_level_mode_and_area(client, parent, tutor):
-    lekki = helpers.post_job(client, parent, area="Lekki Phase 1")
-    online = helpers.post_job(client, parent, mode="online", area=None)
+def test_filters_by_level_mode_and_area(client, admin_headers, parent, tutor):
+    lekki = helpers.post_job(client, parent, admin_headers, area="Lekki Phase 1")
+    online = helpers.post_job(client, parent, admin_headers, mode="online", area=None)
     assert [j["id"] for j in browse(client, tutor, area="lekki")] == [lekki["id"]]
     assert [j["id"] for j in browse(client, tutor, mode="online")] == [online["id"]]
     assert browse(client, tutor, level="primary") == []
@@ -131,13 +191,13 @@ def test_tutor_withdraws_while_open(client, parent, tutor, job):
     assert client.get(f"/v1/jobs/{job['id']}/applications", headers=parent["headers"]).json() == []
 
 
-def test_parent_sees_applicants_with_note_and_rating(client, parent, tutor, job):
+def test_parent_sees_applicants_with_note_and_rating(client, viewer, parent, tutor, job):
     helpers.apply_to_job(client, tutor, job, note="Ten years teaching WAEC maths.")
     applicants = client.get(f"/v1/jobs/{job['id']}/applications", headers=parent["headers"]).json()
     assert len(applicants) == 1
     assert applicants[0]["tutor_name"] == "Tunde Bakare" and applicants[0]["note"] == "Ten years teaching WAEC maths."
     assert applicants[0]["rating_count"] == 0
-    assert client.get(f"/v1/tutors/{tutor['id']}").status_code == 200  # the full public profile
+    assert client.get(f"/v1/tutors/{tutor['id']}", headers=viewer).status_code == 200  # the full public profile
 
 
 # ---------- Editing and closing ----------
@@ -161,11 +221,11 @@ def test_edit_that_clashes_withdraws_the_applicant_and_says_why(client, admin_he
     assert mine["status"] == "withdrawn" and "clash" in mine["withdrawn_reason"]
 
 
-def test_ongoing_or_closed_job_cannot_be_edited(client, parent, tutor, job):
+def test_ongoing_or_closed_job_cannot_be_edited(client, admin_headers, parent, tutor, job):
     helpers.apply_to_job(client, tutor, job)
     assert helpers.choose_applicant(client, parent, job, tutor).status_code == 201
     assert client.put(f"/v1/jobs/{job['id']}", headers=parent["headers"], json=helpers.job_body()).status_code == 409
-    other = helpers.post_job(client, parent)
+    other = helpers.post_job(client, parent, admin_headers)
     assert client.post(f"/v1/jobs/{other['id']}/close", headers=parent["headers"]).json()["status"] == "closed"
     assert client.put(f"/v1/jobs/{other['id']}", headers=parent["headers"], json=helpers.job_body()).status_code == 409
 
@@ -230,7 +290,7 @@ def test_unpaid_booking_releases_and_the_job_reopens(client, db, clock, admin_he
 
 def test_job_completes_when_its_booking_ends(client, db, clock, paystack, admin_headers, parent, tutor):
     start = helpers.days_ahead(3)
-    job = helpers.post_job(client, parent, start_date=start, end_date=start.isoformat())
+    job = helpers.post_job(client, parent, admin_headers, start_date=start, end_date=start.isoformat())
     helpers.apply_to_job(client, tutor, job)
     booking = helpers.choose_applicant(client, parent, job, tutor).json()
     helpers.deposit(client, paystack, parent, booking["periods"][0]["amount"])

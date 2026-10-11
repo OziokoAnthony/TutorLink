@@ -1,5 +1,5 @@
 import type {
-  ApplicationStatus, BillingPeriod, BookingStatus, CertificateType, JobStatus, EarningStatus, IssueKind, Level, LessonStatus, PeriodStatus, RefundStatus,
+  ApplicationStatus, BillingPeriod, BookingStatus, CertificateStatus, CertificateType, JobStatus, EarningStatus, FeedbackKind, IssueKind, Level, LessonStatus, PeriodStatus, RefundStatus,
   TransferStatus, VettingStatus, WeeklyTime,
 } from '@/types'
 
@@ -15,16 +15,15 @@ export const LEVELS: { value: Level; label: string }[] = [
   { value: 'primary', label: 'Primary' },
   { value: 'junior_secondary', label: 'Junior Secondary' },
   { value: 'senior_secondary', label: 'Senior Secondary' },
+  { value: 'international', label: 'International High School' },
 ]
 
-/** Common Nigerian school subjects, used for the browse filter and as suggestions for tutors. */
-export const SUBJECTS = [
-  'Mathematics', 'English Language', 'Basic Science', 'Basic Technology', 'Social Studies',
-  'Civic Education', 'Physics', 'Chemistry', 'Biology', 'Further Mathematics', 'Economics',
-  'Literature in English', 'Government', 'Geography', 'Agricultural Science', 'Computer Studies',
-  'Commerce', 'Accounting', 'French', 'Yoruba', 'Igbo', 'Hausa', 'Christian Religious Studies',
-  'Islamic Religious Studies', 'Verbal Reasoning', 'Quantitative Reasoning',
-]
+/** The listed spelling of a typed subject (ignoring capitals and extra spaces), or null if it isn't one of
+ * `subjects` (the offered list from `useSubjects`, spec 7 R1). */
+export function listedSubject(name: string, subjects: string[]): string | null {
+  const key = name.toLowerCase().split(/\s+/).filter(Boolean).join(' ')
+  return subjects.find((s) => s.toLowerCase() === key) ?? null
+}
 
 export function levelLabel(level?: Level): string {
   return LEVELS.find((l) => l.value === level)?.label ?? ''
@@ -78,6 +77,11 @@ export function formatDateTime(iso: string): string {
   })
 }
 
+/** The Nigerian date of an ISO timestamp, e.g. "11 October 2026". */
+export function formatDayOf(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Lagos' })
+}
+
 /** 0.08 -> "8%" */
 export function formatPercent(rate: number): string {
   return `${Math.round(rate * 10000) / 100}%`
@@ -127,6 +131,17 @@ export const ISSUE_KIND_LABEL: Record<IssueKind, string> = {
   no_report: 'Tutor did not report the lesson',
 }
 
+export const FEEDBACK_KINDS: { value: FeedbackKind; label: string; hint: string }[] = [
+  { value: 'problem', label: 'A problem', hint: 'Something is wrong or not working' },
+  { value: 'suggestion', label: 'A suggestion', hint: 'An idea to make TutorLink better' },
+  { value: 'question', label: 'A question', hint: 'Something you want to know' },
+  { value: 'praise', label: 'Praise', hint: 'Something you liked' },
+]
+
+export const FEEDBACK_KIND_LABEL: Record<FeedbackKind, string> = {
+  problem: 'Problem', suggestion: 'Suggestion', question: 'Question', praise: 'Praise',
+}
+
 export const VETTING_STATUS_LABEL: Record<VettingStatus, string> = {
   pending: 'Under review', approved: 'Approved', rejected: 'Not approved',
 }
@@ -135,6 +150,7 @@ export const VETTING_STATUS_LABEL: Record<VettingStatus, string> = {
 export const RECORDING_CONSENT = 'Lessons will be recorded and kept for review.'
 
 export const JOB_STATUS_LABEL: Record<JobStatus, string> = {
+  pending: 'Waiting for review', rejected: 'Not approved',
   open: 'Open', ongoing: 'Tutor chosen', completed: 'Completed', closed: 'Closed',
 }
 
@@ -143,3 +159,10 @@ export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus, string> = {
 }
 
 export const CERTIFICATES: CertificateType[] = ['WAEC', 'NECO', 'NABTEB', 'NCE', 'Degree', 'PGDE', 'TRCN', 'Other']
+
+/** WAEC and NECO results are confirmed on the exam body's site with the tutor's result-checker PIN (spec 4 R4.2). */
+export const CHECKER_CERTIFICATES: CertificateType[] = ['WAEC', 'NECO']
+
+export const CERTIFICATE_STATUS_LABEL: Record<CertificateStatus, string> = {
+  pending: 'Waiting for review', verified: 'Verified', rejected: 'Not accepted',
+}

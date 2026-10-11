@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlmodel import Session
 
-from app.core.deps import get_current_user, require_roles
+from app.core.deps import can_see_tutors, get_current_user, require_roles
 from app.db.session import get_session
 from app.domains.auth.models import User, UserRole
 from app.domains.bookings import service
@@ -81,8 +81,8 @@ def end(booking_id: UUID, data: BookingClose, user: User = Depends(get_current_u
 
 
 @tutor_router.get("/{tutor_id}/schedule", response_model=TutorAvailability)
-def tutor_schedule(tutor_id: UUID, session: Session = Depends(get_session)):
-    """Public: when the tutor is booked, when they're free, and whether they're teaching now."""
+def tutor_schedule(tutor_id: UUID, viewer: User = Depends(can_see_tutors), session: Session = Depends(get_session)):
+    """For parents: when the tutor is booked, when they're free, and whether they're teaching now."""
     return service.tutor_availability(session, tutor_id)
 
 

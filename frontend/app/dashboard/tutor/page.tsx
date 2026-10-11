@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import PageHeader from '@/components/shared/PageHeader'
 import StatCard from '@/components/shared/StatCard'
+import OnboardingChecklist from '@/components/tutors/OnboardingChecklist'
 import { useAuth } from '@/hooks/useAuth'
 import { getTutorBookings } from '@/lib/bookings'
 import { formatDateTime, formatNaira } from '@/lib/format'
@@ -36,17 +37,13 @@ export default function TutorOverviewPage() {
     <>
       <PageHeader title={profile ? `Welcome, ${profile.full_name.split(' ')[0]}` : 'Dashboard'} />
 
-      {profile?.vetting_status === 'pending' && (
-        <p role="status" className="mb-6 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          Your profile is under review. You&apos;ll be notified once you&apos;re approved.
-        </p>
-      )}
+      {profile?.vetting_status === 'pending' && <OnboardingChecklist />}
       {profile?.vetting_status === 'rejected' && (
         <p role="status" className="mb-6 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-950">
           Your application was not approved.{profile.vetting_note ? ` ${profile.vetting_note}` : ''}
         </p>
       )}
-      {user && !user.photo_url && (
+      {user && !user.photo_url && profile?.vetting_status !== 'pending' && (
         <p className="mb-6 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           Add a profile picture so parents can see who they&apos;re booking. <Link href="/dashboard/tutor/profile" className="font-medium underline">Add it on your profile</Link>.
         </p>

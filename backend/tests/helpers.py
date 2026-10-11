@@ -8,10 +8,14 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import uuid4
 
+import jwt
+from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
 from PIL import Image
 
+from app.core.claude import GeneratedQuestion
 from app.core.clock import WAT
+from app.core.dojah import NinRecord
 from app.core.config import settings
 from app.scripts.create_admin import create_admin as create_admin_user
 
@@ -22,6 +26,83 @@ WEAKNESSES = "Struggles with word problems and fractions."
 
 
 # ---------- Fakes ----------
+
+GOOGLE_CLIENT_ID = "tutorlink-tests.apps.googleusercontent.com"
+GOOGLE_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)  # "Google's" signing key in tests
+
+
+def google_token(email: str, given_name: str | None = "Anthony", family_name: str | None = "Ozioko", *,
+                 key=None, expires_in: timedelta = timedelta(hours=1), **claims) -> str:
+    """A Google ID token as Google Identity Services gives the browser, signed with GOOGLE_KEY
+    (or `key`, to forge one). Override any claim, e.g. aud="someone-else" or email_verified=False."""
+    now = datetime.now(timezone.utc)
+    payload = {"iss": "https://accounts.google.com", "aud": GOOGLE_CLIENT_ID, "sub": email, "email": email,
+               "email_verified": True, "given_name": given_name, "family_name": family_name,
+               "name": " ".join(n for n in (given_name, family_name) if n),
+               "picture": "https://lh3.googleusercontent.com/a/photo", "iat": now, "exp": now + expires_in}
+    payload.update(claims)
+    return jwt.encode(payload, key or GOOGLE_KEY, algorithm="RS256", headers={"kid": "test"})
+
+
+class FakeDojah:
+    """Dojah's NIN lookup (spec 4 R3): `records` maps NIN -> the NIN record; an unknown NIN isn't found.
+    `selfie_matches` decides the selfie check. The conftest `dojah` fixture installs one as `helpers.dojah`."""
+
+    def __init__(self):
+        self.records: dict[str, NinRecord] = {}
+        self.selfie_matches = True
+        self.lookups: list[str] = []
+
+    def add(self, first_name: str, surname: str, middle_name: str = "", nin: str | None = None) -> str:
+        nin = nin or f"{uuid4().int % 10**11:011d}"
+        self.records[nin] = NinRecord(first_name=first_name.upper(), middle_name=middle_name.upper(),
+                                      surname=surname.upper(), selfie_matches=True, reference=f"DJ-{nin[-4:]}")
+        return nin
+
+    def lookup_nin(self, nin: str, selfie_jpeg: bytes) -> NinRecord | None:
+        self.lookups.append(nin)
+        record = self.records.get(nin)
+        if record is None:
+            return None
+        return NinRecord(**{**record.__dict__, "selfie_matches": self.selfie_matches})
+
+
+dojah: FakeDojah = FakeDojah()
+
+
+CORRECT = "(correct)"  # the fake marks its key, so tests can answer right or wrong on purpose
+
+
+class FakeClaude:
+    """Writes and checks exam questions (spec 4 R5.2) without the network. Every generated question's
+    right option ends in CORRECT; the checker agrees unless `checker_disagrees` is set."""
+
+    def __init__(self):
+        self.generated: list[tuple[str | None, str | None, int]] = []  # (subject, level, count) per request
+        self.checked: list[tuple[str, list[str]]] = []  # what the independent checker was shown
+        self.checker_disagrees = False
+        self.counter = 0
+
+    def generate_questions(self, subject, level, count, avoid):
+        self.generated.append((subject, level, count))
+        questions = []
+        for _ in range(count):
+            self.counter += 1
+            n = self.counter
+            questions.append(GeneratedQuestion(
+                text=f"[{subject or 'General'} {level or ''}] Question {n} {uuid4().hex[:6]}: what is {n} + {n}?",
+                options=[f"{2 * n} {CORRECT}", f"{2 * n + 1}", f"{2 * n + 2}", f"{2 * n + 3}"],
+                correct_index=0, explanation=f"{n} + {n} = {2 * n}"))
+        return questions
+
+    def answer_question(self, text, options):
+        self.checked.append((text, list(options)))
+        right = next(i for i, option in enumerate(options) if option.endswith(CORRECT))
+        return (right + 1) % 4 if self.checker_disagrees else right
+
+
+claude: FakeClaude = FakeClaude()
+
 
 class FakeClock:
     def __init__(self):
@@ -151,20 +232,30 @@ def offer(subjects=("Mathematics",), level: str = "senior_secondary", price: str
     return {"subjects": list(subjects), "level": level, "price": price, "windows": windows or ALL_WEEK}
 
 
+def google_register(client, email: str, role: str = "tutor", **fields):
+    """Sign-up with Google (spec 4 R1.1). For a tutor, defaults to Anthony Ozioko in Lekki with one offer;
+    for a parent, Ada Parent."""
+    body = ({"first_name": "Anthony", "surname": "Ozioko", "area": "Lekki", "offers": [offer()]}
+            if role == "tutor" else {"full_name": "Ada Parent"})
+    body.update(fields)
+    token = body.pop("id_token", None) or google_token(email)
+    return client.post("/v1/auth/google/register", json={"id_token": token, "role": role, **body})
+
+
 def register_tutor(client, email: str | None = None, full_name: str = "Tunde Tutor", area: str = "Lekki",
                    offers: list | None = None, **offer_kwargs) -> dict:
-    """`full_name` is split into first name (first word) and surname (the rest). The tutor logs in with
-    the work email and PASSWORD (the `tutor_password` fixture stands in for the generated password)."""
+    """Signs up with email and PASSWORD. `full_name` is split into first name (first word) and surname
+    (the rest)."""
     email = email or unique_email("tutor")
     first_name, _, surname = full_name.partition(" ")
     response = client.post("/v1/auth/register", json={
-        "email": email, "role": "tutor", "first_name": first_name, "surname": surname,
+        "email": email, "password": PASSWORD, "role": "tutor", "first_name": first_name, "surname": surname,
         "area": area, "offers": offers or [offer(**offer_kwargs)],
     })
     assert response.status_code == 201, response.text
     user = response.json()["user"]
-    tutor = {"id": user["id"], "email": email, "work_email": user["work_email"],
-             "headers": login(client, user["work_email"])}
+    tutor = {"id": user["id"], "email": email, "first_name": first_name, "surname": surname,
+             "headers": login(client, email)}
     tutor["offer_id"] = client.get("/v1/tutors/profile/offers", headers=tutor["headers"]).json()[0]["id"]
     return tutor
 
@@ -180,9 +271,94 @@ def vet(client, admin_headers: dict, tutor: dict, status: str = "approved", note
                         json={"status": status, "note": note})
 
 
-def approved_tutor(client, admin_headers: dict, **kwargs) -> dict:
-    """An approved tutor with one offer: senior-secondary Mathematics, any day 08:00-20:00, ₦5,000."""
+def check_nin(client, tutor: dict, nin: str, selfie: bytes | None = None):
+    return client.post("/v1/onboarding/nin", headers=tutor["headers"], data={"nin": nin},
+                       files={"selfie": ("selfie.png", selfie if selfie is not None else image_bytes(), "image/png")})
+
+
+def verified_tutor(client, **kwargs) -> dict:
+    """A tutor who completed their profile (picture and offer) and verified their NIN (spec 4 R3).
+    Their NIN record in `dojah` matches their name; `tutor["nin"]` is the NIN."""
     tutor = register_tutor(client, **kwargs)
+    assert upload_photo(client, tutor["headers"]).status_code == 200
+    tutor["nin"] = dojah.add(tutor["first_name"], tutor["surname"])
+    response = check_nin(client, tutor, tutor["nin"])
+    assert response.status_code == 200 and response.json()["verified"], response.text
+    return tutor
+
+
+PDF = b"%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
+
+
+def upload_certificate(client, tutor: dict, type: str = "Degree", data: bytes = PDF, filename: str = "degree.pdf",
+                       **fields):
+    """A certificate upload (spec 4 R4.1). WAEC/NECO also need exam_number, exam_year and checker_pin."""
+    form = {"type": type, "institution": "University of Lagos", "year": "2018", **fields}
+    return client.post("/v1/certificates", headers=tutor["headers"], data=form,
+                       files={"file": (filename, data, "application/octet-stream")})
+
+
+def review_certificate(client, admin_headers: dict, certificate_id: str, status: str = "verified",
+                       note: str | None = None):
+    return client.patch(f"/v1/admin/certificates/{certificate_id}", headers=admin_headers,
+                        json={"status": status, "note": note})
+
+
+def certified_tutor(client, admin_headers: dict, **kwargs) -> dict:
+    """A verified tutor (`verified_tutor`) with a Degree certificate an admin verified (spec 4 R4)."""
+    tutor = verified_tutor(client, **kwargs)
+    response = upload_certificate(client, tutor)
+    assert response.status_code == 201, response.text
+    assert review_certificate(client, admin_headers, response.json()["id"]).status_code == 200
+    return tutor
+
+
+PREPARING = "Your exam is being prepared, try again shortly"
+
+
+def start_exam(client, tutor: dict):
+    """Starts an attempt. The first try on an empty bank answers "being prepared" while the (fake,
+    synchronous) generation fills it, so it tries once more (spec 4 R5.8)."""
+    response = client.post("/v1/exam/attempts", headers=tutor["headers"])
+    if response.status_code == 409 and response.json()["detail"] == PREPARING:
+        response = client.post("/v1/exam/attempts", headers=tutor["headers"])
+    return response
+
+
+def exam_answers(attempt: dict, right: int = 20) -> list[dict]:
+    """Answers for every question: the first `right` correct, the rest wrong."""
+    answers = []
+    for q in attempt["questions"]:
+        correct = next(i for i, option in enumerate(q["options"]) if option.endswith(CORRECT))
+        answers.append({"position": q["position"], "choice": correct if len(answers) < right else (correct + 1) % 4})
+    return answers
+
+
+def take_exam(client, tutor: dict, right: int = 20) -> dict:
+    """A whole attempt with `right` correct answers; returns the submit response's JSON."""
+    response = start_exam(client, tutor)
+    assert response.status_code == 200, response.text
+    attempt = response.json()
+    saved = client.put(f"/v1/exam/attempts/{attempt['id']}/answers", headers=tutor["headers"],
+                       json={"answers": exam_answers(attempt, right)})
+    assert saved.status_code == 200, saved.text
+    result = client.post(f"/v1/exam/attempts/{attempt['id']}/submit", headers=tutor["headers"])
+    assert result.status_code == 200, result.text
+    return result.json()
+
+
+def ready_tutor(client, admin_headers: dict, **kwargs) -> dict:
+    """A tutor who finished every onboarding step (spec 4 R2.1) and waits for an admin to approve them."""
+    tutor = certified_tutor(client, admin_headers, **kwargs)
+    assert take_exam(client, tutor)["passed"]
+    return tutor
+
+
+def approved_tutor(client, admin_headers: dict, **kwargs) -> dict:
+    """An approved tutor with one offer: senior-secondary Mathematics, any day 08:00-20:00, ₦5,000.
+    They have a profile picture, a verified NIN, a verified certificate and a passed exam, as approval
+    requires (spec 4 R2.3)."""
+    tutor = ready_tutor(client, admin_headers, **kwargs)
     assert vet(client, admin_headers, tutor).status_code == 200
     return tutor
 
@@ -299,10 +475,23 @@ def job_body(*, subjects=("Mathematics",), price: str = "6000.00", mode: str = "
     return body
 
 
-def post_job(client, parent: dict, **kwargs) -> dict:
+def submit_job(client, parent: dict, **kwargs) -> dict:
+    """A posted job, waiting for review (spec 2 R1.4)."""
     response = client.post("/v1/jobs", headers=parent["headers"], json=job_body(**kwargs))
     assert response.status_code == 201, response.text
     return response.json()
+
+
+def review_job(client, admin_headers: dict, job: dict, status: str = "open", note: str | None = None):
+    return client.patch(f"/v1/admin/jobs/{job['id']}", headers=admin_headers, json={"status": status, "note": note})
+
+
+def post_job(client, parent: dict, admin_headers: dict, **kwargs) -> dict:
+    """A posted job an admin approved: open to tutors."""
+    job = submit_job(client, parent, **kwargs)
+    response = review_job(client, admin_headers, job)
+    assert response.status_code == 200, response.text
+    return client.get(f"/v1/jobs/{job['id']}", headers=parent["headers"]).json()
 
 
 def apply_to_job(client, tutor: dict, job: dict, note: str | None = "I teach this every week."):

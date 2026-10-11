@@ -21,7 +21,9 @@ async def lifespan(app: FastAPI):
         stop.set()
 
 
-app = FastAPI(title="TutorLink API", version="0.2.0", lifespan=lifespan)
+# The interactive API docs map every endpoint for an attacker, so production doesn't publish them.
+_docs = {} if settings.APP_ENV != "production" else {"docs_url": None, "redoc_url": None, "openapi_url": None}
+app = FastAPI(title="TutorLink API", version="0.2.0", lifespan=lifespan, **_docs)
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,6 +33,22 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["X-Request-ID"],
 )
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    """Browser protections on every response: no content-type guessing, no framing (clickjacking), no
+    referrer leaks, and (over HTTPS) HTTPS only. The API serves JSON, so its pages may run nothing at all;
+    the docs pages need their scripts, and local files (development only) are viewed in the browser."""
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    if not request.url.path.startswith(("/docs", "/redoc", "/v1/files/")):
+        response.headers.setdefault("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+    if settings.BASE_URL.startswith("https://"):
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
 
 
 @app.middleware("http")

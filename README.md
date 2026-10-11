@@ -7,7 +7,7 @@ specified in [`specs/`](specs/).
 | Folder | What | Stack |
 |---|---|---|
 | [`backend/`](backend/) | REST API at `http://localhost:8000/v1` | FastAPI, SQLModel, PostgreSQL 16, Alembic, Paystack, Resend |
-| [`frontend/`](frontend/) | Web app at `http://localhost:3000` | Next.js 14, TypeScript, Tailwind, shadcn/ui |
+| [`frontend/`](frontend/) | Web app at `http://localhost:3000` | Next.js 15, TypeScript, Tailwind, shadcn/ui |
 
 Each app has its own `README.md` (how to run it) and `CLAUDE.md` (how to work on it).
 

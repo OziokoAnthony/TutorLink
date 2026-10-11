@@ -25,15 +25,13 @@ def _letters(text: str) -> str:
 
 
 def upgrade() -> None:
-    from app.core.config import settings
-
     op.add_column("users", sa.Column("work_email", sa.String(), nullable=True))
     op.create_unique_constraint("uq_users_work_email", "users", ["work_email"])
     op.add_column("tutor_profiles", sa.Column("first_name", sa.String(), nullable=True))
     op.add_column("tutor_profiles", sa.Column("surname", sa.String(), nullable=True))
 
     conn = op.get_bind()
-    domain = settings.TUTOR_EMAIL_DOMAIN.lower()
+    domain = "tutorlink.com"  # the setting was removed with work emails (0019)
     taken: set[str] = set()
     rows = conn.execute(sa.text("SELECT id, user_id, full_name FROM tutor_profiles ORDER BY created_at")).all()
     for profile_id, user_id, full_name in rows:
