@@ -1,4 +1,5 @@
-"""Create an admin account. Admins can't self-register.
+"""Create an admin account. Admins can't self-register. Run it once for the first admin, who becomes the super
+admin; they add the others from /admin/admins.
 
 Usage:
     uv run python -m app.scripts.create_admin --email admin@tutorlink.ng
@@ -22,7 +23,10 @@ def create_admin(session: Session, email: str, password: str) -> User:
         raise ValueError("Password must be at least 8 characters")
     if session.exec(select(User).where(func.lower(User.email) == email)).first():
         raise ValueError(f"A user with email {email} already exists")
-    admin = User(email=email, password_hash=get_password_hash(password), role=UserRole.admin)
+    # The first admin is the super admin, unless one already exists.
+    has_super_admin = session.exec(select(User).where(User.is_super_admin)).first() is not None
+    admin = User(email=email, password_hash=get_password_hash(password), role=UserRole.admin,
+                 is_super_admin=not has_super_admin)
     session.add(admin)
     session.commit()
     session.refresh(admin)
@@ -48,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as exc:
             print(exc, file=sys.stderr)
             return 1
-    print(f"Created admin {admin.email} ({admin.id})")
+    print(f"Created {'super admin' if admin.is_super_admin else 'admin'} {admin.email} ({admin.id})")
     return 0
 
 

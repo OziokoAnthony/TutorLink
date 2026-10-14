@@ -70,6 +70,11 @@ Alembic migration per spec or build step in `alembic/versions/`.
   In tests, `helpers.register_tutor` signs up with email and `helpers.PASSWORD`;
   `helpers.google_token(email, …)` mints tokens the `google` fixture accepts, and
   `helpers.google_register` signs up through Google.
+- **Admins.** Nobody signs up as an admin. The first comes from `app.scripts.create_admin` and is the super
+  admin (`users.is_super_admin`, one at most: migration 0024), who adds admins with a temporary password and
+  removes them at `/admin/admins` (`/v1/admin/admins`). Removing sets `is_active = false` and ends their
+  sessions; the super admin can't be removed. In tests, `admin_headers` is the super admin and
+  `helpers.create_admin` after it makes ordinary admins.
 - **Password reset (spec 4 R0.7).** `password_reset_tokens` stores only a SHA-256 of each link's
   token; a link works once, for an hour, and `/auth/forgot-password` answers the same for any email.
 - **Tutor onboarding (spec 4 R2, R3).** `app/domains/onboarding/` holds the checklist
