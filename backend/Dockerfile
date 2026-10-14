@@ -22,5 +22,9 @@ USER app
 
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)" || exit 1
-CMD ["uv", "run", "--no-dev", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+  CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ.get('PORT', '8000'), timeout=4)" || exit 1
+# Bring the database up to date, then start the API. Calls the installed programs directly: `uv run` re-checks and
+# recompiles every package first, which on Render's free instance takes long enough for the start to fail. Render
+# sets PORT; locally it's 8000. Leave Render's "Docker Command" empty so this runs.
+ENV PATH="/app/.venv/bin:$PATH"
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
