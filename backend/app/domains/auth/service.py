@@ -17,6 +17,7 @@ from app.core.security import (
 )
 from app.domains.auth import limits, photos
 from app.domains.auth.models import (
+    AdminIn,
     ChangePasswordRequest,
     ForgotPasswordRequest,
     GoogleLoginRequest,
@@ -199,6 +200,53 @@ def change_password(session: Session, user: User, data: ChangePasswordRequest) -
     session.add(user)
     session.commit()
     return issue_token(user)
+
+
+def admins(session: Session) -> list[User]:
+    """Current admins first, then removed ones, each oldest first."""
+    return list(session.exec(select(User).where(User.role == UserRole.admin)
+                             .order_by(User.is_active.desc(), User.created_at)).all())
+
+
+def _only_the_super_admin(admin: User) -> None:
+    if not admin.is_super_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the super admin can add or remove admins")
+
+
+def add_admin(session: Session, admin: User, data: AdminIn) -> User:
+    """Admins can't sign up: the super admin (the first, from `app.scripts.create_admin`) adds the others.
+    Re-adding a removed admin brings them back with the new password; their old sessions stay ended."""
+    _only_the_super_admin(admin)
+    email = data.email.strip().lower()
+    user = get_user_by_email(session, email)
+    if user and (user.role != UserRole.admin or user.is_active):
+        raise HTTPException(status.HTTP_409_CONFLICT, f"A TutorLink account already uses {email}")
+    if user is None:
+        user = User(email=email, role=UserRole.admin)
+    else:
+        user.is_active = True
+        _end_all_sessions(user)
+    user.password_hash = get_password_hash(data.password)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+def remove_admin(session: Session, admin: User, admin_id: UUID) -> None:
+    """The super admin removes another admin, who can't log in any more and is logged out everywhere. The
+    super admin can't be removed, so there's always an admin."""
+    _only_the_super_admin(admin)
+    user = session.get(User, admin_id)
+    if user is None or user.role != UserRole.admin:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Admin not found")
+    if user.is_super_admin:
+        raise HTTPException(status.HTTP_409_CONFLICT, "The super admin can't be removed")
+    if user.is_active:
+        user.is_active = False
+        _end_all_sessions(user)
+        session.add(user)
+        session.commit()
 
 
 def forgot_password(session: Session, data: ForgotPasswordRequest) -> tuple[str, str, str] | None:

@@ -637,6 +637,17 @@ export interface SubjectAdmin extends Subject {
   offers: number
 }
 
+/** An admin account, listed at /admin/admins. */
+export interface AdminAccount {
+  id: string
+  email: string
+  /** False once the super admin removed them: they can't log in until re-added. */
+  is_active: boolean
+  /** The one admin who adds and removes the others; can't be removed. */
+  is_super_admin: boolean
+  created_at: string
+}
+
 export type LegalKind = 'privacy' | 'terms' | 'disclaimer'
 
 export interface LegalDocument {

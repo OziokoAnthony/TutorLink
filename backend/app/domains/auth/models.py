@@ -28,6 +28,9 @@ class User(BaseUUIDModel, table=True):
     token_version: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     role: UserRole = Field(sa_type=pg_enum(UserRole, "user_role"))
     is_active: bool = Field(default=True, sa_column_kwargs={"server_default": sa.true()})
+    # The one admin who adds and removes the others and can't be removed: the first, made by
+    # app.scripts.create_admin. A partial unique index (migration 0024) allows only one.
+    is_super_admin: bool = Field(default=False, sa_column_kwargs={"server_default": sa.false()})
     photo_key: str | None = None  # profile picture in storage (spec 4 R1b)
 
 
@@ -144,6 +147,22 @@ class LoginRequest(SQLModel):
 class ChangePasswordRequest(SQLModel):
     current_password: str
     new_password: str = Field(min_length=8, max_length=72)
+
+
+class AdminIn(SQLModel):
+    """The super admin adds another admin with a temporary password, which they pass on themselves; the new
+    admin changes it after logging in."""
+
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=72)
+
+
+class AdminRead(SQLModel):
+    id: UUID
+    email: str
+    is_active: bool  # False once removed: they can't log in until re-added
+    is_super_admin: bool
+    created_at: datetime
 
 
 class TokenResponse(SQLModel):

@@ -1,6 +1,6 @@
 import api from '@/lib/api'
 import { toTutorProfile, type OfferInput } from '@/lib/tutors'
-import type { ParentProfile, Role, TutorToRate, UserMe } from '@/types'
+import type { AdminAccount, ParentProfile, Role, TutorToRate, UserMe } from '@/types'
 
 /** What a new parent or tutor tells us about themselves. */
 export interface ProfileInput {
@@ -92,6 +92,22 @@ export async function getMe(): Promise<UserMe> {
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   await api.put('/auth/me/password', { current_password: currentPassword, new_password: newPassword })
+}
+
+export async function getAdmins(): Promise<AdminAccount[]> {
+  const { data } = await api.get<AdminAccount[]>('/admin/admins')
+  return data
+}
+
+/** Super admin only. Re-adding a removed admin's email brings them back with this password. */
+export async function addAdmin(email: string, password: string): Promise<AdminAccount> {
+  const { data } = await api.post<AdminAccount>('/admin/admins', { email, password })
+  return data
+}
+
+/** Super admin only: they can't log in any more and are logged out everywhere. */
+export async function removeAdmin(id: string): Promise<void> {
+  await api.delete(`/admin/admins/${id}`)
 }
 
 /** JPG, PNG or WebP up to 5 MB; the backend crops it to a square. */
