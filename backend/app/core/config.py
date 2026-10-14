@@ -83,6 +83,17 @@ class Settings(BaseSettings):
             raise ValueError("SECRET_KEY must be at least 32 characters")
         return v
 
+    @field_validator("DATABASE_URL", "ALEMBIC_DATABASE_URL")
+    @classmethod
+    def use_psycopg3(cls, v: str | None) -> str | None:
+        # Neon and Render hand out postgres:// or postgresql:// URLs, for which SQLAlchemy picks psycopg2, which
+        # isn't installed: point them at psycopg 3.
+        if v:
+            for scheme in ("postgres://", "postgresql://"):
+                if v.startswith(scheme):
+                    return "postgresql+psycopg://" + v.removeprefix(scheme)
+        return v
+
     @model_validator(mode="after")
     def production_keys_are_separate(self) -> "Settings":
         if self.APP_ENV != "production":

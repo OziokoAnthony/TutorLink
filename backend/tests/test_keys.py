@@ -52,6 +52,15 @@ def test_production_runs_without_a_cookie_domain():
     assert make(COOKIE_DOMAIN="")
 
 
+@pytest.mark.parametrize("given", ["postgres://u:p@host/db?sslmode=require",
+                                   "postgresql://u:p@host/db?sslmode=require",
+                                   "postgresql+psycopg://u:p@host/db?sslmode=require"])
+def test_database_urls_as_neon_gives_them_use_psycopg3(given):
+    """Neon's and Render's URLs would make SQLAlchemy load psycopg2, which isn't installed."""
+    s = make(DATABASE_URL=given, ALEMBIC_DATABASE_URL=given)
+    assert s.DATABASE_URL == s.ALEMBIC_DATABASE_URL == "postgresql+psycopg://u:p@host/db?sslmode=require"
+
+
 def test_development_runs_without_services():
     assert make(APP_ENV="development", **{name: "" for name in LIVE if name not in ("BASE_URL", "FRONTEND_URL")})
 
