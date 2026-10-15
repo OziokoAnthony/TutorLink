@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
+from starlette.concurrency import run_in_threadpool
 
 from app.core import claude, clock
 from app.domains.auth import limits
@@ -83,13 +84,16 @@ def reply(session: Session, admin: User, feedback_id: UUID, data: FeedbackReplyI
     return next(v for v in admin_list(session, answered=True) if v.id == feedback.id)
 
 
-def help_chat(session: Session, user: User, messages: list[ChatMessage]) -> str:
-    """R3: Claude's answer for the reader's role, or 503 when it isn't available (R3.6)."""
+async def help_chat(session: Session, user: User, messages: list[ChatMessage]) -> str:
+    """R3: Claude's answer for the reader's role, or 503 when it isn't available (R3.6).
+
+    Async so a reply that takes seconds doesn't hold a server thread. The database is synchronous, so the rate
+    limit runs in the thread pool; it commits before Claude is asked, which hands the connection back meanwhile."""
     if not claude.available():
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
                             "The help assistant isn't available right now. Please send us feedback instead.")
-    limits.hit(session, limits.HELP_USER, str(user.id))
-    answer = claude.help_reply(user.role.value, [m.model_dump(mode="json") for m in messages])
+    await run_in_threadpool(limits.hit, session, limits.HELP_USER, str(user.id))
+    answer = await claude.help_reply(user.role.value, [m.model_dump(mode="json") for m in messages])
     if answer is None:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
                             "The help assistant couldn't answer just now. Try again, or send this conversation "

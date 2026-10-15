@@ -37,9 +37,9 @@ def my_feedback(user: User = Depends(parent_or_tutor), session: Session = Depend
 
 
 @help_router.post("/chat", response_model=HelpChatOut)
-def help_chat(data: HelpChatIn, user: User = Depends(parent_or_tutor), session: Session = Depends(get_session)):
+async def help_chat(data: HelpChatIn, user: User = Depends(parent_or_tutor), session: Session = Depends(get_session)):
     """One answer from the help assistant to the conversation so far, which the browser keeps (R3.5)."""
-    return HelpChatOut(reply=service.help_chat(session, user, data.messages))
+    return HelpChatOut(reply=await service.help_chat(session, user, data.messages))
 
 
 @admin_router.get("", response_model=list[FeedbackAdminView])
