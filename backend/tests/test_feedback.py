@@ -1,5 +1,10 @@
 """Spec 6: feedback from parents and tutors, admin replies, and the help assistant."""
 
+import asyncio
+from types import SimpleNamespace
+
+import anthropic
+import httpx
 import pytest
 
 from app.core import claude as claude_client
@@ -95,7 +100,7 @@ def assistant(monkeypatch):
     """A fake help assistant that records what it was asked."""
     calls: list[tuple[str, list[dict]]] = []
 
-    def help_reply(role, messages):
+    async def help_reply(role, messages):
         calls.append((role, messages))
         return f"Answer for a {role}."
 
@@ -133,8 +138,46 @@ def test_help_chat_unavailable(client, monkeypatch):
     monkeypatch.setattr(claude_client, "available", lambda: False)
     assert chat(client, parent, ("user", "Hi")).status_code == 503
     monkeypatch.setattr(claude_client, "available", lambda: True)
-    monkeypatch.setattr(claude_client, "help_reply", lambda role, messages: None)
+    async def no_answer(role, messages):
+        return None
+
+    monkeypatch.setattr(claude_client, "help_reply", no_answer)
     assert chat(client, parent, ("user", "Hi")).status_code == 503
+
+
+class _FakeAsyncAnthropic:
+    """Stands in for anthropic.AsyncAnthropic: `create` is awaited and answers with `response` or raises `error`."""
+
+    def __init__(self, response=None, error: Exception | None = None):
+        self.response, self.error, self.calls = response, error, []
+        self.beta = SimpleNamespace(messages=SimpleNamespace(create=self.create))
+
+    async def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.error:
+            raise self.error
+        return self.response
+
+
+def _reply(stop_reason: str, *texts: str):
+    return SimpleNamespace(stop_reason=stop_reason, _request_id="req_1",
+                           content=[SimpleNamespace(type="text", text=t) for t in texts])
+
+
+def test_help_reply_awaits_claude_and_gives_none_when_it_cant_answer(monkeypatch):
+    """The real help_reply over the async client: the text when Claude finishes, None otherwise (R3.6)."""
+    messages = [{"role": "user", "content": "Hi"}]
+    fake = _FakeAsyncAnthropic(_reply("end_turn", "Hello ", "there."))
+    monkeypatch.setattr(claude_client, "_async_client", lambda: fake)
+    assert asyncio.run(claude_client.help_reply("parent", messages)) == "Hello there."
+    assert fake.calls[0]["messages"] == messages and "parent" in fake.calls[0]["system"][0]["text"]
+
+    for fake in (_FakeAsyncAnthropic(_reply("max_tokens", "Half an ans")),
+                 _FakeAsyncAnthropic(_reply("end_turn", "  ")),
+                 _FakeAsyncAnthropic(error=anthropic.APIConnectionError(
+                     request=httpx.Request("POST", "https://api.anthropic.com/v1/messages")))):
+        monkeypatch.setattr(claude_client, "_async_client", lambda: fake)
+        assert asyncio.run(claude_client.help_reply("tutor", messages)) is None
 
 
 def test_help_chat_is_for_parents_and_tutors(client, admin_headers, assistant):

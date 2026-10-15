@@ -14,6 +14,7 @@ The help assistant (`help_reply`) answers a parent's or tutor's question in plai
 of TutorLink. It has no tools and sees no account data; a reply that fails or is declined is None.
 """
 
+import functools
 import json
 import logging
 from dataclasses import dataclass
@@ -241,11 +242,20 @@ Feedback
 and shows their replies."""
 
 
-def help_reply(role: str, messages: list[dict]) -> str | None:
+@functools.cache
+def _async_client() -> anthropic.AsyncAnthropic:
+    """One client for the server's life, so its connections to Anthropic are reused between questions."""
+    return anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY, max_retries=3)
+
+
+async def help_reply(role: str, messages: list[dict]) -> str | None:
     """The assistant's answer to a conversation ([{"role": "user" | "assistant", "content": str}], ending with the
-    user's message) from a parent or tutor, or None if Claude declined, ran out of tokens or failed."""
+    user's message) from a parent or tutor, or None if Claude declined, ran out of tokens or failed.
+
+    Async because a reply takes seconds: a waiting question doesn't hold one of the server's threads, so many
+    people can chat at once without slowing the rest of the API (note.md Q52)."""
     try:
-        response = _client().beta.messages.create(
+        response = await _async_client().beta.messages.create(
             model=settings.HELP_MODEL,
             max_tokens=4000,
             # The prompt is the same for every parent (and every tutor), so it's cached across conversations.

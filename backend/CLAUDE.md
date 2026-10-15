@@ -119,6 +119,10 @@ Alembic migration per spec or build step in `alembic/versions/`.
 - **Production settings.** With `APP_ENV=production`, `config.py` also refuses to start without live Paystack,
   Resend, Dojah and bucket settings and `https://` URLs (`production_services_are_live`).
   A new setting production can't work without belongs in that list.
+- **Sync by default.** Routes are plain `def` (FastAPI runs them in a thread pool) and the database is synchronous.
+  Use `async def` only where a request waits seconds on an outside service without needing the database
+  meanwhile, as `/help/chat` does (`claude.help_reply` awaits `AsyncAnthropic`); call the database from async code
+  through `run_in_threadpool`, never directly. In tests, fakes for async functions are `async def`.
 - **Errors.** Raise `HTTPException` with a plain-English `detail` the frontend can show as is:
   404 when it doesn't exist, 403 for the wrong role or someone else's resource, 409 for a state
   conflict, 422 for invalid input.
