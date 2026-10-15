@@ -7,6 +7,7 @@ from sqlmodel import Session
 
 from app.core.deps import require_roles
 from app.db.session import get_session
+from app.domains.activity import service as activity
 from app.domains.auth.models import User, UserRole
 from app.domains.feedback import service
 from app.domains.feedback.models import (
@@ -51,4 +52,6 @@ def admin_feedback(answered: bool = Query(False), admin: User = Depends(admin_on
 @admin_router.post("/{feedback_id}/reply", response_model=FeedbackAdminView)
 def reply(feedback_id: UUID, data: FeedbackReplyIn, admin: User = Depends(admin_only),
           session: Session = Depends(get_session)):
-    return service.reply(session, admin, feedback_id, data)
+    feedback = service.reply(session, admin, feedback_id, data)
+    activity.record(session, admin, f"Replied to feedback from {feedback.user_name or feedback.user_email}")
+    return feedback

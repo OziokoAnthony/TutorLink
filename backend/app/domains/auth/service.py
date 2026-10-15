@@ -15,6 +15,8 @@ from app.core.security import (
     hash_token,
     verify_password,
 )
+from app.domains.activity import service as activity
+from app.domains.activity.models import ActivityKind
 from app.domains.auth import limits, photos
 from app.domains.auth.models import (
     AdminIn,
@@ -175,6 +177,7 @@ def login(session: Session, data: LoginRequest, ip: str) -> TokenResponse:
             "Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    activity.record(session, user, "Logged in", ActivityKind.login)  # admins only: starts a session (spec 8 R3)
     return TokenResponse(access_token=issue_token(user), role=user.role)
 
 
@@ -199,6 +202,7 @@ def change_password(session: Session, user: User, data: ChangePasswordRequest) -
     _end_all_sessions(user)
     session.add(user)
     session.commit()
+    activity.record(session, user, "Changed password")  # admins only (spec 8 R2.1)
     return issue_token(user)
 
 
@@ -226,6 +230,7 @@ def add_admin(session: Session, admin: User, data: AdminIn) -> User:
     else:
         user.is_active = True
         _end_all_sessions(user)
+    user.name = data.name
     user.password_hash = get_password_hash(data.password)
     session.add(user)
     session.commit()
@@ -247,6 +252,15 @@ def remove_admin(session: Session, admin: User, admin_id: UUID) -> None:
         _end_all_sessions(user)
         session.add(user)
         session.commit()
+
+
+def set_admin_name(session: Session, admin: User, name: str) -> User:
+    """Spec 8 R1.2: every admin can change their own name."""
+    admin.name = name
+    session.add(admin)
+    session.commit()
+    session.refresh(admin)
+    return admin
 
 
 def forgot_password(session: Session, data: ForgotPasswordRequest) -> tuple[str, str, str] | None:

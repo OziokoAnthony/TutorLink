@@ -5,6 +5,7 @@ from sqlmodel import Session
 
 from app.core.deps import get_current_user, require_roles
 from app.db.session import get_session
+from app.domains.activity import service as activity
 from app.domains.auth.models import User, UserRole
 from app.domains.bookings.models import BookingParentView, LessonMode
 from app.domains.job_posts import service
@@ -102,4 +103,8 @@ def admin_jobs(status_filter: JobStatus | None = Query(None, alias="status"),
 def review_job(job_id: UUID, data: JobReviewIn, admin: User = Depends(admin_only),
                session: Session = Depends(get_session)):
     """Approve (`open`) or reject with a note the parent sees (spec 2 R1.4)."""
-    return service.review(session, job_id, data)
+    job = service.review(session, job_id, data)
+    verb = "Approved" if data.status == "open" else "Rejected"
+    subjects = ", ".join(job.subjects)
+    activity.record(session, admin, f"{verb} a job post by {activity.who(job.parent_name)} ({subjects})")
+    return job

@@ -1,5 +1,6 @@
 """Imports every table model so SQLModel.metadata knows all tables (Alembic and tests use it)."""
 
+from app.domains.activity import models as activity_models  # noqa: F401
 from app.domains.auth import models as auth_models  # noqa: F401
 from app.domains.bookings import models as bookings_models  # noqa: F401
 from app.domains.certificates import models as certificates_models  # noqa: F401

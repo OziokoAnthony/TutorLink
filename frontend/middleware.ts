@@ -6,7 +6,7 @@ type Role = 'parent' | 'tutor' | 'admin'
 const ROLE_HOME: Record<Role, string> = {
   parent: '/dashboard/parent',
   tutor: '/dashboard/tutor',
-  admin: '/admin/tutors',
+  admin: '/admin',
 }
 
 // Which role each protected area belongs to.

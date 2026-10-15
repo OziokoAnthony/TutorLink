@@ -5,9 +5,11 @@ from sqlmodel import Session
 
 from app.core.deps import clear_session_cookie, get_current_user, require_roles, set_session_cookie
 from app.db.session import get_session
+from app.domains.activity import service as activity
 from app.domains.auth import limits, photos, service
 from app.domains.auth.models import (
     AdminIn,
+    AdminNameIn,
     AdminRead,
     ChangePasswordRequest,
     ForgotPasswordRequest,
@@ -117,6 +119,8 @@ def upload_photo(file: UploadFile = File(...), user: User = Depends(get_current_
 def remove_photo(user_id: UUID, admin: User = Depends(admin_only), session: Session = Depends(get_session)):
     """Removes an inappropriate profile picture; the user is asked to upload a new one."""
     service.remove_photo(session, user_id)
+    name = service.full_names(session, [user_id]).get(user_id)
+    activity.record(session, admin, f"Removed the profile picture of {activity.who(name)}")
 
 
 @admin_router.get("/admins", response_model=list[AdminRead])
@@ -126,9 +130,21 @@ def admins(admin: User = Depends(admin_only), session: Session = Depends(get_ses
 
 @admin_router.post("/admins", response_model=AdminRead, status_code=status.HTTP_201_CREATED)
 def add_admin(data: AdminIn, admin: User = Depends(admin_only), session: Session = Depends(get_session)):
-    return service.add_admin(session, admin, data)
+    added = service.add_admin(session, admin, data)
+    activity.record(session, admin, f"Added admin {added.name} ({added.email})")
+    return added
 
 
 @admin_router.delete("/admins/{admin_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_admin(admin_id: UUID, admin: User = Depends(admin_only), session: Session = Depends(get_session)):
     service.remove_admin(session, admin, admin_id)
+    removed = session.get(User, admin_id)
+    activity.record(session, admin, f"Removed admin {removed.name or removed.email}")
+
+
+@admin_router.put("/me/name", response_model=AdminRead)
+def set_my_name(data: AdminNameIn, admin: User = Depends(admin_only), session: Session = Depends(get_session)):
+    """Spec 8 R1.2: an admin changes their own name."""
+    renamed = service.set_admin_name(session, admin, data.name)
+    activity.record(session, admin, f"Changed name to {renamed.name}")
+    return renamed

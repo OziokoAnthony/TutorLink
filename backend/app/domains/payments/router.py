@@ -5,6 +5,7 @@ from sqlmodel import Session
 
 from app.core.deps import get_current_user, require_roles
 from app.db.session import get_session
+from app.domains.activity import service as activity
 from app.domains.auth.models import User, UserRole
 from app.domains.payments import service
 from app.domains.payments.models import (
@@ -66,16 +67,25 @@ def withdrawals(status_: TransferStatus | None = Query(None, alias="status"), ad
 
 @admin_router.post("/{withdrawal_id}/send", response_model=WithdrawalAdminRead)
 def send(withdrawal_id: UUID, admin: User = Depends(admin_only), session: Session = Depends(get_session)):
-    return service.send_withdrawal(session, admin, withdrawal_id)
+    withdrawal = service.send_withdrawal(session, admin, withdrawal_id)
+    activity.record(session, admin, f"Sent a {activity.naira(withdrawal.amount)} withdrawal to "
+                                    f"{activity.who(withdrawal.parent_name)}")
+    return withdrawal
 
 
 @admin_router.post("/{withdrawal_id}/mark-paid", response_model=WithdrawalAdminRead)
 def mark_paid(withdrawal_id: UUID, data: AdminDecision, admin: User = Depends(admin_only),
               session: Session = Depends(get_session)):
-    return service.mark_withdrawal_paid(session, admin, withdrawal_id, data.note)
+    withdrawal = service.mark_withdrawal_paid(session, admin, withdrawal_id, data.note)
+    activity.record(session, admin, f"Marked a {activity.naira(withdrawal.amount)} withdrawal for "
+                                    f"{activity.who(withdrawal.parent_name)} as paid")
+    return withdrawal
 
 
 @admin_router.post("/{withdrawal_id}/reject", response_model=WithdrawalAdminRead)
 def reject(withdrawal_id: UUID, data: AdminDecision, admin: User = Depends(admin_only),
            session: Session = Depends(get_session)):
-    return service.reject_withdrawal(session, admin, withdrawal_id, data.note)
+    withdrawal = service.reject_withdrawal(session, admin, withdrawal_id, data.note)
+    activity.record(session, admin, f"Rejected a {activity.naira(withdrawal.amount)} withdrawal for "
+                                    f"{activity.who(withdrawal.parent_name)}")
+    return withdrawal

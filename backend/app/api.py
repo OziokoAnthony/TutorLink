@@ -5,6 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
 from app.db.session import get_session
+from app.domains.activity.router import admin_router as admin_activity_router
 from app.domains.auth.router import admin_router as admin_users_router
 from app.domains.auth.router import router as auth_router
 from app.domains.bookings.router import admin_router as admin_bookings_router
@@ -40,7 +41,7 @@ from app.domains.webhooks.router import router as webhooks_router
 api_router = APIRouter()
 
 for router in (
-    auth_router, admin_users_router,
+    auth_router, admin_users_router, admin_activity_router,
     tutors_router, tutor_schedule_router, reviews_router, admin_tutors_router,
     onboarding_router, certificates_router, admin_certificates_router, exam_router, admin_exam_router,
     bookings_router, admin_bookings_router, jobs_router, admin_jobs_router,

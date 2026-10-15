@@ -5,6 +5,8 @@ from sqlmodel import Session
 
 from app.core.deps import get_current_user, require_roles
 from app.db.session import get_session
+from app.domains.activity import service as activity
+from app.domains.auth import service as auth_service
 from app.domains.auth.models import User, UserRole
 from app.domains.payouts import service
 from app.domains.payouts.models import (
@@ -66,10 +68,18 @@ def payouts(tutor_id: UUID | None = None, skip: int = Query(0, ge=0), limit: int
 
 @admin_router.post("/payouts", response_model=PayoutRead, status_code=status.HTTP_201_CREATED)
 def create_payout(data: PayoutCreate, admin: User = Depends(admin_only), session: Session = Depends(get_session)):
-    return service.create_payout(session, admin, data)
+    payout = service.create_payout(session, admin, data)
+    lessons = "1 lesson" if payout.lesson_count == 1 else f"{payout.lesson_count} lessons"
+    activity.record(session, admin, f"Paid tutor {activity.who(payout.tutor_name)} "
+                                    f"{activity.naira(payout.amount)} for {lessons}")
+    return payout
 
 
 @admin_router.post("/tutors/{tutor_id}/bank-account/override", response_model=BankAccountAdminView)
 def override_bank(tutor_id: UUID, data: BankOverride, admin: User = Depends(admin_only),
                   session: Session = Depends(get_session)):
-    return service.override_bank_account(session, admin, tutor_id, data.note)
+    account = service.override_bank_account(session, admin, tutor_id, data.note)
+    tutor = auth_service.full_names(session, [tutor_id]).get(tutor_id)
+    activity.record(session, admin,
+                    f"Approved the bank account of tutor {activity.who(tutor)} despite the name mismatch")
+    return account

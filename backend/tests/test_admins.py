@@ -5,8 +5,9 @@ from tests import helpers
 TEMPORARY = "temporary-pass-1"
 
 
-def _add(client, admin_headers, email: str, password: str = TEMPORARY):
-    return client.post("/v1/admin/admins", headers=admin_headers, json={"email": email, "password": password})
+def _add(client, admin_headers, email: str, password: str = TEMPORARY, name: str = "Ada Admin"):
+    return client.post("/v1/admin/admins", headers=admin_headers,
+                       json={"name": name, "email": email, "password": password})
 
 
 def _me(client, headers) -> dict:
