@@ -1,6 +1,7 @@
-"""The qualifying exam (spec 4 R5).
+"""The qualifying exam (spec 4 R5, spec 12).
 
-Bank: Claude writes questions per tag (general reasoning, or a subject at a level); a second, independent
+Bank: admins write questions or upload them as a PDF (spec 12); Claude tops up a tag below its target. Claude writes
+questions per tag (general reasoning, or a subject at a level); a second, independent
 Claude call answers each one without the key, and only questions it gets right are kept (R5.2). The bank
 is topped up in the background towards 300 general and 200 per subject and level in use (R5.2), and
 on demand when an attempt can't be filled yet (R5.8).
@@ -27,9 +28,10 @@ from sqlmodel import Session, select
 from app.core import claude, clock
 from app.core.config import settings
 from app.db.session import engine
-from app.domains.auth.models import User
+from app.domains.auth.models import User, UserRole
 from app.domains.exam.models import (
     GENERAL_KEY,
+    AddedQuestions,
     AdminAttempt,
     AdminQuestion,
     AnswersIn,
@@ -41,9 +43,17 @@ from app.domains.exam.models import (
     ExamAttemptQuestion,
     ExamQuestion,
     ExamStatus,
+    ParsedQuestions,
+    QuestionBody,
+    QuestionIn,
+    QuestionsIn,
+    QuestionTag,
 )
 from app.domains.content import service as content
+from app.domains.exam import pdf
 from app.domains.identity import service as identity
+from app.domains.notifications import service as notifications
+from app.domains.notifications.models import Notification
 from app.domains.tutors.models import (
     EducationLevel,
     TutorOffer,
@@ -323,10 +333,11 @@ def get_status(session: Session, user: User) -> ExamStatus:
 
 
 def _pool(session: Session, tag: Tag, seen: set[UUID]) -> list[ExamQuestion]:
-    """Active questions on `tag`, unseen ones first, random within each group (R5.3)."""
-    questions = list(session.exec(select(ExamQuestion).where(_tag_filter(tag), _active_filter())).all())
+    """Active questions on `tag` the tutor has never had, in random order (spec 12 R4.1)."""
+    questions = [q for q in session.exec(select(ExamQuestion).where(_tag_filter(tag), _active_filter())).all()
+                 if q.id not in seen]
     random.shuffle(questions)
-    return sorted(questions, key=lambda q: q.id in seen)
+    return questions
 
 
 def _pick(session: Session, tutor_id: UUID, tags: list[Tag]) -> list[ExamQuestion]:
@@ -344,6 +355,7 @@ def _pick(session: Session, tutor_id: UUID, tags: list[Tag]) -> list[ExamQuestio
     if short:
         request_generation(short)
     if len(general) < GENERAL_COUNT or sum(len(p) for p in pools.values()) < SUBJECT_COUNT:
+        _tell_admins(session, short)
         raise HTTPException(status.HTTP_409_CONFLICT, PREPARING)
 
     subject: list[ExamQuestion] = []
@@ -459,7 +471,7 @@ def admin_questions(session: Session, subject: str | None, level: EducationLevel
     if not include_retired:
         stmt = stmt.where(_active_filter())
     rows = session.exec(stmt.order_by(ExamQuestion.created_at.desc()).offset(skip).limit(limit)).all()
-    return [AdminQuestion.model_validate(q) for q in rows]
+    return _admin_views(session, list(rows))
 
 
 def retire(session: Session, question_id: UUID) -> AdminQuestion:
@@ -472,7 +484,7 @@ def retire(session: Session, question_id: UUID) -> AdminQuestion:
         session.add(question)
         session.commit()
         session.refresh(question)
-    return AdminQuestion.model_validate(question)
+    return _admin_views(session, [question])[0]
 
 
 def bank_levels(session: Session) -> list[BankLevel]:
@@ -484,3 +496,91 @@ def bank_levels(session: Session) -> list[BankLevel]:
         counts[(key, level)] = n
     return [BankLevel(subject=t.subject, level=t.level, active=counts[(t.subject_key, t.level)], target=t.target)
             for t in (GENERAL, *tags_in_use(session))]
+
+
+# ---------- Admin questions (spec 12) ----------
+
+ADMIN_MODEL = "admin"
+
+
+def tag_label(tag: Tag) -> str:
+    return "general reasoning" if tag.subject_key == GENERAL_KEY else f"{tag.subject} ({tag.level.value.replace('_', ' ')})"
+
+
+def _tell_admins(session: Session, tags: list[Tag]) -> None:
+    """R4.2: admins are told which tags need questions, at most once a day per tag."""
+    admins = session.exec(select(User.id).where(User.role == UserRole.admin, User.is_active == True)).all()  # noqa: E712
+    since = clock.now() - timedelta(days=1)
+    for tag in tags:
+        title = f"Exam questions needed: {tag_label(tag)}"
+        if session.exec(select(Notification.id).where(Notification.title == title,
+                                                      Notification.created_at >= since)).first():
+            continue
+        for admin_id in admins:
+            notifications.notify(session, admin_id, title,
+                                 f"A tutor couldn't start the exam: there aren't enough {tag_label(tag)} questions "
+                                 "they haven't had. Add some at Exam.", "/admin/exam", email=False)
+    session.commit()
+
+
+def _tag(session: Session, data: QuestionTag) -> Tag:
+    """R1.1: general reasoning, or a subject on TutorLink's list (spec 7) at a level."""
+    if data.subject is None:
+        return GENERAL
+    name = content.all_names(session).get(data.subject.lower())
+    if name is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{data.subject} isn't on TutorLink's subject list")
+    return Tag(name.lower(), data.level, name)
+
+
+def _admin_row(tag: Tag, body: QuestionBody, admin: User) -> ExamQuestion:
+    return ExamQuestion(subject_key=tag.subject_key, subject=tag.subject, level=tag.level, text=body.text,
+                        options=list(body.options), correct_index=body.correct_index,
+                        explanation=body.explanation or "", text_hash=_hash(body.text), model=ADMIN_MODEL,
+                        added_by=admin.id)
+
+
+def add_question(session: Session, admin: User, data: QuestionIn) -> tuple[AdminQuestion, Tag]:
+    """R1: one question written by an admin."""
+    tag = _tag(session, data)
+    row = _admin_row(tag, data, admin)
+    session.add(row)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "This question is already in the bank")
+    session.refresh(row)
+    return _admin_views(session, [row])[0], tag
+
+
+def add_questions(session: Session, admin: User, data: QuestionsIn) -> tuple[AddedQuestions, Tag]:
+    """R2.4: the checked questions from a PDF; ones already in the bank are skipped."""
+    tag = _tag(session, data)
+    added = duplicates = 0
+    seen: set[str] = set()
+    for body in data.questions:
+        key = _hash(body.text)
+        if key in seen:
+            duplicates += 1
+            continue
+        seen.add(key)
+        try:
+            with session.begin_nested():
+                session.add(_admin_row(tag, body, admin))
+            added += 1
+        except IntegrityError:
+            duplicates += 1
+    session.commit()
+    return AddedQuestions(added=added, duplicates=duplicates), tag
+
+
+def read_pdf(file) -> ParsedQuestions:
+    """R2.2, R2.3: what the PDF holds, for the admin to check. Nothing is saved."""
+    return pdf.parse(pdf.read_upload(file))
+
+
+def _admin_views(session: Session, rows: list[ExamQuestion]) -> list[AdminQuestion]:
+    ids = {q.added_by for q in rows if q.added_by}
+    names = {u.id: u.name or u.email for u in session.exec(select(User).where(User.id.in_(ids))).all()} if ids else {}
+    return [AdminQuestion.model_validate(q, update={"added_by_name": names.get(q.added_by)}) for q in rows]

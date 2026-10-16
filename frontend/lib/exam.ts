@@ -1,5 +1,8 @@
 import api from '@/lib/api'
-import type { AdminExamAttempt, AdminExamQuestion, ExamAttempt, ExamBankLevel, ExamResult, ExamStatus, Level } from '@/types'
+import type {
+  AdminExamAttempt, AdminExamQuestion, ExamAttempt, ExamBankLevel, ExamQuestionBody, ExamQuestionTag, ExamResult,
+  ExamStatus, Level, ParsedExamQuestions,
+} from '@/types'
 
 /** The qualifying exam (spec 4 R5). */
 export async function getExamStatus(): Promise<ExamStatus> {
@@ -40,5 +43,25 @@ export async function retireExamQuestion(id: string): Promise<AdminExamQuestion>
 
 export async function getExamBank(): Promise<ExamBankLevel[]> {
   const { data } = await api.get<ExamBankLevel[]>('/admin/exam/bank')
+  return data
+}
+
+/** Spec 12 R1: one question an admin writes. */
+export async function addExamQuestion(tag: ExamQuestionTag, body: ExamQuestionBody): Promise<AdminExamQuestion> {
+  const { data } = await api.post<AdminExamQuestion>('/admin/exam/questions', { ...tag, ...body })
+  return data
+}
+
+/** Spec 12 R2.3: the questions found in a PDF in the fixed layout. Nothing is saved. */
+export async function readExamPdf(file: File): Promise<ParsedExamQuestions> {
+  const form = new FormData()
+  form.append('file', file)
+  const { data } = await api.post<ParsedExamQuestions>('/admin/exam/questions/pdf', form)
+  return data
+}
+
+/** Spec 12 R2.4: saves the checked questions; ones already in the bank are skipped. */
+export async function addExamQuestions(tag: ExamQuestionTag, questions: ExamQuestionBody[]): Promise<{ added: number; duplicates: number }> {
+  const { data } = await api.post<{ added: number; duplicates: number }>('/admin/exam/questions/batch', { ...tag, questions })
   return data
 }

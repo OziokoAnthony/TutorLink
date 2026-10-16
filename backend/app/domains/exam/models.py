@@ -1,10 +1,12 @@
-"""The qualifying exam (spec 4 R5): a question bank written by Claude, and tutors' timed attempts."""
+"""The qualifying exam (spec 4 R5): a question bank written by admins (spec 12) and topped up by Claude, and tutors'
+timed attempts."""
 
 from datetime import datetime
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from pydantic import Field as PydanticField
+from pydantic import model_validator
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import Field, SQLModel
 
@@ -32,7 +34,8 @@ class ExamQuestion(BaseUUIDModel, table=True):
     correct_index: int = Field(sa_type=sa.SmallInteger)
     explanation: str = Field(sa_type=sa.Text)
     text_hash: str = Field(unique=True)  # the same question is never stored twice
-    model: str  # the Claude model that wrote it
+    model: str  # the Claude model that wrote it, or "admin" (spec 12)
+    added_by: UUID | None = Field(default=None, foreign_key="users.id")  # the admin who wrote or uploaded it
     retired_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))  # never served again
 
 
@@ -125,8 +128,84 @@ class AdminQuestion(SQLModel):
     correct_index: int
     explanation: str
     model: str
+    added_by_name: str | None = None  # the admin who added it; None for Claude's (spec 12 R3.1)
     retired_at: datetime | None
     created_at: datetime
+
+
+# ---------- Admin questions (spec 12) ----------
+
+def _clean(text: str) -> str:
+    return " ".join(text.split())
+
+
+class QuestionBody(SQLModel):
+    """One question's content (R1.2): four different options and the right one."""
+
+    text: str = PydanticField(min_length=10, max_length=2000)
+    options: list[str] = PydanticField(min_length=4, max_length=4)
+    correct_index: int = PydanticField(ge=0, le=3)
+    explanation: str | None = PydanticField(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def tidy(self) -> "QuestionBody":
+        self.text = self.text.strip()
+        self.options = [_clean(o) for o in self.options]
+        if any(not 1 <= len(o) <= 500 for o in self.options):
+            raise ValueError("Each option is 1 to 500 characters")
+        if len({o.lower() for o in self.options}) < 4:
+            raise ValueError("The four options must all be different")
+        self.explanation = (self.explanation or "").strip() or None
+        return self
+
+
+class QuestionTag(SQLModel):
+    """General reasoning (no subject, no level), or a listed subject at a level (R1.1)."""
+
+    subject: str | None = PydanticField(default=None, max_length=60)
+    level: EducationLevel | None = None
+
+    @model_validator(mode="after")
+    def check_tag(self) -> "QuestionTag":
+        self.subject = _clean(self.subject) if self.subject and self.subject.strip() else None
+        if (self.subject is None) != (self.level is None):
+            raise ValueError("Choose a subject and a level, or neither for general reasoning")
+        return self
+
+
+class QuestionIn(QuestionTag, QuestionBody):
+    pass
+
+
+class QuestionsIn(QuestionTag):
+    """The checked questions from a PDF (R2.4)."""
+
+    questions: list[QuestionBody] = PydanticField(min_length=1, max_length=500)
+
+
+class QuestionDraft(SQLModel):
+    """A question read from a PDF, for the admin to check before saving (R2.3)."""
+
+    number: int
+    text: str
+    options: list[str]
+    correct_index: int | None  # None when the answer line is missing or unreadable
+    explanation: str | None
+
+
+class ParseProblem(SQLModel):
+    number: int | None  # None for the whole file
+    message: str
+
+
+class ParsedQuestions(SQLModel):
+    questions: list[QuestionDraft]
+    problems: list[ParseProblem]
+
+
+class AddedQuestions(SQLModel):
+    added: int
+    duplicates: int  # already in the bank, skipped (R2.4)
 
 
 class BankLevel(SQLModel):

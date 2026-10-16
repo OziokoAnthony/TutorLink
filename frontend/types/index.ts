@@ -129,8 +129,38 @@ export interface AdminExamQuestion {
   correct_index: number
   explanation: string
   model: string
+  /** The admin who wrote or uploaded it; null for Claude's (spec 12 R3.1). */
+  added_by_name: string | null
   retired_at: string | null
   created_at: string
+}
+
+/** A question's content, as an admin writes it (spec 12 R1.2). */
+export interface ExamQuestionBody {
+  text: string
+  options: string[]
+  correct_index: number
+  explanation?: string | null
+}
+
+/** General reasoning (both null), or a listed subject at a level (spec 12 R1.1). */
+export interface ExamQuestionTag {
+  subject: string | null
+  level: Level | null
+}
+
+/** A question read from a PDF, for the admin to check (spec 12 R2.3). */
+export interface ExamQuestionDraft {
+  number: number
+  text: string
+  options: string[]
+  correct_index: number | null
+  explanation: string | null
+}
+
+export interface ParsedExamQuestions {
+  questions: ExamQuestionDraft[]
+  problems: { number: number | null; message: string }[]
 }
 
 /** Active bank questions for one tag against its target (general: subject null). */

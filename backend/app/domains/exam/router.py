@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from sqlmodel import Session
 
 from app.core.deps import require_roles
@@ -11,6 +11,7 @@ from app.domains.activity import service as activity
 from app.domains.auth.models import User, UserRole
 from app.domains.exam import service
 from app.domains.exam.models import (
+    AddedQuestions,
     AdminAttempt,
     AdminQuestion,
     AnswersIn,
@@ -18,6 +19,9 @@ from app.domains.exam.models import (
     AttemptView,
     BankLevel,
     ExamStatus,
+    ParsedQuestions,
+    QuestionIn,
+    QuestionsIn,
 )
 from app.domains.tutors.models import EducationLevel
 
@@ -82,3 +86,27 @@ def retire(question_id: UUID, admin: User = Depends(admin_only), session: Sessio
 def bank(admin: User = Depends(admin_only), session: Session = Depends(get_session)):
     """Active questions per tag against the target: 300 general, 200 per subject and level in use."""
     return service.bank_levels(session)
+
+
+@admin_router.post("/questions", response_model=AdminQuestion, status_code=status.HTTP_201_CREATED)
+def add_question(data: QuestionIn, admin: User = Depends(admin_only), session: Session = Depends(get_session)):
+    """Spec 12 R1: a question an admin writes, for general reasoning or a subject at a level."""
+    question, tag = service.add_question(session, admin, data)
+    activity.record(session, admin, f"Added an exam question for {service.tag_label(tag)}")
+    return question
+
+
+@admin_router.post("/questions/pdf", response_model=ParsedQuestions)
+def read_pdf(file: UploadFile = File(...), admin: User = Depends(admin_only)):
+    """Spec 12 R2.3: the questions found in a PDF in the fixed layout, for the admin to check. Nothing is saved."""
+    return service.read_pdf(file)
+
+
+@admin_router.post("/questions/batch", response_model=AddedQuestions, status_code=status.HTTP_201_CREATED)
+def add_questions(data: QuestionsIn, admin: User = Depends(admin_only), session: Session = Depends(get_session)):
+    """Spec 12 R2.4: the checked questions from a PDF; ones already in the bank are skipped."""
+    added, tag = service.add_questions(session, admin, data)
+    if added.added:
+        what = "1 exam question" if added.added == 1 else f"{added.added} exam questions"
+        activity.record(session, admin, f"Added {what} for {service.tag_label(tag)} from a PDF")
+    return added
