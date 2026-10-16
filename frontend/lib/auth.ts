@@ -31,7 +31,10 @@ export interface GoogleRegisterInput extends ProfileInput {
 }
 
 interface RawMe {
-  user: { id: string; email: string; role: Role; photo_url: string | null }
+  user: {
+    id: string; email: string; role: Role; photo_url: string | null
+    removal_due_at?: string | null; removal_reason?: string | null
+  }
   parent_profile: ParentProfile | null
   tutor_profile: unknown | null
   tutors_to_rate: TutorToRate[]
@@ -82,6 +85,8 @@ function toUserMe(data: RawMe): UserMe {
     photo_url: data.user.photo_url ?? null,
     profile: data.tutor_profile ? toTutorProfile(data.tutor_profile) : data.parent_profile,
     tutors_to_rate: data.tutors_to_rate ?? [],
+    removal_due_at: data.user.removal_due_at ?? null,
+    removal_reason: data.user.removal_reason ?? null,
   }
 }
 

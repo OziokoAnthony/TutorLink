@@ -42,6 +42,7 @@ from app.domains.notifications import service as notifications
 from app.domains.reviews import service as review_service
 from app.domains.tutors import service as tutor_service
 from app.domains.tutors.models import TutorProfile
+from app.domains.users import service as people
 
 RESET_LINK_LIFETIME = timedelta(hours=1)  # R0.7
 
@@ -159,6 +160,7 @@ def google_login(session: Session, data: GoogleLoginRequest) -> TokenResponse:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "This account has been deactivated")
     if user.role == UserRole.admin:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Admins log in with their email and password")
+    people.touch(session, user)  # last seen (spec 10 R1)
     return TokenResponse(access_token=issue_token(user), role=user.role)
 
 
@@ -178,6 +180,7 @@ def login(session: Session, data: LoginRequest, ip: str) -> TokenResponse:
             headers={"WWW-Authenticate": "Bearer"},
         )
     activity.record(session, user, "Logged in", ActivityKind.login)  # admins only: starts a session (spec 8 R3)
+    people.touch(session, user)  # parents and tutors: last seen (spec 10 R1)
     return TokenResponse(access_token=issue_token(user), role=user.role)
 
 

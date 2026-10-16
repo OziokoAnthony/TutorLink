@@ -212,6 +212,9 @@ export interface UserMe {
   profile: ParentProfile | TutorProfile | null
   // Parents only: tutors they've had a completed lesson with but haven't rated yet
   tutors_to_rate: TutorToRate[]
+  /** A removal notice: the account closes on this date unless they reply (spec 10 R5.2). */
+  removal_due_at: string | null
+  removal_reason: string | null
 }
 
 export interface TutorToRate {
@@ -706,4 +709,40 @@ export interface LegalVersion extends LegalDocument {
   id: string
   /** The publishing admin's email; null for the starting version. */
   published_by: string | null
+}
+
+/** Spec 10 R2: by last seen; a removal notice or a removal replaces the band. */
+export type ActivityBand = 'active' | 'inactive' | 'long_inactive' | 'notice' | 'removed'
+
+export interface RoleCounts {
+  registered: number
+  active: number
+  inactive: number
+  long_inactive: number
+  notice: number
+  removed: number
+}
+
+export interface UsersOverview {
+  parents: RoleCounts
+  tutors: RoleCounts
+  tutor_stages: { onboarding: number; approved: number; rejected: number }
+}
+
+/** A parent or tutor in the admin list (spec 10 R3.3). */
+export interface UserRow {
+  id: string
+  role: 'parent' | 'tutor'
+  name: string | null
+  email: string
+  joined_at: string
+  last_seen_at: string
+  band: ActivityBand
+  vetting_status: 'pending' | 'approved' | 'rejected' | null
+  /** What stops removal, in words, e.g. "₦20,000.00 balance" (spec 10 R4). */
+  outstanding: string[]
+  removal_due_at: string | null
+  removal_reason: string | null
+  ready_to_remove: boolean
+  removed_at: string | null
 }

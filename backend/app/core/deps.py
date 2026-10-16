@@ -10,6 +10,7 @@ from app.core.security import decode_access_token, token_lifetime
 from app.db.session import get_session
 from app.domains.auth.models import User, UserRole
 from app.domains.content import service as content
+from app.domains.users import service as people
 
 # auto_error=False so a missing token is a 401 (not FastAPI's default 403).
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -66,6 +67,7 @@ def get_current_user(
     user = session.get(User, user_id)
     if user is None or not user.is_active or payload.get("ver", 0) != user.token_version:
         raise _unauthorized("Invalid or expired token")
+    people.touch(session, user)  # last seen (spec 10 R1)
     _check_agreement(request, session, user)
     return user
 

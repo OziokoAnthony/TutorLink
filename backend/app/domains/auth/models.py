@@ -34,6 +34,13 @@ class User(BaseUUIDModel, table=True):
     # Admins only: shown in their welcome and the activity log (spec 8 R1). Parents' and tutors' names are in
     # their profiles.
     name: str | None = None
+    # Spec 10: when a parent or tutor last used TutorLink (None: not seen since this was added; sign-up counts),
+    # a removal notice (when it was sent, the date it runs out, the reason they see) and when an admin removed them.
+    last_seen_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
+    removal_noticed_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
+    removal_due_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
+    removal_reason: str | None = Field(default=None, sa_type=sa.Text)
+    removed_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
     photo_key: str | None = None  # profile picture in storage (spec 4 R1b)
 
 
@@ -208,6 +215,9 @@ class UserRead(SQLModel):
     is_active: bool
     created_at: datetime
     photo_url: str | None = None
+    # Spec 10 R5.2: a removal notice the reader sees on their dashboard.
+    removal_due_at: datetime | None = None
+    removal_reason: str | None = None
 
 
 class ParentProfileRead(SQLModel):
