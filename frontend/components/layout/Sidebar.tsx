@@ -14,6 +14,7 @@ export const LINKS: Record<Role, { href: string; label: string }[]> = {
     { href: '/dashboard/parent/wallet', label: 'Payments & Receipts' },
     { href: '/tutors', label: 'Find Tutors' },
     { href: '/dashboard/parent/feedback', label: 'Help & feedback' },
+    { href: '/dashboard/parent/legal', label: 'Terms & privacy' },
   ],
   tutor: [
     { href: '/dashboard/tutor', label: 'Overview' },
@@ -23,6 +24,7 @@ export const LINKS: Record<Role, { href: string; label: string }[]> = {
     { href: '/dashboard/tutor/earnings', label: 'Earnings & Receipts' },
     { href: '/dashboard/tutor/profile', label: 'Profile & Offers' },
     { href: '/dashboard/tutor/feedback', label: 'Help & feedback' },
+    { href: '/dashboard/tutor/legal', label: 'Terms & privacy' },
   ],
   admin: [
     { href: '/admin', label: 'Dashboard' },

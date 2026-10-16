@@ -187,7 +187,7 @@ export interface NinResult extends NinCheck {
   attempts_left: number
 }
 
-export type OnboardingStepKey = 'profile' | 'nin' | 'certificates' | 'quiz' | 'review'
+export type OnboardingStepKey = 'profile' | 'nin' | 'certificates' | 'quiz' | 'agreement' | 'review'
 
 export interface OnboardingStep {
   key: OnboardingStepKey
@@ -676,10 +676,30 @@ export interface AdminDashboard {
 
 export type LegalKind = 'privacy' | 'terms' | 'disclaimer'
 
+/** Parents and tutors each have their own three documents (spec 9 R1). */
+export type LegalAudience = 'parent' | 'tutor'
+
 export interface LegalDocument {
+  audience: LegalAudience
   kind: LegalKind
   body: string
   published_at: string
+}
+
+export interface MyLegalDocument extends LegalDocument {
+  /** The version: sent back when agreeing. */
+  id: string
+  /** When the reader agreed to this version; null if they haven't. */
+  accepted_at: string | null
+}
+
+/** A parent's or tutor's own documents (spec 9 R2.4). */
+export interface MyLegal {
+  /** They can't use TutorLink until they agree (spec 9 R3, R5). */
+  required: boolean
+  /** False for a tutor who hasn't finished the other onboarding steps (spec 9 R4.1). */
+  can_accept: boolean
+  documents: MyLegalDocument[]
 }
 
 export interface LegalVersion extends LegalDocument {

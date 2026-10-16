@@ -16,6 +16,7 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 6. `feature-6-feedback-and-help.md`: feedback to the TutorLink team, admin replies, the Claude help assistant. **Built.**
 7. `feature-7-admin-content.md`: admins keep the subject list and the privacy notice, terms and disclaimer. **Built.**
 8. `feature-8-admin-activity.md`: admin names, the welcome on `/admin`, last session and the admin activity log. **Built.**
+9. `feature-9-legal-agreement.md`: parents and tutors have their own privacy notice, terms and disclaimer, and agree to the latest versions. **Built.**
 
 Read the spec before changing a feature it covers, and check the backend's request and response
 models (`../backend/app/domains/*/models.py`) or `/docs` for the exact API shape.

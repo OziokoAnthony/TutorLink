@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.security import decode_access_token, token_lifetime
 from app.db.session import get_session
 from app.domains.auth.models import User, UserRole
+from app.domains.content import service as content
 
 # auto_error=False so a missing token is a 401 (not FastAPI's default 403).
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -65,7 +66,24 @@ def get_current_user(
     user = session.get(User, user_id)
     if user is None or not user.is_active or payload.get("ver", 0) != user.token_version:
         raise _unauthorized("Invalid or expired token")
+    _check_agreement(request, session, user)
     return user
+
+
+# What a parent or tutor who must agree to the latest legal documents can still do (spec 9 R3.2): read their
+# account and notifications, read and agree to the documents, and log out.
+ALLOWED_BEFORE_AGREEING = {
+    ("GET", "/v1/auth/me"), ("POST", "/v1/auth/logout"), ("GET", "/v1/notifications/me"),
+    ("GET", "/v1/legal/me"), ("POST", "/v1/legal/me/accept"),
+}
+MUST_AGREE = "Please read and agree to TutorLink's terms to continue."
+
+
+def _check_agreement(request: Request, session: Session, user: User) -> None:
+    if user.role == UserRole.admin or (request.method, request.url.path) in ALLOWED_BEFORE_AGREEING:
+        return
+    if content.must_agree_now(session, user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, MUST_AGREE)
 
 
 def require_roles(roles: list[UserRole]):
