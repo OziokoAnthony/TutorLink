@@ -20,6 +20,7 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 10. `feature-10-user-management.md`: parents and tutors at a glance (counts, activity bands, last seen) and removing accounts with 14 days' notice. **Built.**
 11. `feature-11-id-before-nin.md`: tutors can start with an ID document an admin verifies, and must verify their NIN within 90 days or parents stop seeing them. **Built.**
 12. `feature-12-admin-exam-questions.md`: admins write exam questions or upload them as a PDF, Claude only tops up, a tutor never gets a question twice; the help assistant runs on Haiku. **Built.**
+13. `feature-13-whatsapp-help.md`: a "Chat with us on WhatsApp" button in Help & feedback and the help chat (`NEXT_PUBLIC_SUPPORT_WHATSAPP`). **Built.**
 
 Read the spec before changing a feature it covers, and check the backend's request and response
 models (`../backend/app/domains/*/models.py`) or `/docs` for the exact API shape.

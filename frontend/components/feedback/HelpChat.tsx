@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { MessageCircle, Send, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import WhatsAppButton from '@/components/feedback/WhatsAppButton'
 import { useToast } from '@/hooks/useToast'
 import { errorMessage } from '@/lib/api'
 import { askHelp, sendFeedback } from '@/lib/feedback'
@@ -87,6 +88,7 @@ export default function HelpChat({ role }: { role: Role }) {
                 Answers come from an AI assistant and may be wrong.{' '}
                 <Link href="/disclaimer" target="_blank" className="underline hover:text-foreground">Disclaimer</Link>
               </p>
+              <p className="mt-1 text-xs"><WhatsAppButton variant="link" label="Talk to a person on WhatsApp" /></p>
             </div>
             <Button variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close help chat">
               <X className="h-4 w-4" />
