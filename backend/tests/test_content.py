@@ -99,49 +99,52 @@ def test_only_admins_keep_the_list_and_anyone_reads_it(client, admin_headers):
 @pytest.mark.parametrize("kind", ["privacy", "terms", "disclaimer"])
 def test_admins_publish_versions_and_the_latest_is_shown(client, admin_headers, kind):
     assert client.get(f"/v1/legal/{kind}").status_code == 404
-    first = client.post(f"/v1/admin/legal/{kind}", headers=admin_headers, json={"body": TEXT})
+    first = client.post(f"/v1/admin/legal/parent/{kind}", headers=admin_headers, json={"body": TEXT})
     assert first.status_code == 201
-    second = client.post(f"/v1/admin/legal/{kind}", headers=admin_headers, json={"body": TEXT + " Updated."})
+    second = client.post(f"/v1/admin/legal/parent/{kind}", headers=admin_headers, json={"body": TEXT + " Updated."})
 
     shown = client.get(f"/v1/legal/{kind}").json()
     assert shown["body"].endswith("Updated.")
     assert shown["published_at"] == second.json()["published_at"]
 
-    versions = client.get(f"/v1/admin/legal/{kind}", headers=admin_headers).json()
+    versions = client.get(f"/v1/admin/legal/parent/{kind}", headers=admin_headers).json()
     assert [v["body"].endswith("Updated.") for v in versions] == [True, False]
     assert versions[0]["published_by"].startswith("admin")
 
 
 def test_only_admins_publish(client, admin_headers):
     for user in (helpers.register_tutor(client), helpers.register_parent(client)):
-        assert client.post("/v1/admin/legal/terms", headers=user["headers"], json={"body": TEXT}).status_code == 403
-        assert client.get("/v1/admin/legal/terms", headers=user["headers"]).status_code == 403
-    assert client.post("/v1/admin/legal/terms", json={"body": TEXT}).status_code == 401
+        assert client.post("/v1/admin/legal/parent/terms", headers=user["headers"], json={"body": TEXT}).status_code == 403
+        assert client.get("/v1/admin/legal/parent/terms", headers=user["headers"]).status_code == 403
+    assert client.post("/v1/admin/legal/parent/terms", json={"body": TEXT}).status_code == 401
 
 
 @pytest.mark.parametrize("body", ["Too short", "x" * 50_001], ids=["too-short", "too-long"])
 def test_document_length(client, admin_headers, body):
-    assert client.post("/v1/admin/legal/terms", headers=admin_headers, json={"body": body}).status_code == 422
+    assert client.post("/v1/admin/legal/parent/terms", headers=admin_headers, json={"body": body}).status_code == 422
 
 
-def test_publishing_with_notify_tells_every_parent_and_tutor(client, admin_headers, outbox):
+def test_publishing_with_notify_tells_everyone_in_its_audience(client, admin_headers, outbox):
+    """R2.4, and spec 9 R1: a parents' document tells parents, a tutors' document tells tutors."""
     parent, tutor = helpers.register_parent(client), helpers.register_tutor(client)
 
     def titles(user):
         return [n["title"] for n in client.get("/v1/notifications/me", headers=user["headers"]).json()["items"]]
 
-    client.post("/v1/admin/legal/privacy", headers=admin_headers, json={"body": TEXT})
+    client.post("/v1/admin/legal/parent/privacy", headers=admin_headers, json={"body": TEXT})
     assert "We've updated our privacy notice" not in titles(parent)
 
     sent = len(outbox)
-    client.post("/v1/admin/legal/privacy", headers=admin_headers, json={"body": TEXT, "notify": True})
-    for user in (parent, tutor):
-        assert "We've updated our privacy notice" in titles(user)
+    client.post("/v1/admin/legal/parent/privacy", headers=admin_headers, json={"body": TEXT, "notify": True})
+    assert "We've updated our privacy notice" in titles(parent)
+    assert "We've updated our privacy notice" not in titles(tutor)
+    client.post("/v1/admin/legal/tutor/privacy", headers=admin_headers, json={"body": TEXT, "notify": True})
+    assert "We've updated our privacy notice" in titles(tutor)
     assert len(outbox) == sent  # in the app only (R2.4)
 
 
 def test_the_text_is_stored_as_written(client, admin_headers):
     """R2.2: the frontend shows the text as text, so a script stays a string."""
     body = TEXT + "\n\n<script>alert(1)</script>"
-    client.post("/v1/admin/legal/disclaimer", headers=admin_headers, json={"body": body})
+    client.post("/v1/admin/legal/parent/disclaimer", headers=admin_headers, json={"body": body})
     assert client.get("/v1/legal/disclaimer").json()["body"].endswith("<script>alert(1)</script>")

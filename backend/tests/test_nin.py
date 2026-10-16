@@ -28,7 +28,7 @@ def steps(client, tutor) -> dict:
 def test_checklist_starts_with_profile_then_nin_then_review(client):
     tutor = helpers.register_tutor(client)
     checklist = client.get("/v1/onboarding", headers=tutor["headers"]).json()
-    assert [s["key"] for s in checklist["steps"]] == ["profile", "nin", "certificates", "quiz", "review"]
+    assert [s["key"] for s in checklist["steps"]] == ["profile", "nin", "certificates", "quiz", "agreement", "review"]
     assert checklist["steps"][0] == {"key": "profile", "done": False, "todo": ["Add a profile picture"]}
     assert checklist["vetting_status"] == "pending" and checklist["nin_attempts_left"] == 3
 

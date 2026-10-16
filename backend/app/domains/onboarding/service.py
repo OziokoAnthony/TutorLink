@@ -13,6 +13,7 @@ from app.core.security import hash_nin
 from app.domains.auth import photos
 from app.domains.auth.models import User
 from app.domains.certificates import service as certificates
+from app.domains.content import service as content
 from app.domains.certificates.models import CertificateStatus
 from app.domains.exam import service as exam
 from app.domains.onboarding.models import (
@@ -88,12 +89,15 @@ def get_onboarding(session: Session, user: User) -> Onboarding:
     certs = certificates_todo(session, user)
     passed = exam.has_passed(session, user.id)
     nin_done = profile.nin_verified_at is not None
+    agreed = content.has_agreed(session, user)
     return Onboarding(
         steps=[
             OnboardingStep(key="profile", done=not todo, todo=todo),
             OnboardingStep(key="nin", done=nin_done, todo=[] if nin_done else ["Verify your NIN with a selfie"]),
             OnboardingStep(key="certificates", done=not certs, todo=certs),
             OnboardingStep(key="quiz", done=passed, todo=[] if passed else ["Pass the qualifying exam"]),
+            OnboardingStep(key="agreement", done=agreed,
+                           todo=[] if agreed else ["Read and agree to the tutor terms, privacy notice and disclaimer"]),
             OnboardingStep(key="review", done=profile.vetting_status == VettingStatus.approved,
                            todo=missing_for_approval(session, profile)),
         ],
@@ -112,7 +116,16 @@ def missing_for_approval(session: Session, profile: TutorProfile) -> list[str]:
         missing.append("no verified certificate")
     if not exam.has_passed(session, profile.user_id):
         missing.append("qualifying exam not passed")
+    if not content.has_agreed(session, session.get(User, profile.user_id)):
+        missing.append("terms not agreed")  # spec 9 R4.2
     return missing
+
+
+def ready_to_agree(session: Session, user: User) -> bool:
+    """Spec 9 R4.1: agreeing to the tutor documents is the last step, after the picture, NIN, certificate and exam."""
+    profile = _profile(session, user)
+    return (not profile_todo(session, user) and profile.nin_verified_at is not None
+            and not certificates_todo(session, user) and exam.has_passed(session, user.id))
 
 
 # ---------- NIN verification (R3) ----------
