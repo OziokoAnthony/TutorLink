@@ -9,6 +9,7 @@ from sqlmodel import Session
 
 from app.core.deps import require_roles
 from app.db.session import get_session
+from app.domains.activity import service as activity
 from app.domains.auth.models import User, UserRole
 from app.domains.certificates import service
 from app.domains.certificates.models import (
@@ -67,4 +68,8 @@ def list_certificates(status_filter: CertificateStatus | None = Query(None, alia
 def review_certificate(certificate_id: UUID, data: ReviewRequest, admin: User = Depends(admin_only),
                        session: Session = Depends(get_session)):
     """Verify or reject (with a note the tutor sees). The checker PIN is erased either way (R4.2, R4.3)."""
-    return service.review(session, admin, certificate_id, data)
+    cert = service.review(session, admin, certificate_id, data)
+    tutor = " ".join(part for part in (cert.tutor_first_name, cert.tutor_surname) if part)
+    verb = "Verified" if data.status == "verified" else "Rejected"
+    activity.record(session, admin, f"{verb} the {cert.type.value} certificate of tutor {activity.who(tutor)}")
+    return cert

@@ -9,6 +9,7 @@ from sqlmodel import Session
 
 from app.core.deps import can_see_tutors, require_roles
 from app.db.session import get_session
+from app.domains.activity import service as activity
 from app.domains.auth.models import User, UserRole
 from app.domains.tutors import service
 from app.domains.tutors.models import (
@@ -78,7 +79,10 @@ def get_tutor(tutor_id: UUID, viewer: User = Depends(can_see_tutors), session: S
 @router.patch("/{tutor_id}/vet", response_model=TutorProfileRead)
 def vet_tutor(tutor_id: UUID, data: VetRequest, admin: User = Depends(admin_only),
               session: Session = Depends(get_session)):
-    return service.vet_tutor(session, admin, tutor_id, data)
+    tutor = service.vet_tutor(session, admin, tutor_id, data)
+    verb = "Approved" if data.status == "approved" else "Rejected"
+    activity.record(session, admin, f"{verb} tutor {tutor.full_name}")
+    return tutor
 
 
 @admin_router.get("/tutors/pending", response_model=list[TutorProfileRead])
@@ -90,4 +94,6 @@ def list_pending(admin: User = Depends(admin_only), session: Session = Depends(g
 def rename_tutor(tutor_id: UUID, data: TutorName, admin: User = Depends(admin_only),
                  session: Session = Depends(get_session)):
     """Changes a tutor's name, including a NIN-verified one the tutor can't change (spec 4 R3.5)."""
-    return service.admin_rename(session, tutor_id, data)
+    tutor = service.admin_rename(session, tutor_id, data)
+    activity.record(session, admin, f"Corrected a tutor's name to {tutor.full_name}")
+    return tutor

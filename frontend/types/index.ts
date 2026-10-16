@@ -640,12 +640,38 @@ export interface SubjectAdmin extends Subject {
 /** An admin account, listed at /admin/admins. */
 export interface AdminAccount {
   id: string
+  /** Shown in their welcome and the activity log; null until set (spec 8 R1). */
+  name: string | null
   email: string
   /** False once the super admin removed them: they can't log in until re-added. */
   is_active: boolean
   /** The one admin who adds and removes the others; can't be removed. */
   is_super_admin: boolean
   created_at: string
+}
+
+/** One line of the admin activity log (spec 8 R2), written when it happened. */
+export interface ActivityEntry {
+  id: string
+  text: string
+  created_at: string
+}
+
+/** Another admin's action; only the super admin gets these (spec 8 R4.3). */
+export interface TeamActivityEntry extends ActivityEntry {
+  admin_id: string
+  admin_name: string | null
+  admin_email: string
+}
+
+export interface AdminDashboard {
+  name: string | null
+  email: string
+  is_super_admin: boolean
+  session_started_at: string | null
+  /** The session before this one; null on a first login (spec 8 R3). */
+  last_session: { started_at: string; ended_at: string; actions: ActivityEntry[] } | null
+  recent: ActivityEntry[]
 }
 
 export type LegalKind = 'privacy' | 'terms' | 'disclaimer'

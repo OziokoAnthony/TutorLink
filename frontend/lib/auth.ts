@@ -40,7 +40,7 @@ interface RawMe {
 export const ROLE_HOME: Record<Role, string> = {
   parent: '/dashboard/parent',
   tutor: '/dashboard/tutor',
-  admin: '/admin/tutors',
+  admin: '/admin',
 }
 
 /** Creates a parent or tutor account with any email and a chosen password; they log in afterwards. */
@@ -99,9 +99,15 @@ export async function getAdmins(): Promise<AdminAccount[]> {
   return data
 }
 
-/** Super admin only. Re-adding a removed admin's email brings them back with this password. */
-export async function addAdmin(email: string, password: string): Promise<AdminAccount> {
-  const { data } = await api.post<AdminAccount>('/admin/admins', { email, password })
+/** Super admin only. Re-adding a removed admin's email brings them back with this name and password. */
+export async function addAdmin(name: string, email: string, password: string): Promise<AdminAccount> {
+  const { data } = await api.post<AdminAccount>('/admin/admins', { name, email, password })
+  return data
+}
+
+/** Any admin: their own name, used in their welcome and the activity log (spec 8 R1.2). */
+export async function setMyAdminName(name: string): Promise<AdminAccount> {
+  const { data } = await api.put<AdminAccount>('/admin/me/name', { name })
   return data
 }
 

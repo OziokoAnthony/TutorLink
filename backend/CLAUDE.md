@@ -15,6 +15,7 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 5. `feature-5-international.md` (draft: location, NGN/USD, job visibility by country). Not built.
 6. `feature-6-feedback-and-help.md`: feedback to the TutorLink team, admin replies, the Claude help assistant. **Built.**
 7. `feature-7-admin-content.md`: admins keep the subject list and the privacy notice, terms and disclaimer. **Built.**
+8. `feature-8-admin-activity.md`: admin names, the welcome on `/admin`, last session and the admin activity log. **Built.**
 
 Read the spec before changing a feature it covers. Requirement ids (R1.2, R5.3…) are the shared
 vocabulary: cite them in docstrings and tests where a rule is enforced. Each spec's acceptance
@@ -75,6 +76,10 @@ Alembic migration per spec or build step in `alembic/versions/`.
   removes them at `/admin/admins` (`/v1/admin/admins`). Removing sets `is_active = false` and ends their
   sessions; the super admin can't be removed. In tests, `admin_headers` is the super admin and
   `helpers.create_admin` after it makes ordinary admins.
+- **Admin activity (spec 8).** Every admin write action records one plain-English line naming its item with
+  `activity.record(session, admin, "...")` in the router, after the service returns (so a refused action writes
+  nothing). A new admin action needs its line too. Logins (`ActivityKind.login`) start sessions. Only the super
+  admin reads other admins' activity (`GET /admin/activity`); `GET /admin/dashboard` is the reader's own.
 - **Password reset (spec 4 R0.7).** `password_reset_tokens` stores only a SHA-256 of each link's
   token; a link works once, for an hour, and `/auth/forgot-password` answers the same for any email.
 - **Tutor onboarding (spec 4 R2, R3).** `app/domains/onboarding/` holds the checklist

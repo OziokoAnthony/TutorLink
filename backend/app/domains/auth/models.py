@@ -31,6 +31,9 @@ class User(BaseUUIDModel, table=True):
     # The one admin who adds and removes the others and can't be removed: the first, made by
     # app.scripts.create_admin. A partial unique index (migration 0024) allows only one.
     is_super_admin: bool = Field(default=False, sa_column_kwargs={"server_default": sa.false()})
+    # Admins only: shown in their welcome and the activity log (spec 8 R1). Parents' and tutors' names are in
+    # their profiles.
+    name: str | None = None
     photo_key: str | None = None  # profile picture in storage (spec 4 R1b)
 
 
@@ -153,12 +156,36 @@ class AdminIn(SQLModel):
     """The super admin adds another admin with a temporary password, which they pass on themselves; the new
     admin changes it after logging in."""
 
+    name: str = Field(min_length=2, max_length=80)
     email: EmailStr
     password: str = Field(min_length=8, max_length=72)
+
+    @model_validator(mode="after")
+    def tidy_name(self) -> "AdminIn":
+        self.name = clean_admin_name(self.name)
+        return self
+
+
+def clean_admin_name(name: str) -> str:
+    """Spec 8 R1.1: 2-80 characters once extra spaces are removed."""
+    name = " ".join(name.split())
+    if not 2 <= len(name) <= 80:
+        raise ValueError("A name is 2-80 characters")
+    return name
+
+
+class AdminNameIn(SQLModel):
+    name: str = Field(min_length=2, max_length=80)
+
+    @model_validator(mode="after")
+    def tidy_name(self) -> "AdminNameIn":
+        self.name = clean_admin_name(self.name)
+        return self
 
 
 class AdminRead(SQLModel):
     id: UUID
+    name: str | None
     email: str
     is_active: bool  # False once removed: they can't log in until re-added
     is_super_admin: bool

@@ -7,6 +7,7 @@ from sqlmodel import Session
 
 from app.core.deps import require_roles
 from app.db.session import get_session
+from app.domains.activity import service as activity
 from app.domains.auth.models import User, UserRole
 from app.domains.exam import service
 from app.domains.exam.models import (
@@ -71,7 +72,10 @@ def questions(subject: str | None = None, level: EducationLevel | None = None, g
 @admin_router.post("/questions/{question_id}/retire", response_model=AdminQuestion)
 def retire(question_id: UUID, admin: User = Depends(admin_only), session: Session = Depends(get_session)):
     """Retired questions are never served again (R5.2)."""
-    return service.retire(session, question_id)
+    question = service.retire(session, question_id)
+    text = question.text if len(question.text) <= 80 else question.text[:77] + "..."
+    activity.record(session, admin, f'Retired an exam question ({question.subject}): "{text}"')
+    return question
 
 
 @admin_router.get("/bank", response_model=list[BankLevel])

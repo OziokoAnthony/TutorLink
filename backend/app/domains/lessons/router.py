@@ -6,6 +6,7 @@ from sqlmodel import Session
 
 from app.core.deps import get_current_user, require_roles
 from app.db.session import get_session
+from app.domains.activity import service as activity
 from app.domains.auth.models import User, UserRole
 from app.domains.lessons import service
 from app.domains.lessons.models import (
@@ -20,6 +21,7 @@ from app.domains.lessons.models import (
     RecordingUpload,
     RecordingUploadIn,
 )
+from app.domains.notifications.service import date_text
 
 router = APIRouter(prefix="/lessons", tags=["lessons"])
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
@@ -93,4 +95,10 @@ def issues(open_only: bool = True, admin: User = Depends(admin_only), session: S
 @admin_router.post("/lessons/{lesson_id}/resolve", response_model=LessonAdminView)
 def resolve(lesson_id: UUID, data: IssueResolve, admin: User = Depends(admin_only),
             session: Session = Depends(get_session)):
-    return service.resolve_issue(session, admin, lesson_id, data)
+    lesson = service.resolve_issue(session, admin, lesson_id, data)
+    outcome = {"refund": "refunded", "reschedule": "rescheduled",
+               "reject": "complaint rejected"}[data.resolution.value]
+    activity.record(session, admin, f"Resolved a problem with the {date_text(lesson.lesson_date)} lesson of "
+                                    f"{activity.who(lesson.parent_name)} with {activity.who(lesson.tutor_name)}: "
+                                    f"{outcome}")
+    return lesson

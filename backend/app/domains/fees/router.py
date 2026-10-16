@@ -3,6 +3,7 @@ from sqlmodel import Session
 
 from app.core.deps import require_roles
 from app.db.session import get_session
+from app.domains.activity import service as activity
 from app.domains.auth.models import User, UserRole
 from app.domains.fees import service
 from app.domains.fees.models import FeesRead, FeesUpdate
@@ -19,4 +20,7 @@ def get_fees(admin: User = Depends(admin_only), session: Session = Depends(get_s
 
 @router.put("", response_model=FeesRead)
 def update_fees(data: FeesUpdate, admin: User = Depends(admin_only), session: Session = Depends(get_session)):
-    return service.update(session, admin, data)
+    fees = service.update(session, admin, data)
+    activity.record(session, admin, f"Changed the fees: parents {activity.percent(fees.parent_fee_rate)}, "
+                                    f"tutors {activity.percent(fees.tutor_fee_rate)}")
+    return fees

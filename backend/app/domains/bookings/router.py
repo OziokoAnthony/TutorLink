@@ -5,6 +5,7 @@ from sqlmodel import Session
 
 from app.core.deps import can_see_tutors, get_current_user, require_roles
 from app.db.session import get_session
+from app.domains.activity import service as activity
 from app.domains.auth.models import User, UserRole
 from app.domains.bookings import service
 from app.domains.bookings.models import (
@@ -102,10 +103,16 @@ def refunds(status_: RefundStatus | None = Query(None, alias="status"), admin: U
 @admin_router.post("/refunds/{refund_id}/approve", response_model=RefundRead)
 def approve_refund(refund_id: UUID, data: AdminDecision, admin: User = Depends(admin_only),
                    session: Session = Depends(get_session)):
-    return service.decide_refund(session, admin, refund_id, True, data.note)
+    refund = service.decide_refund(session, admin, refund_id, True, data.note)
+    activity.record(session, admin,
+                    f"Approved a {activity.naira(refund.amount)} refund for {activity.who(refund.parent_name)}")
+    return refund
 
 
 @admin_router.post("/refunds/{refund_id}/reject", response_model=RefundRead)
 def reject_refund(refund_id: UUID, data: AdminDecision, admin: User = Depends(admin_only),
                   session: Session = Depends(get_session)):
-    return service.decide_refund(session, admin, refund_id, False, data.note)
+    refund = service.decide_refund(session, admin, refund_id, False, data.note)
+    activity.record(session, admin,
+                    f"Rejected a {activity.naira(refund.amount)} refund for {activity.who(refund.parent_name)}")
+    return refund
