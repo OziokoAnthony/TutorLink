@@ -19,6 +19,7 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 9. `feature-9-legal-agreement.md`: parents and tutors have their own privacy notice, terms and disclaimer, and agree to the latest versions. **Built.**
 10. `feature-10-user-management.md`: parents and tutors at a glance (counts, activity bands, last seen) and removing accounts with 14 days' notice. **Built.**
 11. `feature-11-id-before-nin.md`: tutors can start with an ID document an admin verifies, and must verify their NIN within 90 days or parents stop seeing them. **Built.**
+12. `feature-12-admin-exam-questions.md`: admins write exam questions or upload them as a PDF, Claude only tops up, a tutor never gets a question twice; the help assistant runs on Haiku. **Built.**
 
 Read the spec before changing a feature it covers. Requirement ids (R1.2, R5.3…) are the shared
 vocabulary: cite them in docstrings and tests where a rule is enforced. Each spec's acceptance
@@ -111,6 +112,12 @@ Alembic migration per spec or build step in `alembic/versions/`.
   goes through it (picture, NIN, a verified certificate, a passed exam, then vetting).
   `helpers.verified_tutor` stops after the NIN, `helpers.certified_tutor` after the certificate,
   `helpers.ready_tutor` after the exam.
+- **Admin exam questions (spec 12).** Admins add questions at `/admin/exam/questions` (one), `/questions/pdf`
+  (reads a PDF in the fixed layout with `exam/pdf.py`, saves nothing) and `/questions/batch` (saves checked ones);
+  they have `model = "admin"` and `added_by`. Claude only tops up tags below target, and `claude._key_rejected`
+  pauses it for an hour when Anthropic refuses the key. `exam._pool` serves only questions the tutor hasn't had;
+  short tags notify admins once a day. `HELP_MODEL` defaults to Haiku, which takes no `fallbacks`
+  (`claude._fallback_options`).
 - **Certificates (spec 4 R4).** `app/domains/certificates/`: files are private in storage and reach only
   their tutor and admins as short-lived links. A WAEC/NECO checker PIN is stored with `security.encrypt`
   and erased when an admin reviews the certificate. `CertificateType` is shared with job posts'

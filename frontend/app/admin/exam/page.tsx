@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import AddExamQuestions from '@/components/admin/AddExamQuestions'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import EmptyState from '@/components/shared/EmptyState'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
@@ -97,8 +98,9 @@ function Bank() {
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
-        Claude writes the questions and a second, independent Claude call must get each one right before it&apos;s kept.
-        The bank is topped up in the background towards each target.
+        Admins write questions or upload them as a PDF (&quot;Add questions&quot;). Claude only tops up a subject that&apos;s
+        below its target, and a second, independent Claude call must get each of its questions right. A tutor never gets a
+        question they&apos;ve had before, so keep each subject well stocked.
       </p>
       <div className="rounded-lg border">
         <Table>
@@ -133,7 +135,9 @@ function Bank() {
                   </ol>
                   <p className="text-muted-foreground">{q.explanation}</p>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-muted-foreground">{formatDateTime(q.created_at)} • {q.model}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDateTime(q.created_at)} • {q.added_by_name ? `Added by ${q.added_by_name}` : 'Written by Claude'}
+                    </span>
                     <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setRetiring(q)}>Retire</Button>
                   </div>
                 </CardContent>
@@ -150,19 +154,21 @@ function Bank() {
   )
 }
 
-/** Spec 4 R5.2, R5.9: every attempt's score, date and time taken, and the question bank. */
+/** Spec 4 R5.2, R5.9: every attempt's score, date and time taken, and the question bank; spec 12: admins add
+ * questions. */
 export default function AdminExamPage() {
-  const [tab, setTab] = useState<'attempts' | 'bank'>('attempts')
+  const [tab, setTab] = useState<'attempts' | 'bank' | 'add'>('attempts')
   return (
     <>
       <PageHeader title="Qualifying exam" description="Tutors must pass with 14 of 20 before you can approve them." />
-      <Tabs value={tab} onValueChange={(v) => setTab(v as 'attempts' | 'bank')} className="mb-4">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as 'attempts' | 'bank' | 'add')} className="mb-4">
         <TabsList>
           <TabsTrigger value="attempts">Attempts</TabsTrigger>
           <TabsTrigger value="bank">Question bank</TabsTrigger>
+          <TabsTrigger value="add">Add questions</TabsTrigger>
         </TabsList>
       </Tabs>
-      {tab === 'attempts' ? <Attempts /> : <Bank />}
+      {tab === 'attempts' ? <Attempts /> : tab === 'bank' ? <Bank /> : <AddExamQuestions />}
     </>
   )
 }

@@ -18,6 +18,7 @@ import functools
 import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 import anthropic
 
@@ -94,8 +95,27 @@ class GeneratedQuestion:
     explanation: str
 
 
+# Spec 12 R3.2: when Anthropic rejects the key, stop asking for a while instead of failing every pass.
+KEY_PAUSE = timedelta(hours=1)
+_paused_until: datetime | None = None
+
+
 def available() -> bool:
-    return not is_placeholder(settings.ANTHROPIC_API_KEY)
+    if is_placeholder(settings.ANTHROPIC_API_KEY):
+        return False
+    return _paused_until is None or datetime.now(timezone.utc) >= _paused_until
+
+
+def _key_rejected(what: str) -> None:
+    global _paused_until
+    _paused_until = datetime.now(timezone.utc) + KEY_PAUSE
+    logger.warning("Anthropic rejected ANTHROPIC_API_KEY (%s): Claude is paused for an hour. "
+                   "Set a valid key in the environment.", what)
+
+
+def _fallback_options(model: str) -> dict:
+    """The server-side fallback on refusals; Haiku models don't take it (spec 12 R5)."""
+    return {} if model.startswith("claude-haiku") else {"betas": [FALLBACK_BETA], "fallbacks": "default"}
 
 
 def _client() -> anthropic.Anthropic:
@@ -111,9 +131,11 @@ def _json_reply(system: str, prompt: str, schema: dict) -> dict | None:
             system=system,
             messages=[{"role": "user", "content": prompt}],
             output_config={"effort": "high", "format": {"type": "json_schema", "schema": schema}},
-            betas=[FALLBACK_BETA],
-            fallbacks="default",
+            **_fallback_options(settings.EXAM_MODEL),
         )
+    except anthropic.AuthenticationError:
+        _key_rejected("exam bank")
+        return None
     except anthropic.APIError:
         logger.exception("Claude request for the exam bank failed")
         return None
@@ -262,9 +284,11 @@ async def help_reply(role: str, messages: list[dict]) -> str | None:
             system=[{"type": "text", "text": HELP_SYSTEM.format(role=role), "cache_control": {"type": "ephemeral"}}],
             messages=messages,
             output_config={"effort": "low"},
-            betas=[FALLBACK_BETA],
-            fallbacks="default",
+            **_fallback_options(settings.HELP_MODEL),
         )
+    except anthropic.AuthenticationError:
+        _key_rejected("help assistant")
+        return None
     except anthropic.APIError:
         logger.exception("Claude request for the help assistant failed")
         return None
