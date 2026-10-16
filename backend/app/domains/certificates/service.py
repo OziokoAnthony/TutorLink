@@ -1,4 +1,5 @@
-"""Certificates (spec 4 R4): the tutor uploads them after verifying their NIN, an admin checks each one."""
+"""Certificates (spec 4 R4): the tutor uploads them after verifying their NIN or uploading an ID document (spec 11),
+an admin checks each one."""
 
 from collections import defaultdict
 from pathlib import PurePath
@@ -20,6 +21,7 @@ from app.domains.certificates.models import (
     CertificateType,
     ReviewRequest,
 )
+from app.domains.identity import service as identity
 from app.domains.notifications import service as notifications
 from app.domains.tutors.models import TutorProfile
 
@@ -31,15 +33,15 @@ FORMATS = ((b"%PDF-", "pdf", "application/pdf"), (b"\xff\xd8\xff", "jpg", "image
 
 
 
-def read_upload(file: UploadFile) -> tuple[bytes, str, str]:
-    """(data, extension, content type) of a PDF, JPG or PNG up to 10 MB."""
+def read_upload(file: UploadFile, what: str = "Certificates") -> tuple[bytes, str, str]:
+    """(data, extension, content type) of a PDF, JPG or PNG up to 10 MB. Also used for ID documents (spec 11)."""
     data = file.file.read(MAX_BYTES + 1)
     if len(data) > MAX_BYTES:
-        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Certificates can be at most 10 MB")
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, f"{what} can be at most 10 MB")
     for magic, extension, content_type in FORMATS:
         if data.startswith(magic):
             return data, extension, content_type
-    raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Certificates must be a PDF, JPG or PNG file")
+    raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{what} must be a PDF, JPG or PNG file")
 
 
 def _file_name(name: str | None, extension: str) -> str:
@@ -72,9 +74,10 @@ def _admin_views(session: Session, certificates: list[Certificate]) -> list[Cert
 
 def upload(session: Session, user: User, fields: CertificateFields, file: UploadFile) -> CertificateTutorView:
     profile = session.exec(select(TutorProfile).where(TutorProfile.user_id == user.id)).first()
-    if profile is None or profile.nin_verified_at is None:
-        # Certificates are checked against the NIN-verified name, so that comes first (R3.4, R4.3).
-        raise HTTPException(status.HTTP_409_CONFLICT, "Verify your NIN before uploading certificates")
+    if profile is None or (profile.nin_verified_at is None and not identity.has_uploaded(session, user.id)):
+        # Certificates are checked against the tutor's name on their NIN or ID document (spec 11 R2.2).
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "Verify your NIN or upload an ID document before uploading certificates")
     data, extension, content_type = read_upload(file)
     key = f"certificates/{user.id}/{uuid4().hex}.{extension}"
     storage.save(key, data, content_type)

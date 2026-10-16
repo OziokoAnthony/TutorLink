@@ -10,18 +10,20 @@ import FormField from '@/components/shared/FormField'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
 import AgreementPanel from '@/components/legal/AgreementPanel'
 import CertificatesSection from '@/components/tutors/CertificatesSection'
+import IdDocumentSection from '@/components/tutors/IdDocumentSection'
 import SelfieCamera from '@/components/tutors/SelfieCamera'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import { errorMessage } from '@/lib/api'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, formatDayOf } from '@/lib/format'
+import { getMyIdDocuments } from '@/lib/identity'
 import { getMyLegal } from '@/lib/content'
 import { getOnboarding, verifyNin } from '@/lib/onboarding'
-import type { MyLegal, NinResult, Onboarding, OnboardingStepKey } from '@/types'
+import type { IdDocument, MyLegal, NinResult, Onboarding, OnboardingStepKey } from '@/types'
 
 const STEP_TITLES: Record<OnboardingStepKey, string> = {
   profile: 'Profile',
-  nin: 'Verify your NIN',
+  nin: 'Verify your identity',
   certificates: 'Certificates',
   quiz: 'Qualifying exam',
   agreement: 'Agree to the tutor terms',
@@ -41,7 +43,7 @@ function AgreementStep({ onDone }: { onDone: () => Promise<void> }) {
   )
 }
 
-function NinForm({ attemptsLeft, retryAt, onDone }: { attemptsLeft: number; retryAt: string | null; onDone: () => Promise<void> }) {
+export function NinForm({ attemptsLeft, retryAt, onDone }: { attemptsLeft: number; retryAt: string | null; onDone: () => Promise<void> }) {
   const toast = useToast()
   const [nin, setNin] = useState('')
   const [selfie, setSelfie] = useState<Blob | null>(null)
@@ -106,10 +108,13 @@ export default function OnboardingChecklist() {
   const { refresh } = useAuth()
   const toast = useToast()
   const [onboarding, setOnboarding] = useState<Onboarding | null>(null)
+  const [idDocs, setIdDocs] = useState<IdDocument[]>([])
 
   const load = useCallback(async () => {
     try {
-      setOnboarding(await getOnboarding())
+      const [next, docs] = await Promise.all([getOnboarding(), getMyIdDocuments()])
+      setOnboarding(next)
+      setIdDocs(docs)
     } catch (e) {
       toast.error(errorMessage(e))
     }
@@ -124,12 +129,15 @@ export default function OnboardingChecklist() {
   if (!onboarding) return <LoadingSpinner />
   const done = Object.fromEntries(onboarding.steps.map((s) => [s.key, s.done])) as Record<OnboardingStepKey, boolean>
   const current = onboarding.steps.find((s) => !s.done)?.key
-  // Certificates are checked against the NIN-verified name, so they open once the NIN is verified (R3.4).
+  // Certificates are checked against the name on the NIN or ID, so they open once the NIN is verified or an ID
+  // is uploaded (spec 4 R3.4, spec 11 R2.2). The NIN form stays until the NIN itself is verified (spec 11 R3).
+  const hasId = idDocs.some((d) => d.status !== 'rejected')
+  const started = onboarding.nin_verified || hasId
   const open: Record<OnboardingStepKey, boolean> = {
     profile: !done.profile,
-    nin: done.profile && !done.nin,
-    certificates: done.nin,
-    quiz: done.nin && !done.quiz,
+    nin: done.profile && !onboarding.nin_verified,
+    certificates: started,
+    quiz: started && !done.quiz,
     agreement: done.profile && done.nin && done.certificates && done.quiz && !done.agreement,
     review: done.profile && done.nin && done.certificates && done.quiz && done.agreement,
   }
@@ -157,7 +165,22 @@ export default function OnboardingChecklist() {
                   </ul>
                 )}
                 {step.key === 'nin' && open.nin && (
-                  <NinForm attemptsLeft={onboarding.nin_attempts_left} retryAt={onboarding.nin_retry_at} onDone={afterNinCheck} />
+                  <div className="space-y-3">
+                    {onboarding.nin_due_at && (
+                      <p className={`text-sm ${onboarding.nin_overdue ? 'text-destructive' : 'text-muted-foreground'}`}>
+                        {onboarding.nin_overdue
+                          ? `You didn't verify your NIN by ${formatDayOf(onboarding.nin_due_at)}, so parents can't see you. Verify it now to be visible again.`
+                          : `Verify your NIN by ${formatDayOf(onboarding.nin_due_at)}. Until then you can continue with a valid ID document.`}
+                      </p>
+                    )}
+                    <NinForm attemptsLeft={onboarding.nin_attempts_left} retryAt={onboarding.nin_retry_at} onDone={afterNinCheck} />
+                    {!onboarding.nin_overdue && (
+                      <>
+                        <p className="text-sm font-medium">Or continue with an ID now</p>
+                        <IdDocumentSection documents={idDocs} onChange={load} />
+                      </>
+                    )}
+                  </div>
                 )}
                 {step.key === 'certificates' && open.certificates && (
                   <>

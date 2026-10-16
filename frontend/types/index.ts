@@ -201,6 +201,10 @@ export interface Onboarding {
   vetting_status: VettingStatus
   nin_attempts_left: number
   nin_retry_at: string | null
+  /** Spec 11 R3.1: verify the NIN by nin_due_at; past it, parents can't see the tutor. */
+  nin_verified: boolean
+  nin_due_at: string | null
+  nin_overdue: boolean
 }
 
 export interface UserMe {
@@ -739,10 +743,35 @@ export interface UserRow {
   last_seen_at: string
   band: ActivityBand
   vetting_status: 'pending' | 'approved' | 'rejected' | null
+  /** A tutor past the 90-day NIN deadline (spec 11 R4.3). */
+  nin_overdue: boolean
   /** What stops removal, in words, e.g. "₦20,000.00 balance" (spec 10 R4). */
   outstanding: string[]
   removal_due_at: string | null
   removal_reason: string | null
   ready_to_remove: boolean
   removed_at: string | null
+}
+
+/** Spec 11 R1: a valid ID a tutor can start with before verifying their NIN. */
+export type IdDocumentType = 'nin' | 'voters_card' | 'drivers_licence' | 'passport'
+export type IdDocumentStatus = 'pending' | 'verified' | 'rejected'
+
+export interface IdDocument {
+  id: string
+  type: IdDocumentType
+  file_name: string
+  /** Short-lived link. */
+  file_url: string
+  status: IdDocumentStatus
+  review_note: string | null
+  reviewed_at: string | null
+  created_at: string
+}
+
+export interface AdminIdDocument extends IdDocument {
+  tutor_id: string
+  tutor_first_name: string
+  tutor_middle_name: string | null
+  tutor_surname: string
 }

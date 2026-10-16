@@ -8,6 +8,7 @@ from app.domains.content import models as content_models  # noqa: F401
 from app.domains.exam import models as exam_models  # noqa: F401
 from app.domains.feedback import models as feedback_models  # noqa: F401
 from app.domains.fees import models as fees_models  # noqa: F401
+from app.domains.identity import models as identity_models  # noqa: F401
 from app.domains.job_posts import models as job_posts_models  # noqa: F401
 from app.domains.lessons import models as lessons_models  # noqa: F401
 from app.domains.notifications import models as notifications_models  # noqa: F401

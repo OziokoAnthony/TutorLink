@@ -11,6 +11,7 @@ from sqlmodel import Session, select
 from app.core import clock
 from app.domains.auth.models import ParentProfile, User, UserRole
 from app.domains.bookings.models import Booking, BookingStatus
+from app.domains.identity import service as identity
 from app.domains.job_posts.models import JobPost, JobStatus
 from app.domains.lessons.models import EarningStatus, Lesson, LessonStatus
 from app.domains.notifications import service as notifications
@@ -120,20 +121,22 @@ def outstanding(session: Session, users: list[User]) -> dict[UUID, list[str]]:
     return result
 
 
-def _rows(session: Session, found: list[tuple[User, str | None, VettingStatus | None]]) -> list[UserRow]:
+def _rows(session: Session, found: list[tuple[User, str | None, TutorProfile | None]]) -> list[UserRow]:
     now = clock.now()
     owed = outstanding(session, [u for u, _, _ in found])
     return [UserRow(id=u.id, role=u.role, name=name, email=u.email, joined_at=u.created_at,
-                    last_seen_at=u.last_seen_at or u.created_at, band=_band(u, now), vetting_status=vetting,
+                    last_seen_at=u.last_seen_at or u.created_at, band=_band(u, now),
+                    vetting_status=profile.vetting_status if profile else None,
+                    nin_overdue=profile is not None and identity.nin_overdue(profile, now),  # spec 11 R4.3
                     outstanding=owed[u.id], removal_due_at=u.removal_due_at, removal_reason=u.removal_reason,
                     ready_to_remove=u.removal_due_at is not None and now >= u.removal_due_at,
                     removed_at=u.removed_at)
-            for u, name, vetting in found]
+            for u, name, profile in found]
 
 
 def _people():
     name = func.coalesce(ParentProfile.full_name, TutorProfile.full_name)
-    stmt = (select(User, name, TutorProfile.vetting_status)
+    stmt = (select(User, name, TutorProfile)
             .outerjoin(ParentProfile, ParentProfile.user_id == User.id)
             .outerjoin(TutorProfile, TutorProfile.user_id == User.id)
             .where(User.role.in_(PEOPLE)))

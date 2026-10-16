@@ -68,3 +68,7 @@ class Onboarding(SQLModel):
     vetting_status: str
     nin_attempts_left: int
     nin_retry_at: datetime | None = None  # when the next NIN attempt is allowed, if none are left
+    # Spec 11 R3.1: verify the NIN by this date (None once verified); past it, parents can't see the tutor.
+    nin_verified: bool = False
+    nin_due_at: datetime | None = None
+    nin_overdue: bool = False

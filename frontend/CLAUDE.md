@@ -18,6 +18,7 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 8. `feature-8-admin-activity.md`: admin names, the welcome on `/admin`, last session and the admin activity log. **Built.**
 9. `feature-9-legal-agreement.md`: parents and tutors have their own privacy notice, terms and disclaimer, and agree to the latest versions. **Built.**
 10. `feature-10-user-management.md`: parents and tutors at a glance (counts, activity bands, last seen) and removing accounts with 14 days' notice. **Built.**
+11. `feature-11-id-before-nin.md`: tutors can start with an ID document an admin verifies, and must verify their NIN within 90 days or parents stop seeing them. **Built.**
 
 Read the spec before changing a feature it covers, and check the backend's request and response
 models (`../backend/app/domains/*/models.py`) or `/docs` for the exact API shape.
@@ -32,8 +33,8 @@ React Hook Form + Zod · Axios · sonner toasts · lucide icons.
 - `app/`: pages. Parent pages under `dashboard/parent/`, tutor pages under `dashboard/tutor/`,
   admin pages under `admin/`, printable receipts under `receipts/`.
 - `lib/`: every API call, one module per backend domain (`bookings`, `lessons`, `wallet`,
-  `payouts`, `tutors`, `notifications`, `auth`, `feedback`, `content`, `activity`). Pages import these; Axios stays
-  inside `lib/`.
+  `payouts`, `tutors`, `notifications`, `auth`, `feedback`, `content`, `activity`, `users`, `identity`). Pages import
+  these; Axios stays inside `lib/`.
 - `app/privacy`, `app/terms`, `app/disclaimer`: read from the API and edited by admins at `/admin/legal`
   (spec 7). `components/legal/LegalText.tsx` renders their plain text as React text, never HTML.
 - Subjects come from the API through `useSubjects()` (`hooks/useSubjects.ts`); admins keep them at
