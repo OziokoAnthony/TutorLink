@@ -55,6 +55,7 @@ class UserRow(SQLModel):
     last_seen_at: datetime  # sign-up time until they're seen (R1.2)
     band: Band
     vetting_status: VettingStatus | None  # tutors only
+    nin_overdue: bool = False  # a tutor past the 90-day NIN deadline (spec 11 R4.3)
     outstanding: list[str]  # R4.3, e.g. "₦20,000.00 balance"; removing needs it empty
     removal_due_at: datetime | None
     removal_reason: str | None

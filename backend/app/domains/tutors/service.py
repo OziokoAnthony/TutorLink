@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import delete, func
 from sqlmodel import Session, select
 
+from app.core import clock
 from app.db.base import utcnow
 from app.domains.auth import photos as photos_service
 from app.domains.auth.models import User
@@ -14,6 +15,7 @@ from app.domains.notifications import service as notifications
 from app.domains.onboarding import service as onboarding_service
 from app.domains.reviews import service as review_service
 from app.domains.tutors.models import (
+    NIN_DEADLINE,
     EducationLevel,
     OfferIn,
     OfferRead,
@@ -42,12 +44,20 @@ def _account_open():
     return select(User.id).where(User.id == TutorProfile.user_id, User.is_active == True).exists()  # noqa: E712
 
 
+def _nin_in_time():
+    """Spec 11 R3.2: a tutor without a verified NIN is visible for NIN_DEADLINE after registering."""
+    return TutorProfile.nin_verified_at.is_not(None) | (TutorProfile.created_at > clock.now() - NIN_DEADLINE)
+
+
 def get_approved_profile(session: Session, user_id: UUID) -> TutorProfile | None:
+    """An approved tutor parents can see and book now. Only new work checks this: bookings already made carry on
+    (spec 11 R3.3)."""
     return session.exec(
         select(TutorProfile).where(
             TutorProfile.user_id == user_id,
             TutorProfile.vetting_status == VettingStatus.approved,
             _account_open(),
+            _nin_in_time(),
         )
     ).first()
 
@@ -229,7 +239,8 @@ def list_approved_tutors(
     limit: int,
     sort: str = "name",
 ) -> list[TutorPublic]:
-    stmt = select(TutorProfile).where(TutorProfile.vetting_status == VettingStatus.approved, _account_open())
+    stmt = select(TutorProfile).where(TutorProfile.vetting_status == VettingStatus.approved, _account_open(),
+                                      _nin_in_time())
     if area:
         stmt = stmt.where(TutorProfile.area.icontains(area.strip(), autoescape=True))
     if subject or level:

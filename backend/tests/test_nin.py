@@ -53,7 +53,7 @@ def test_approving_without_a_verified_nin_is_409_naming_what_is_missing(client, 
     response = helpers.vet(client, admin_headers, tutor)
     assert response.status_code == 409
     assert "NIN not verified" in response.json()["detail"]
-    assert "NIN not verified" in steps(client, tutor)["review"]["todo"]
+    assert "NIN not verified, and no verified ID document" in steps(client, tutor)["review"]["todo"]  # spec 11
     assert client.get(f"/v1/tutors/{tutor['id']}", headers=viewer).status_code == 404  # still hidden (R2.2)
 
 

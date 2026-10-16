@@ -158,6 +158,7 @@ export default function AdminUsersPage() {
                   <span className="font-medium">{r.name ?? r.email}</span>
                   <span className="text-muted-foreground"> · {r.email} · {r.role === 'parent' ? 'Parent' : 'Tutor'}</span>
                   {r.vetting_status && <span className="text-muted-foreground"> · {STAGE_LABELS[r.vetting_status]}</span>}
+                  {r.nin_overdue && <Badge variant="destructive" className="ml-2">NIN overdue</Badge>}
                 </div>
                 <Badge variant={BAND_VARIANT[r.band]}>{BAND_LABELS[r.band]}</Badge>
               </div>

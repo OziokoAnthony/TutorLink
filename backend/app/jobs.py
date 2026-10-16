@@ -20,6 +20,7 @@ from app.db.session import engine
 from app.domains.auth import limits
 from app.domains.bookings import service as bookings
 from app.domains.exam import service as exam
+from app.domains.identity import service as identity
 from app.domains.lessons import service as lessons
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ def run_all(session: Session, now: datetime | None = None) -> dict[str, int]:
         "deleted_recordings": lessons.delete_old_recordings(session, now),
         "closed_exam_attempts": exam.close_expired(session, now),
         "old_rate_limit_hits": limits.delete_old(session, now),
+        "nin_reminders": identity.remind(session, now),  # spec 11 R3.5
     }
 
 

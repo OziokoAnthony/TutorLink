@@ -43,6 +43,7 @@ from app.domains.exam.models import (
     ExamStatus,
 )
 from app.domains.content import service as content
+from app.domains.identity import service as identity
 from app.domains.tutors.models import (
     EducationLevel,
     TutorOffer,
@@ -363,9 +364,10 @@ def start_attempt(session: Session, user: User) -> AttemptView:
     close_expired(session, now, user.id)
     # Locked so two clicks can't start two attempts.
     profile = session.exec(select(TutorProfile).where(TutorProfile.user_id == user.id).with_for_update()).first()
-    if profile is None or profile.nin_verified_at is None:
-        # The exam comes after identity is confirmed (spec 4 R3.4).
-        raise HTTPException(status.HTTP_409_CONFLICT, "Verify your NIN before taking the exam")
+    if profile is None or (profile.nin_verified_at is None and not identity.has_uploaded(session, user.id)):
+        # The exam comes after the NIN is verified or an ID document is uploaded (spec 4 R3.4, spec 11 R2.2).
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "Verify your NIN or upload an ID document before taking the exam")
     attempts = _attempts(session, user.id)
     if any(a.passed for a in attempts):
         raise HTTPException(status.HTTP_409_CONFLICT, "You've already passed the qualifying exam")

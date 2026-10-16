@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 from enum import Enum
 from typing import Annotated, Literal
@@ -32,6 +32,10 @@ education_level_enum = pg_enum(EducationLevel, "education_level")
 
 # ---------- Tables ----------
 
+# Spec 11 R3: a tutor verifies their NIN within this long of registering, or parents stop seeing them.
+NIN_DEADLINE = timedelta(days=90)
+
+
 class TutorProfile(BaseUUIDModel, table=True):
     __tablename__ = "tutor_profiles"
 
@@ -53,6 +57,8 @@ class TutorProfile(BaseUUIDModel, table=True):
     vetted_by: UUID | None = Field(default=None, foreign_key="users.id")
     vetted_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
     nin_verified_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))  # spec 4 R3.4
+    # Spec 11 R3.5: the last NIN-deadline reminder sent, in days before the deadline (30, 7, 1; 0 once it passed).
+    nin_reminder_days: int | None = Field(default=None, sa_type=sa.SmallInteger)
 
 
 class TutorOffer(BaseUUIDModel, table=True):

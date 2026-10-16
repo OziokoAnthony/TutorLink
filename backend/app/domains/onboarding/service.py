@@ -16,6 +16,7 @@ from app.domains.certificates import service as certificates
 from app.domains.content import service as content
 from app.domains.certificates.models import CertificateStatus
 from app.domains.exam import service as exam
+from app.domains.identity import service as identity
 from app.domains.onboarding.models import (
     NinCheckRead,
     NinResult,
@@ -89,11 +90,12 @@ def get_onboarding(session: Session, user: User) -> Onboarding:
     certs = certificates_todo(session, user)
     passed = exam.has_passed(session, user.id)
     nin_done = profile.nin_verified_at is not None
+    identity_done = identity_confirmed(session, profile)
     agreed = content.has_agreed(session, user)
     return Onboarding(
         steps=[
             OnboardingStep(key="profile", done=not todo, todo=todo),
-            OnboardingStep(key="nin", done=nin_done, todo=[] if nin_done else ["Verify your NIN with a selfie"]),
+            OnboardingStep(key="nin", done=identity_done, todo=identity_todo(session, profile)),
             OnboardingStep(key="certificates", done=not certs, todo=certs),
             OnboardingStep(key="quiz", done=passed, todo=[] if passed else ["Pass the qualifying exam"]),
             OnboardingStep(key="agreement", done=agreed,
@@ -104,14 +106,32 @@ def get_onboarding(session: Session, user: User) -> Onboarding:
         vetting_status=profile.vetting_status.value,
         nin_attempts_left=0 if nin_done else max(0, NIN_ATTEMPTS - len(attempts)),
         nin_retry_at=None if nin_done else _retry_at(attempts),
+        nin_verified=nin_done,
+        nin_due_at=None if nin_done else identity.nin_due_at(profile),
+        nin_overdue=identity.nin_overdue(profile),
     )
+
+
+def identity_confirmed(session: Session, profile: TutorProfile) -> bool:
+    """Spec 11 R2.1: a verified NIN, or a verified ID document until the NIN is verified."""
+    return profile.nin_verified_at is not None or identity.has_verified(session, profile.user_id)
+
+
+def identity_todo(session: Session, profile: TutorProfile) -> list[str]:
+    if identity_confirmed(session, profile):
+        return []
+    if identity.has_uploaded(session, profile.user_id):
+        return ["Wait for an admin to check your ID document, or verify your NIN now"]
+    return ["Verify your NIN with a selfie, or upload an ID document and verify your NIN within 90 days"]
 
 
 def missing_for_approval(session: Session, profile: TutorProfile) -> list[str]:
     """What stops an admin approving this tutor (R2.3, R2.4): passing the quiz is mandatory."""
     missing = []
-    if profile.nin_verified_at is None:
-        missing.append("NIN not verified")
+    if not identity_confirmed(session, profile):
+        missing.append("NIN not verified, and no verified ID document")  # spec 11 R2.3
+    elif identity.nin_overdue(profile):
+        missing.append("NIN not verified within 90 days of registering")  # spec 11 R3.2
     if not certificates.has_verified(session, profile.user_id):
         missing.append("no verified certificate")
     if not exam.has_passed(session, profile.user_id):
@@ -122,9 +142,10 @@ def missing_for_approval(session: Session, profile: TutorProfile) -> list[str]:
 
 
 def ready_to_agree(session: Session, user: User) -> bool:
-    """Spec 9 R4.1: agreeing to the tutor documents is the last step, after the picture, NIN, certificate and exam."""
+    """Spec 9 R4.1: agreeing to the tutor documents is the last step, after the picture, identity (NIN or ID,
+    spec 11), certificate and exam."""
     profile = _profile(session, user)
-    return (not profile_todo(session, user) and profile.nin_verified_at is not None
+    return (not profile_todo(session, user) and identity_confirmed(session, profile)
             and not certificates_todo(session, user) and exam.has_passed(session, user.id))
 
 

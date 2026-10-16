@@ -150,12 +150,13 @@ def test_a_removed_tutor_disappears_from_search(client, admin_headers, clock, cl
     tutor = helpers.approved_tutor(client, admin_headers)
     parent = helpers.register_parent(client)
     assert client.get(f"/v1/tutors/{tutor['id']}", headers=parent["headers"]).status_code == 200
+    assert tutor["id"] in [t["user_id"] for t in client.get("/v1/tutors", headers=parent["headers"]).json()]
     _notice(client, admin_headers, tutor)
     clock.travel(days=15)
     assert _remove(client, admin_headers, tutor).status_code == 200
     parent_headers = helpers.login(client, parent["email"])
     assert client.get(f"/v1/tutors/{tutor['id']}", headers=parent_headers).status_code == 404
-    assert tutor["id"] not in [t["id"] for t in client.get("/v1/tutors", headers=parent_headers).json()]
+    assert tutor["id"] not in [t["user_id"] for t in client.get("/v1/tutors", headers=parent_headers).json()]
 
 
 def test_something_outstanding_during_the_notice_blocks_removal(client, admin_headers, clock, paystack):

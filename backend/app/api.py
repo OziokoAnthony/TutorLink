@@ -21,6 +21,8 @@ from app.domains.feedback.router import admin_router as admin_feedback_router
 from app.domains.feedback.router import help_router
 from app.domains.feedback.router import router as feedback_router
 from app.domains.fees.router import router as fees_router
+from app.domains.identity.router import admin_router as admin_id_documents_router
+from app.domains.identity.router import router as id_documents_router
 from app.domains.files.router import router as files_router
 from app.domains.job_posts.router import admin_router as admin_jobs_router
 from app.domains.job_posts.router import router as jobs_router
@@ -44,7 +46,8 @@ api_router = APIRouter()
 for router in (
     auth_router, admin_users_router, admin_activity_router, admin_people_router,
     tutors_router, tutor_schedule_router, reviews_router, admin_tutors_router,
-    onboarding_router, certificates_router, admin_certificates_router, exam_router, admin_exam_router,
+    onboarding_router, id_documents_router, admin_id_documents_router,
+    certificates_router, admin_certificates_router, exam_router, admin_exam_router,
     bookings_router, admin_bookings_router, jobs_router, admin_jobs_router,
     lessons_router, admin_lessons_router,
     wallet_router, banks_router, admin_withdrawals_router,

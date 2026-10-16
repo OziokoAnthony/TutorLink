@@ -18,6 +18,7 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 8. `feature-8-admin-activity.md`: admin names, the welcome on `/admin`, last session and the admin activity log. **Built.**
 9. `feature-9-legal-agreement.md`: parents and tutors have their own privacy notice, terms and disclaimer, and agree to the latest versions. **Built.**
 10. `feature-10-user-management.md`: parents and tutors at a glance (counts, activity bands, last seen) and removing accounts with 14 days' notice. **Built.**
+11. `feature-11-id-before-nin.md`: tutors can start with an ID document an admin verifies, and must verify their NIN within 90 days or parents stop seeing them. **Built.**
 
 Read the spec before changing a feature it covers. Requirement ids (R1.2, R5.3…) are the shared
 vocabulary: cite them in docstrings and tests where a rule is enforced. Each spec's acceptance
@@ -92,6 +93,12 @@ Alembic migration per spec or build step in `alembic/versions/`.
   needs a notice 14 days earlier and nothing outstanding (`users.service.outstanding`: balance, open bookings, unpaid
   earnings, unfinished lessons). A removed account has `is_active = false` and `removed_at`; tutor search and
   profiles hide it (`tutors.service._account_open`). Use `clock.now()` for these rules so tests can travel.
+- **Identity (spec 11).** A tutor's identity is confirmed by a verified NIN or a verified ID document
+  (`app/domains/identity/`, `onboarding.identity_confirmed`). An uploaded (pending) ID already opens certificates
+  and the exam. Without a NIN, `tutors.service._nin_in_time` hides the tutor from parents once `NIN_DEADLINE`
+  (90 days from registering) passes; it guards only new work (`get_approved_profile`, search), so existing
+  bookings carry on. `identity.remind` (in `jobs.run_all`) sends the 30/7/1-day and overdue reminders once each.
+  In tests, `helpers.verified_tutor` still verifies the NIN; `test_id_before_nin.id_tutor` uses an ID instead.
 - **Password reset (spec 4 R0.7).** `password_reset_tokens` stores only a SHA-256 of each link's
   token; a link works once, for an hour, and `/auth/forgot-password` answers the same for any email.
 - **Tutor onboarding (spec 4 R2, R3).** `app/domains/onboarding/` holds the checklist
