@@ -77,6 +77,8 @@ class Booking(BaseUUIDModel, table=True):
     meeting_link: str | None = None
     recording_consent_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
     recording_consent_text: str | None = Field(default=None, sa_type=sa.Text)
+    # Spec 15 R2: when the parent confirmed an adult is present for a child under 8 (nursery and primary only).
+    guardian_confirmed_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
     status: BookingStatus = Field(
         default=BookingStatus.requested,
         sa_type=pg_enum(BookingStatus, "booking_status"),
@@ -141,6 +143,7 @@ class BookingCreate(SQLModel):
     child_strengths: LongText
     child_weaknesses: LongText
     recording_consent: bool = False  # required for online lessons (spec 3 R1.4)
+    guardian_present: bool = False  # required at nursery and primary (spec 15 R2)
 
     @model_validator(mode="after")
     def check(self) -> "BookingCreate":
@@ -196,6 +199,7 @@ class BookingBase(SQLModel):
     parent_photo_url: str | None = None
     tutor_photo_url: str | None = None
     recording_consent_at: datetime | None = None
+    guardian_confirmed_at: datetime | None = None  # spec 15 R2.2: the tutor sees it
 
 
 class BookingParentView(BookingBase):

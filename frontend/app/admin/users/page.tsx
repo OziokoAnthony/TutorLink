@@ -13,7 +13,7 @@ import NoteDialog from '@/components/shared/NoteDialog'
 import PageHeader from '@/components/shared/PageHeader'
 import { useToast } from '@/hooks/useToast'
 import { errorMessage } from '@/lib/api'
-import { formatDateTime, formatDayOf } from '@/lib/format'
+import { HEARD_FROM, formatDateTime, formatDayOf } from '@/lib/format'
 import {
   cancelRemovalNotice, getUsers, getUsersOverview, removeUser, restoreUser, sendRemovalNotice, type UserFilters,
 } from '@/lib/users'
@@ -114,6 +114,21 @@ export default function AdminUsersPage() {
               Onboarding {overview.tutor_stages.onboarding} · Approved {overview.tutor_stages.approved} · Rejected {overview.tutor_stages.rejected}
             </p>
           } />
+          {overview.heard_from.length > 0 && (
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-2"><CardTitle className="text-lg">How people heard about TutorLink</CardTitle></CardHeader>
+              <CardContent>
+                <ul className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+                  {overview.heard_from.map((h) => (
+                    <li key={h.source ?? 'none'} className="flex justify-between gap-3">
+                      <span>{h.source ? HEARD_FROM.find((x) => x.value === h.source)?.label ?? h.source : 'Not answered'}</span>
+                      <span className="text-muted-foreground">{h.parents} parents · {h.tutors} tutors</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 

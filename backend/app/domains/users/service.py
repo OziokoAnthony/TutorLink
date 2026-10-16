@@ -9,7 +9,7 @@ from sqlalchemy import and_, func, update
 from sqlmodel import Session, select
 
 from app.core import clock
-from app.domains.auth.models import ParentProfile, User, UserRole
+from app.domains.auth.models import HeardFrom, ParentProfile, User, UserRole
 from app.domains.bookings.models import Booking, BookingStatus
 from app.domains.identity import service as identity
 from app.domains.job_posts.models import JobPost, JobStatus
@@ -18,7 +18,15 @@ from app.domains.notifications import service as notifications
 from app.domains.notifications.service import date_text, naira
 from app.domains.payments.models import WalletEntry
 from app.domains.tutors.models import TutorProfile, VettingStatus
-from app.domains.users.models import Band, NoticeIn, RoleCounts, TutorStages, UserRow, UsersOverview
+from app.domains.users.models import (
+    Band,
+    NoticeIn,
+    RoleCounts,
+    SourceCount,
+    TutorStages,
+    UserRow,
+    UsersOverview,
+)
 
 ACTIVE = timedelta(days=90)  # R2.1
 LONG = timedelta(days=180)
@@ -83,7 +91,14 @@ def overview(session: Session) -> UsersOverview:
 
     stages = dict(session.exec(select(TutorProfile.vetting_status, func.count())
                                .group_by(TutorProfile.vetting_status)).all())
-    return UsersOverview(parents=counts(UserRole.parent), tutors=counts(UserRole.tutor),
+    by_source: dict = {}
+    for source, role, n in session.exec(select(User.heard_from, User.role, func.count())
+                                        .where(User.role.in_(PEOPLE)).group_by(User.heard_from, User.role)).all():
+        row = by_source.setdefault(source, {"parents": 0, "tutors": 0})
+        row["parents" if role == UserRole.parent else "tutors"] += n
+    order = [*HeardFrom, None]
+    heard = [SourceCount(source=s, **by_source[s]) for s in order if s in by_source]
+    return UsersOverview(parents=counts(UserRole.parent), tutors=counts(UserRole.tutor), heard_from=heard,
                          tutor_stages=TutorStages(onboarding=stages.get(VettingStatus.pending, 0),
                                                   approved=stages.get(VettingStatus.approved, 0),
                                                   rejected=stages.get(VettingStatus.rejected, 0)))

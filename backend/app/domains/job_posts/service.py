@@ -180,8 +180,9 @@ def _check_times(data: JobIn, now: datetime) -> None:
 
 
 def _write(session: Session, job: JobPost, data: JobIn, now: datetime) -> None:
-    for field, value in data.model_dump(exclude={"slots", "recording_consent"}).items():
+    for field, value in data.model_dump(exclude={"slots", "recording_consent", "guardian_present"}).items():
         setattr(job, field, value)
+    job.guardian_confirmed_at = bookings.check_guardian(data.level, data.guardian_present, now)
     consent_at = bookings.check_recording_consent(data.mode, data.recording_consent, now)
     job.recording_consent_at = consent_at
     job.recording_consent_text = RECORDING_CONSENT if consent_at else None
@@ -200,7 +201,7 @@ def post_job(session: Session, parent: User, data: JobIn, now: datetime | None =
     if parent.photo_key is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Add a profile picture before posting a job")
     _check(session, data, now)
-    job = JobPost(parent_id=parent.id, **data.model_dump(exclude={"slots", "recording_consent"}),
+    job = JobPost(parent_id=parent.id, **data.model_dump(exclude={"slots", "recording_consent", "guardian_present"}),
                   created_at=now, updated_at=now)
     _write(session, job, data, now)
     session.commit()
@@ -362,6 +363,7 @@ def choose(session: Session, parent: User, job_id: UUID, application_id: UUID,
         end_date=job.end_date, price=job.price, child_strengths=job.child_strengths,
         child_weaknesses=job.child_weaknesses, slots=_slots(session, [job.id])[job.id], now=now,
         recording_consent_at=job.recording_consent_at, on_created=link,
+        guardian_confirmed_at=job.guardian_confirmed_at,
     )
     return bookings.parent_view(session, booking)
 

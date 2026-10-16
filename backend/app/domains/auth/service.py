@@ -86,7 +86,8 @@ def _check_new_email(session: Session, email: str) -> None:
 
 def _create_account(session: Session, data: ProfileFields, email: str, password: str | None) -> User:
     """Creates the user and their parent or tutor profile."""
-    user = User(email=email, password_hash=get_password_hash(password) if password else None, role=data.role)
+    user = User(email=email, password_hash=get_password_hash(password) if password else None, role=data.role,
+                heard_from=data.heard_from)
     try:
         session.add(user)
         session.flush()  # no ORM relationships, so insert the user before its profile explicitly

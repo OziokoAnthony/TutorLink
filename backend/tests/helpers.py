@@ -376,7 +376,7 @@ def days_ahead(n: int, now: datetime | None = None) -> date:
 def book(client, parent: dict, tutor: dict, *, subjects=("Mathematics",), slots: list | None = None,
          start_date: date | None = None, end_date: date | None = None, billing_period: str = "weekly",
          mode: str = "offline", offer_id: str | None = None, strengths: str = STRENGTHS,
-         weaknesses: str = WEAKNESSES, recording_consent: bool | None = None):
+         weaknesses: str = WEAKNESSES, recording_consent: bool | None = None, guardian_present: bool = True):
     """Requests a booking. By default: one 15:00-16:00 lesson a week, starting in 3 days."""
     start_date = start_date or days_ahead(3)
     slots = slots if slots is not None else [
@@ -387,6 +387,7 @@ def book(client, parent: dict, tutor: dict, *, subjects=("Mathematics",), slots:
         "end_date": end_date.isoformat() if end_date else None, "billing_period": billing_period,
         "mode": mode, "child_strengths": strengths, "child_weaknesses": weaknesses,
         "recording_consent": mode == "online" if recording_consent is None else recording_consent,
+        "guardian_present": guardian_present,  # needed at nursery and primary (spec 15 R2)
     })
 
 

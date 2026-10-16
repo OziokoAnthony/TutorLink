@@ -1,6 +1,7 @@
 import type {
-  ApplicationStatus, BillingPeriod, BookingStatus, CertificateStatus, CertificateType, JobStatus, EarningStatus, FeedbackKind, IssueKind, Level, LessonStatus, PeriodStatus, RefundStatus,
-  TransferStatus, VettingStatus, WeeklyTime,
+  ApplicationStatus, BillingPeriod, BookingStatus, CertificateStatus, CertificateType, EarningStatus, FeedbackKind,
+  HeardFrom, IssueKind, JobStatus, LessonStatus, Level, PeriodStatus, RefundStatus, TransferStatus, VettingStatus,
+  WeeklyTime,
 } from '@/types'
 
 /** Index matches the backend: 0 = Monday ... 6 = Sunday. */
@@ -12,10 +13,29 @@ export const MONTHS = [
 ]
 
 export const LEVELS: { value: Level; label: string }[] = [
+  { value: 'nursery', label: 'Nursery & Pre-primary' },
   { value: 'primary', label: 'Primary' },
   { value: 'junior_secondary', label: 'Junior Secondary' },
   { value: 'senior_secondary', label: 'Senior Secondary' },
   { value: 'international', label: 'International High School' },
+  { value: 'exam_prep', label: 'Exam Prep & Adult Learning' },
+]
+
+/** Spec 15 R2: booking or posting at these levels needs GUARDIAN_TEXT confirmed. */
+export const GUARDIAN_LEVELS: Level[] = ['nursery', 'primary']
+export const GUARDIAN_TEXT = 'If my child is under 8, a parent or guardian will be present during every lesson.'
+
+/** Spec 15 R3: "How did you hear about TutorLink?" */
+export const HEARD_FROM: { value: HeardFrom; label: string }[] = [
+  { value: 'google', label: 'Google search' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'tiktok', label: 'TikTok' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'friend', label: 'A friend or family member' },
+  { value: 'school', label: 'A school or school event' },
+  { value: 'tutor', label: 'A tutor' },
+  { value: 'other', label: 'Something else' },
 ]
 
 /** The listed spelling of a typed subject (ignoring capitals and extra spaces), or null if it isn't one of

@@ -11,6 +11,20 @@ from app.domains.reviews.models import TutorToRate
 from app.domains.tutors.models import OfferIn, TutorProfileRead, clean_name_part
 
 
+class HeardFrom(str, Enum):
+    """How someone heard about TutorLink, asked at sign-up (spec 15 R3)."""
+
+    google = "google"
+    instagram = "instagram"
+    facebook = "facebook"
+    tiktok = "tiktok"
+    whatsapp = "whatsapp"
+    friend = "friend"  # a friend or family member
+    school = "school"  # a school or school event
+    tutor = "tutor"
+    other = "other"
+
+
 class UserRole(str, Enum):
     parent = "parent"
     tutor = "tutor"
@@ -41,6 +55,7 @@ class User(BaseUUIDModel, table=True):
     removal_due_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
     removal_reason: str | None = Field(default=None, sa_type=sa.Text)
     removed_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))
+    heard_from: HeardFrom | None = Field(default=None, sa_type=sa.String(20))  # spec 15 R3
     photo_key: str | None = None  # profile picture in storage (spec 4 R1b)
 
 
@@ -82,6 +97,7 @@ class ProfileFields(SQLModel):
     """What a new parent or tutor tells us about themselves, however they sign up."""
 
     role: UserRole
+    heard_from: HeardFrom | None = None  # optional (spec 15 R3)
     full_name: str | None = Field(default=None, min_length=1, max_length=200)  # parents
     # Tutors give their names separately, exactly as on their NIN record (spec 4 R3.1); full_name is built
     # from first name and surname, and so is their work email.

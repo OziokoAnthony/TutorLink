@@ -29,7 +29,9 @@ logger = logging.getLogger(__name__)
 LETTERS = ("A", "B", "C", "D")
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
-LEVEL_NAMES = {"primary": "primary school (Primary 1-6)",
+LEVEL_NAMES = {"nursery": "nursery and pre-primary (ages about 3-5)",
+               "exam_prep": "exam preparation (such as JAMB UTME, IELTS, TOEFL or SAT) and adult learners",
+               "primary": "primary school (Primary 1-6)",
                "junior_secondary": "junior secondary school (JSS 1-3)",
                "senior_secondary": "senior secondary school (SSS 1-3, WAEC/NECO level)",
                "international": "international high school (Cambridge IGCSE and A-Level, IB Diploma, "

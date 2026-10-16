@@ -20,10 +20,12 @@ class VettingStatus(str, Enum):
 
 
 class EducationLevel(str, Enum):
+    nursery = "nursery"  # nursery and pre-primary (spec 15 R1)
     primary = "primary"
     junior_secondary = "junior_secondary"
     senior_secondary = "senior_secondary"
     international = "international"  # high school in an international curriculum (IGCSE, A-Level, IB, American)
+    exam_prep = "exam_prep"  # exam preparation (JAMB, IELTS, SAT...) and adult learning (spec 15 R1)
 
 
 # Shared by tutor_offers.level and bookings.level (one PostgreSQL type).

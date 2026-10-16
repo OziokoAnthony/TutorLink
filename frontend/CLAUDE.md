@@ -21,6 +21,7 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 11. `feature-11-id-before-nin.md`: tutors can start with an ID document an admin verifies, and must verify their NIN within 90 days or parents stop seeing them. **Built.**
 12. `feature-12-admin-exam-questions.md`: admins write exam questions or upload them as a PDF, Claude only tops up, a tutor never gets a question twice; the help assistant runs on Haiku. **Built.**
 14. `feature-14-public-pages.md`: public subject and level pages, real numbers, reviews (first name only) and price ranges for visitors; sitemap and robots.txt. Never shows a tutor. **Built.**
+15. `feature-15-levels-safety-source.md`: Nursery & pre-primary and Exam prep & adult learning levels, a guardian confirmation for young children, and "How did you hear about TutorLink?". **Built.**
 
 Read the spec before changing a feature it covers, and check the backend's request and response
 models (`../backend/app/domains/*/models.py`) or `/docs` for the exact API shape.

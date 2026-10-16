@@ -8,9 +8,10 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import Choice from '@/components/shared/Choice'
+import GuardianConfirm from '@/components/shared/GuardianConfirm'
 import RecordingConsent from '@/components/shared/RecordingConsent'
 import { useSubjects } from '@/hooks/useSubjects'
-import { BILLING_PERIODS, CERTIFICATES, DAYS, LEVELS, formatTime, listedSubject, toISODate } from '@/lib/format'
+import { BILLING_PERIODS, CERTIFICATES, DAYS, GUARDIAN_LEVELS, LEVELS, formatTime, listedSubject, toISODate } from '@/lib/format'
 import type { BillingPeriod, CertificateType, Job, JobInput, LessonMode, Level, TutorFiltersValue, WeeklyTime } from '@/types'
 
 const NONE = 'none'
@@ -36,6 +37,7 @@ export default function JobForm({ initial, suggested, submitLabel, onSubmit, onC
   const [mode, setMode] = useState<LessonMode>(initial?.mode ?? 'offline')
   const [area, setArea] = useState(initial?.area ?? suggested?.area ?? '')
   const [consent, setConsent] = useState(initial?.mode === 'online')
+  const [guardian, setGuardian] = useState(Boolean(initial?.guardian_confirmed_at))
   const [slots, setSlots] = useState<WeeklyTime[]>(initial?.slots.map((s) => ({
     ...s, start_time: formatTime(s.start_time), end_time: formatTime(s.end_time),
   })) ?? [{ day_of_week: 0, start_time: '16:00', end_time: '17:00' }])
@@ -81,6 +83,7 @@ export default function JobForm({ initial, suggested, submitLabel, onSubmit, onC
     if (!(Number(price) > 0)) return 'Enter the price you will pay per lesson'
     if (!qualifications.trim()) return 'Describe the qualifications you want'
     if (mode === 'online' && !consent) return 'Please agree that online lessons will be recorded'
+    if (GUARDIAN_LEVELS.includes(level) && !guardian) return 'Please confirm an adult will be present for a child under 8'
     if (strengths.trim().length < 10) return "Tell tutors your child's strengths (at least 10 characters)"
     if (weaknesses.trim().length < 10) return 'Tell tutors what your child finds hard (at least 10 characters)'
     return null
@@ -99,6 +102,7 @@ export default function JobForm({ initial, suggested, submitLabel, onSubmit, onC
         other_requirements: other.trim() || null, price: Number(price),
         child_strengths: strengths.trim(), child_weaknesses: weaknesses.trim(),
         recording_consent: mode === 'online' && consent,
+        guardian_present: GUARDIAN_LEVELS.includes(level) && guardian,
       })
     } catch {
       // The page shows the error; keep the form as it is.
@@ -154,6 +158,7 @@ export default function JobForm({ initial, suggested, submitLabel, onSubmit, onC
           { value: 'offline', label: 'At home (offline)' }, { value: 'online', label: 'Online' },
         ]} />
         {mode === 'online' && <RecordingConsent checked={consent} onChange={setConsent} />}
+        {GUARDIAN_LEVELS.includes(level) && <GuardianConfirm checked={guardian} onChange={setGuardian} />}
       </div>
       {mode === 'offline' && (
         <div className="space-y-1.5">
