@@ -36,6 +36,7 @@ from app.domains.payments.router import router as wallet_router
 from app.domains.payouts.router import admin_router as admin_payouts_router
 from app.domains.payouts.router import router as earnings_router
 from app.domains.reviews.router import router as reviews_router
+from app.domains.showcase.router import router as public_router
 from app.domains.tutors.router import admin_router as admin_tutors_router
 from app.domains.tutors.router import router as tutors_router
 from app.domains.users.router import admin_router as admin_people_router
@@ -54,7 +55,7 @@ for router in (
     earnings_router, admin_payouts_router,
     feedback_router, help_router, admin_feedback_router,
     content_router, admin_content_router,
-    fees_router, notifications_router, files_router, webhooks_router,
+    fees_router, notifications_router, files_router, webhooks_router, public_router,
 ):
     api_router.include_router(router)
 

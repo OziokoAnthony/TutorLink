@@ -20,6 +20,7 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 10. `feature-10-user-management.md`: parents and tutors at a glance (counts, activity bands, last seen) and removing accounts with 14 days' notice. **Built.**
 11. `feature-11-id-before-nin.md`: tutors can start with an ID document an admin verifies, and must verify their NIN within 90 days or parents stop seeing them. **Built.**
 12. `feature-12-admin-exam-questions.md`: admins write exam questions or upload them as a PDF, Claude only tops up, a tutor never gets a question twice; the help assistant runs on Haiku. **Built.**
+14. `feature-14-public-pages.md`: public subject and level pages, real numbers, reviews (first name only) and price ranges for visitors; sitemap and robots.txt. Never shows a tutor. **Built.**
 
 Read the spec before changing a feature it covers. Requirement ids (R1.2, R5.3…) are the shared
 vocabulary: cite them in docstrings and tests where a rule is enforced. Each spec's acceptance
@@ -100,6 +101,9 @@ Alembic migration per spec or build step in `alembic/versions/`.
   (90 days from registering) passes; it guards only new work (`get_approved_profile`, search), so existing
   bookings carry on. `identity.remind` (in `jobs.run_all`) sends the 30/7/1-day and overdue reminders once each.
   In tests, `helpers.verified_tutor` still verifies the NIN; `test_id_before_nin.id_tutor` uses an ID instead.
+- **Public pages (spec 14).** `/v1/public/*` (`app/domains/showcase/`) needs no login and must never return anything
+  that identifies a tutor: only counts, price ranges (parent price, fee included; none under 3 offers) and reviews
+  with the parent's first name. Counts use `tutors.service.bookable()`.
 - **Password reset (spec 4 R0.7).** `password_reset_tokens` stores only a SHA-256 of each link's
   token; a link works once, for an hour, and `/auth/forgot-password` answers the same for any email.
 - **Tutor onboarding (spec 4 R2, R3).** `app/domains/onboarding/` holds the checklist

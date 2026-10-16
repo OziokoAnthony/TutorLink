@@ -805,3 +805,45 @@ export interface AdminIdDocument extends IdDocument {
   tutor_middle_name: string | null
   tutor_surname: string
 }
+
+/** What visitors see before signing up (spec 14): counts, prices and reviews, never a tutor. */
+export interface PublicStats {
+  verified_tutors: number
+  lessons_taught: number
+  average_rating: number | null
+  rating_count: number
+}
+
+export interface PublicReview {
+  /** The parent's first name only. */
+  first_name: string
+  rating: number
+  comment: string
+  created_at: string
+}
+
+/** Per lesson, what a parent pays; null when fewer than 3 offers ("Prices vary"). */
+export interface LevelPrices {
+  level: Level
+  tutors: number
+  min_price: number | null
+  max_price: number | null
+}
+
+export interface PublicSubject {
+  slug: string
+  name: string
+  group: SubjectGroup
+  tutors: number
+}
+
+export interface PublicSubjectDetail extends PublicSubject {
+  levels: LevelPrices[]
+  reviews: PublicReview[]
+}
+
+export interface PublicLevel {
+  level: Level
+  tutors: number
+  subjects: (PublicSubject & { min_price: number | null; max_price: number | null })[]
+}

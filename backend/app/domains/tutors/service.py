@@ -49,6 +49,11 @@ def _nin_in_time():
     return TutorProfile.nin_verified_at.is_not(None) | (TutorProfile.created_at > clock.now() - NIN_DEADLINE)
 
 
+def bookable():
+    """The tutors parents can book now: approved, account open, NIN in time. Public counts (spec 14) use it too."""
+    return (TutorProfile.vetting_status == VettingStatus.approved) & _account_open() & _nin_in_time()
+
+
 def get_approved_profile(session: Session, user_id: UUID) -> TutorProfile | None:
     """An approved tutor parents can see and book now. Only new work checks this: bookings already made carry on
     (spec 11 R3.3)."""
