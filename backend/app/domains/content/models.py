@@ -21,6 +21,13 @@ class LegalKind(str, Enum):
     disclaimer = "disclaimer"
 
 
+class LegalAudience(str, Enum):
+    """Parents and tutors each have their own three documents (spec 9 R1)."""
+
+    parent = "parent"
+    tutor = "tutor"
+
+
 # ---------- Tables ----------
 
 class Subject(BaseUUIDModel, table=True):
@@ -37,13 +44,27 @@ class Subject(BaseUUIDModel, table=True):
 
 
 class LegalDocument(BaseUUIDModel, table=True):
-    """One published version of the privacy notice, terms or disclaimer (spec 7 R2). The latest is shown."""
+    """One published version of the parents' or tutors' privacy notice, terms or disclaimer (spec 7 R2, spec 9
+    R1). The latest of each audience and kind is shown and must be agreed to."""
 
     __tablename__ = "legal_documents"
+    __table_args__ = (sa.Index("ix_legal_documents_audience_kind_created_at", "audience", "kind", "created_at"),)
 
-    kind: LegalKind = Field(sa_type=pg_enum(LegalKind, "legal_kind"), index=True)
+    audience: LegalAudience = Field(sa_type=pg_enum(LegalAudience, "legal_audience"))
+    kind: LegalKind = Field(sa_type=pg_enum(LegalKind, "legal_kind"))
     body: str = Field(sa_type=sa.Text)
     published_by: UUID | None = Field(default=None, foreign_key="users.id")
+
+
+class LegalAcceptance(BaseUUIDModel, table=True):
+    """Proof that a parent or tutor agreed to one version of one document (spec 9 R2.2). Never edited or deleted."""
+
+    __tablename__ = "legal_acceptances"
+    __table_args__ = (sa.UniqueConstraint("user_id", "document_id", name="uq_legal_acceptances_user_document"),)
+
+    user_id: UUID = Field(foreign_key="users.id", index=True)
+    document_id: UUID = Field(foreign_key="legal_documents.id")
+    ip: str | None = Field(default=None, max_length=64)
 
 
 # ---------- DTOs ----------
@@ -94,9 +115,27 @@ class LegalIn(SQLModel):
 
 
 class LegalRead(SQLModel):
+    audience: LegalAudience
     kind: LegalKind
     body: str
     published_at: datetime
+
+
+class MyLegalDocument(LegalRead):
+    id: UUID  # the version, sent back when agreeing
+    accepted_at: datetime | None  # when this reader agreed to this version
+
+
+class MyLegal(SQLModel):
+    """A parent's or tutor's own three documents (spec 9 R2.4)."""
+
+    required: bool  # they can't continue until they agree (R3, R5)
+    can_accept: bool  # False for a tutor who hasn't finished the other onboarding steps (R4.1)
+    documents: list[MyLegalDocument]
+
+
+class AcceptLegalIn(SQLModel):
+    document_ids: list[UUID]  # the latest version of each of the reader's three documents (R2.1, R2.3)
 
 
 class LegalVersion(LegalRead):

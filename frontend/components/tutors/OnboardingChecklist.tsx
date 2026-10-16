@@ -8,21 +8,37 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import FormField from '@/components/shared/FormField'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
+import AgreementPanel from '@/components/legal/AgreementPanel'
 import CertificatesSection from '@/components/tutors/CertificatesSection'
 import SelfieCamera from '@/components/tutors/SelfieCamera'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import { errorMessage } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
+import { getMyLegal } from '@/lib/content'
 import { getOnboarding, verifyNin } from '@/lib/onboarding'
-import type { NinResult, Onboarding, OnboardingStepKey } from '@/types'
+import type { MyLegal, NinResult, Onboarding, OnboardingStepKey } from '@/types'
 
 const STEP_TITLES: Record<OnboardingStepKey, string> = {
   profile: 'Profile',
   nin: 'Verify your NIN',
   certificates: 'Certificates',
   quiz: 'Qualifying exam',
+  agreement: 'Agree to the tutor terms',
   review: 'Waiting for admin review',
+}
+
+/** Spec 9 R4: the tutor's privacy notice, terms and disclaimer, agreed to as the last step before review. */
+function AgreementStep({ onDone }: { onDone: () => Promise<void> }) {
+  const [legal, setLegal] = useState<MyLegal | null>(null)
+  useEffect(() => { getMyLegal().then(setLegal).catch(() => {}) }, [])
+  if (!legal) return <LoadingSpinner />
+  return (
+    <AgreementPanel legal={legal} onChange={(next) => {
+      setLegal(next)
+      if (next.documents.every((d) => d.accepted_at)) onDone()
+    }} />
+  )
 }
 
 function NinForm({ attemptsLeft, retryAt, onDone }: { attemptsLeft: number; retryAt: string | null; onDone: () => Promise<void> }) {
@@ -84,7 +100,8 @@ function NinForm({ attemptsLeft, retryAt, onDone }: { attemptsLeft: number; retr
   )
 }
 
-/** The tutor's onboarding checklist (spec 4 R2.1): Profile → NIN → Certificates → Quiz → waiting for admin review. */
+/** The tutor's onboarding checklist (spec 4 R2.1): Profile → NIN → Certificates → Quiz → agree to the terms
+ * (spec 9 R4) → waiting for admin review. */
 export default function OnboardingChecklist() {
   const { refresh } = useAuth()
   const toast = useToast()
@@ -113,7 +130,8 @@ export default function OnboardingChecklist() {
     nin: done.profile && !done.nin,
     certificates: done.nin,
     quiz: done.nin && !done.quiz,
-    review: done.profile && done.nin && done.certificates && done.quiz,
+    agreement: done.profile && done.nin && done.certificates && done.quiz && !done.agreement,
+    review: done.profile && done.nin && done.certificates && done.quiz && done.agreement,
   }
 
   return (
@@ -155,6 +173,7 @@ export default function OnboardingChecklist() {
                     <Button asChild size="sm"><Link href="/dashboard/tutor/exam">Go to the exam</Link></Button>
                   </div>
                 )}
+                {step.key === 'agreement' && open.agreement && <AgreementStep onDone={load} />}
                 {step.key === 'review' && open.review && (
                   <p className="text-sm text-muted-foreground">
                     {step.todo.length ? `Still needed: ${step.todo.join(', ')}.` : 'An admin is reviewing your profile. We’ll email you once you’re approved.'}

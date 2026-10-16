@@ -1,5 +1,7 @@
 import api from '@/lib/api'
-import type { LegalDocument, LegalKind, LegalVersion, Subject, SubjectAdmin, SubjectGroup } from '@/types'
+import type {
+  LegalAudience, LegalDocument, LegalKind, LegalVersion, MyLegal, Subject, SubjectAdmin, SubjectGroup,
+} from '@/types'
 
 /** The subjects offered for new offers, job posts and search (spec 7 R1). Public: sign-up needs them. */
 export async function getSubjects(): Promise<Subject[]> {
@@ -23,17 +25,32 @@ export async function setSubjectOffered(id: string, isOffered: boolean): Promise
   return data
 }
 
-export async function getLegal(kind: LegalKind): Promise<LegalDocument> {
-  const { data } = await api.get<LegalDocument>(`/legal/${kind}`)
+/** Public: the parents' version unless the tutors' is asked for (spec 9 R1.3). */
+export async function getLegal(kind: LegalKind, audience: LegalAudience = 'parent'): Promise<LegalDocument> {
+  const { data } = await api.get<LegalDocument>(`/legal/${kind}`, { params: { audience } })
   return data
 }
 
-export async function getLegalVersions(kind: LegalKind): Promise<LegalVersion[]> {
-  const { data } = await api.get<LegalVersion[]>(`/admin/legal/${kind}`)
+export async function getLegalVersions(audience: LegalAudience, kind: LegalKind): Promise<LegalVersion[]> {
+  const { data } = await api.get<LegalVersion[]>(`/admin/legal/${audience}/${kind}`)
   return data
 }
 
-export async function publishLegal(kind: LegalKind, body: string, notify: boolean): Promise<LegalDocument> {
-  const { data } = await api.post<LegalDocument>(`/admin/legal/${kind}`, { body, notify })
+/** Everyone in the audience must agree to the new version (spec 9 R5.1). */
+export async function publishLegal(audience: LegalAudience, kind: LegalKind, body: string,
+  notify: boolean): Promise<LegalDocument> {
+  const { data } = await api.post<LegalDocument>(`/admin/legal/${audience}/${kind}`, { body, notify })
+  return data
+}
+
+/** The reader's own three documents and whether they must agree now (spec 9 R2.4). */
+export async function getMyLegal(): Promise<MyLegal> {
+  const { data } = await api.get<MyLegal>('/legal/me')
+  return data
+}
+
+/** Agrees to the latest version of all three (spec 9 R2.1); a 409 if one changed meanwhile. */
+export async function acceptLegal(documentIds: string[]): Promise<MyLegal> {
+  const { data } = await api.post<MyLegal>('/legal/me/accept', { document_ids: documentIds })
   return data
 }

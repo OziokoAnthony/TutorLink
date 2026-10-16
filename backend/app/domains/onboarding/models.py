@@ -52,7 +52,7 @@ class NinResult(NinCheckRead):
     attempts_left: int  # in the current 24 hours
 
 
-StepKey = Literal["profile", "nin", "certificates", "quiz", "review"]
+StepKey = Literal["profile", "nin", "certificates", "quiz", "agreement", "review"]
 
 
 class OnboardingStep(SQLModel):
