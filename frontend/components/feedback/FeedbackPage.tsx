@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import FeedbackCard from '@/components/feedback/FeedbackCard'
-import WhatsAppButton from '@/components/feedback/WhatsAppButton'
 import Choice from '@/components/shared/Choice'
 import EmptyState from '@/components/shared/EmptyState'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
@@ -15,7 +14,6 @@ import { useToast } from '@/hooks/useToast'
 import { errorMessage } from '@/lib/api'
 import { getMyFeedback, sendFeedback } from '@/lib/feedback'
 import { FEEDBACK_KINDS } from '@/lib/format'
-import { supportWhatsApp } from '@/lib/whatsapp'
 import type { Feedback, FeedbackKind } from '@/types'
 
 /** Spec 6 R1: send feedback to TutorLink and read the replies. The same page for parents and tutors. */
@@ -50,15 +48,6 @@ export default function FeedbackPage() {
     <>
       <PageHeader title="Help & feedback"
         description="Tell us what's wrong, what you'd like, or ask a question. For quick answers, use the help chat at the bottom right." />
-      {supportWhatsApp() && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-lg">Prefer WhatsApp?</CardTitle>
-            <CardDescription>Message the TutorLink team on WhatsApp. Your message already says who you are.</CardDescription>
-          </CardHeader>
-          <CardContent><WhatsAppButton /></CardContent>
-        </Card>
-      )}
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="text-lg">Send feedback</CardTitle>
