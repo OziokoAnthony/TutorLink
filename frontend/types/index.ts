@@ -3,7 +3,7 @@
 
 export type Role = 'parent' | 'tutor' | 'admin'
 export type VettingStatus = 'pending' | 'approved' | 'rejected'
-export type Level = 'primary' | 'junior_secondary' | 'senior_secondary' | 'international'
+export type Level = 'nursery' | 'primary' | 'junior_secondary' | 'senior_secondary' | 'international' | 'exam_prep'
 export type LessonMode = 'online' | 'offline'
 export type BillingPeriod = 'daily' | 'weekly' | 'monthly'
 export type BookingStatus =
@@ -316,6 +316,8 @@ export interface Booking {
   parent_photo_url: string | null
   tutor_photo_url: string | null
   recording_consent_at: string | null // online bookings: when the parent agreed to recording
+  /** Nursery and primary: when the parent confirmed an adult is present for a child under 8 (spec 15 R2). */
+  guardian_confirmed_at?: string | null
   // Online: the tutor's link; the parent gets it once the first period is paid
   meeting_link?: string | null
   // Parent (and admin)
@@ -340,6 +342,7 @@ export interface BookingInput {
   billing_period: BillingPeriod
   mode: LessonMode
   recording_consent: boolean // required for online lessons
+  guardian_present?: boolean // required at nursery and primary (spec 15 R2)
   child_strengths: string
   child_weaknesses: string
 }
@@ -604,6 +607,7 @@ export interface JobInput {
   child_strengths: string
   child_weaknesses: string
   recording_consent: boolean // required for online lessons
+  guardian_present?: boolean // required at nursery and primary (spec 15 R2)
 }
 
 export interface MyApplication {
@@ -620,6 +624,7 @@ export interface Job extends JobInput {
   id: string
   status: JobStatus
   created_at: string
+  guardian_confirmed_at?: string | null // spec 15 R2
   // Parent
   parent_price_per_lesson?: number
   booking_id?: string | null
@@ -761,7 +766,11 @@ export interface UsersOverview {
   parents: RoleCounts
   tutors: RoleCounts
   tutor_stages: { onboarding: number; approved: number; rejected: number }
+  /** Spec 15 R3.2: answers to "How did you hear about TutorLink?"; null source is "Not answered". */
+  heard_from: { source: HeardFrom | null; parents: number; tutors: number }[]
 }
+
+export type HeardFrom = 'google' | 'instagram' | 'facebook' | 'tiktok' | 'whatsapp' | 'friend' | 'school' | 'tutor' | 'other'
 
 /** A parent or tutor in the admin list (spec 10 R3.3). */
 export interface UserRow {

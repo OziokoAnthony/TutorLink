@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Avatar from '@/components/shared/Avatar'
 import { JobStatusBadge } from '@/components/shared/StatusBadge'
-import { BILLING_PERIODS, formatDate, formatNaira, formatPercent, levelLabel, slotText } from '@/lib/format'
+import { BILLING_PERIODS, formatDate, formatNaira, formatPercent, GUARDIAN_TEXT, levelLabel, slotText } from '@/lib/format'
 import type { Job } from '@/types'
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -61,6 +61,7 @@ export default function JobSummary({ job, href, actions, full = false }: {
                 {job.min_certificate && <span className="text-muted-foreground"> • at least {job.min_certificate}</span>}
               </Row>
               {job.other_requirements && <Row label="Other requirements">{job.other_requirements}</Row>}
+              {job.guardian_confirmed_at && <Row label="Young child">The parent confirmed: {GUARDIAN_TEXT}</Row>}
               <Row label="Child's strengths">{job.child_strengths}</Row>
               <Row label="Finds hard">{job.child_weaknesses}</Row>
             </>

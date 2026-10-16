@@ -56,6 +56,7 @@ class JobPost(BaseUUIDModel, table=True):
     child_weaknesses: str = Field(sa_type=sa.Text)
     recording_consent_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))  # online only
     recording_consent_text: str | None = Field(default=None, sa_type=sa.Text)
+    guardian_confirmed_at: datetime | None = Field(default=None, sa_type=sa.DateTime(timezone=True))  # spec 15 R2
     status: JobStatus = Field(default=JobStatus.pending, sa_type=pg_enum(JobStatus, "job_status"),
                               sa_column_kwargs={"server_default": JobStatus.pending.value})
     review_note: str | None = Field(default=None, sa_type=sa.Text)  # why an admin rejected it
@@ -115,6 +116,7 @@ class JobIn(SQLModel):
     child_strengths: LongText
     child_weaknesses: LongText
     recording_consent: bool = False  # required for online lessons (spec 3 R1.4)
+    guardian_present: bool = False  # required at nursery and primary (spec 15 R2)
 
     @model_validator(mode="after")
     def check(self) -> "JobIn":
@@ -173,6 +175,7 @@ class JobBase(SQLModel):
     child_weaknesses: str
     status: JobStatus
     created_at: datetime
+    guardian_confirmed_at: datetime | None = None  # spec 15 R2.2
 
 
 class JobParentView(JobBase):

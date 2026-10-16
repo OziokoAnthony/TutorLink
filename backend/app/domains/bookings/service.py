@@ -43,7 +43,7 @@ from app.domains.notifications import service as notifications
 from app.domains.payments import service as payments
 from app.domains.payments.models import EntryKind, Refund, RefundReason, RefundRead, RefundStatus
 from app.domains.tutors import service as tutor_service
-from app.domains.tutors.models import TutorOffer, WeeklyTime
+from app.domains.tutors.models import EducationLevel, TutorOffer, WeeklyTime
 
 REQUEST_TTL = timedelta(hours=72)  # tutor must answer within 72 h (spec 1 R2.4)
 CANCEL_NOTICE = timedelta(hours=48)  # lessons at least this far away are refunded on cancellation (R2.8)
@@ -239,6 +239,7 @@ def request_booking(session: Session, parent: User, data: BookingCreate, now: da
     if schedule.plan_period(data.slots, data.billing_period, data.start_date, data.end_date) is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "There are no lessons between these dates")
     consent_at = check_recording_consent(data.mode, data.recording_consent, now)
+    guardian_at = check_guardian(offer.level, data.guardian_present, now)
     _check_no_clash(data.slots, _taken_slots(session, tutor.id))
 
     booking = Booking(
@@ -247,7 +248,7 @@ def request_booking(session: Session, parent: User, data: BookingCreate, now: da
         billing_period=data.billing_period, start_date=data.start_date, end_date=data.end_date,
         price=offer.price, child_strengths=data.child_strengths, child_weaknesses=data.child_weaknesses,
         recording_consent_at=consent_at, recording_consent_text=RECORDING_CONSENT if consent_at else None,
-        created_at=now, updated_at=now,
+        guardian_confirmed_at=guardian_at, created_at=now, updated_at=now,
     )
     session.add(booking)
     session.flush()
@@ -311,7 +312,8 @@ def _take(session: Session, booking: Booking, slots, now: datetime) -> None:
 def book_from_job(session: Session, *, parent_id: UUID, tutor_id: UUID, job_id: UUID, subjects: list[str],
                   level, mode, billing_period, start_date, end_date, price: Decimal, child_strengths: str,
                   child_weaknesses: str, slots: list[WeeklyTime], now: datetime,
-                  recording_consent_at: datetime | None, on_created: Callable[[Booking], None]) -> Booking:
+                  recording_consent_at: datetime | None, on_created: Callable[[Booking], None],
+                  guardian_confirmed_at: datetime | None = None) -> Booking:
     """A parent chose a job applicant: the booking starts already taken, awaiting payment (spec 2 R3.2).
     The caller has locked and checked the job; this checks the tutor's time, calls `on_created` once the
     booking row exists (so the job's changes commit with it), then commits."""
@@ -323,7 +325,7 @@ def book_from_job(session: Session, *, parent_id: UUID, tutor_id: UUID, job_id: 
         child_strengths=child_strengths, child_weaknesses=child_weaknesses,
         recording_consent_at=recording_consent_at,
         recording_consent_text=RECORDING_CONSENT if recording_consent_at else None,
-        created_at=now, updated_at=now,
+        guardian_confirmed_at=guardian_confirmed_at, created_at=now, updated_at=now,
     )
     session.add(booking)
     session.flush()
@@ -333,6 +335,21 @@ def book_from_job(session: Session, *, parent_id: UUID, tutor_id: UUID, job_id: 
     on_created(booking)
     _take(session, booking, rows, now)
     return booking
+
+
+# Spec 15 R2: young children aren't left alone with a tutor.
+GUARDIAN_TEXT = "If my child is under 8, a parent or guardian will be present during every lesson."
+GUARDIAN_LEVELS = (EducationLevel.nursery, EducationLevel.primary)
+
+
+def check_guardian(level: EducationLevel, confirmed: bool, now: datetime) -> datetime | None:
+    """Nursery and primary lessons need the parent's word that an adult is present for a child under 8.
+    Returns when they confirmed."""
+    if level not in GUARDIAN_LEVELS:
+        return None
+    if not confirmed:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Please confirm: \"{GUARDIAN_TEXT}\"")
+    return now
 
 
 def check_recording_consent(mode: LessonMode, consent: bool, now: datetime) -> datetime | None:

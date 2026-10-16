@@ -1,10 +1,11 @@
 import api from '@/lib/api'
 import { toTutorProfile, type OfferInput } from '@/lib/tutors'
-import type { AdminAccount, ParentProfile, Role, TutorToRate, UserMe } from '@/types'
+import type { AdminAccount, HeardFrom, ParentProfile, Role, TutorToRate, UserMe } from '@/types'
 
 /** What a new parent or tutor tells us about themselves. */
 export interface ProfileInput {
   role: 'parent' | 'tutor'
+  heard_from?: HeardFrom // optional (spec 15 R3)
   // Parents give a full name; tutors give first name and surname, as on their NIN record.
   full_name?: string
   first_name?: string

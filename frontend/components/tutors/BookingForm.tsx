@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Choice from '@/components/shared/Choice'
+import GuardianConfirm from '@/components/shared/GuardianConfirm'
 import RecordingConsent from '@/components/shared/RecordingConsent'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -18,7 +19,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import { errorMessage, errorStatus } from '@/lib/api'
 import { requestBooking } from '@/lib/bookings'
-import { BILLING_PERIODS, DAYS, formatNaira, levelLabel, slotText, toISODate } from '@/lib/format'
+import { BILLING_PERIODS, DAYS, GUARDIAN_LEVELS, formatNaira, levelLabel, slotText, toISODate } from '@/lib/format'
 import type { BillingPeriod, LessonMode, TutorAvailability, TutorProfile, WeeklyTime } from '@/types'
 
 const CLASH_MESSAGE = 'This tutor is already booked at one of those times. Please choose another time.'
@@ -57,6 +58,7 @@ export default function BookingForm({ tutor, availability, open, onOpenChange }:
   const [billing, setBilling] = useState<BillingPeriod>('weekly')
   const [mode, setMode] = useState<LessonMode>('offline')
   const [consent, setConsent] = useState(false)
+  const [guardian, setGuardian] = useState(false)
   const [strengths, setStrengths] = useState('')
   const [weaknesses, setWeaknesses] = useState('')
   const [problem, setProblem] = useState<string | null>(null)
@@ -88,6 +90,7 @@ export default function BookingForm({ tutor, availability, open, onOpenChange }:
     if (!startDate) return 'Choose a start date'
     if (endDate && endDate < startDate) return 'The end date must be after the start date'
     if (mode === 'online' && !consent) return 'Please agree that online lessons will be recorded'
+    if (offer && GUARDIAN_LEVELS.includes(offer.level) && !guardian) return 'Please confirm an adult will be present for a child under 8'
     if (strengths.trim().length < 10) return "Tell the tutor your child's strengths (at least 10 characters)"
     if (weaknesses.trim().length < 10) return "Tell the tutor what your child finds hard (at least 10 characters)"
     return null
@@ -103,6 +106,7 @@ export default function BookingForm({ tutor, availability, open, onOpenChange }:
         tutor_id: tutor.user_id, offer_id: offerId, subjects, slots, start_date: startDate, end_date: endDate || null,
         billing_period: billing, mode, child_strengths: strengths.trim(), child_weaknesses: weaknesses.trim(),
         recording_consent: mode === 'online' && consent,
+        guardian_present: guardian,
       })
       toast.success('Request sent! The tutor has 72 hours to accept.')
       router.push('/dashboard/parent/bookings')
@@ -215,6 +219,7 @@ export default function BookingForm({ tutor, availability, open, onOpenChange }:
               { value: 'offline', label: 'At home (offline)' }, { value: 'online', label: 'Online' },
             ]} />
             {mode === 'online' && <RecordingConsent checked={consent} onChange={setConsent} />}
+            {offer && GUARDIAN_LEVELS.includes(offer.level) && <GuardianConfirm checked={guardian} onChange={setGuardian} />}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">

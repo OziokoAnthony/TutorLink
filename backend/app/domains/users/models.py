@@ -7,7 +7,7 @@ from uuid import UUID
 
 from sqlmodel import Field, SQLModel
 
-from app.domains.auth.models import UserRole
+from app.domains.auth.models import HeardFrom, UserRole
 from app.domains.tutors.models import VettingStatus
 
 
@@ -36,12 +36,21 @@ class TutorStages(SQLModel):
     rejected: int
 
 
+class SourceCount(SQLModel):
+    """Spec 15 R3.2: how many chose each answer to "How did you hear about TutorLink?"."""
+
+    source: HeardFrom | None  # None: not answered
+    parents: int
+    tutors: int
+
+
 class UsersOverview(SQLModel):
     """R3.1, R3.2."""
 
     parents: RoleCounts
     tutors: RoleCounts
     tutor_stages: TutorStages
+    heard_from: list[SourceCount] = []
 
 
 class UserRow(SQLModel):

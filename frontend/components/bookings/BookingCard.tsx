@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import MeetingLinkEditor from '@/components/bookings/MeetingLinkEditor'
 import Avatar from '@/components/shared/Avatar'
 import { BookingStatusBadge, PeriodStatusBadge } from '@/components/shared/StatusBadge'
-import { BILLING_PERIODS, formatDate, formatDateTime, formatNaira, formatPercent, levelLabel, slotText } from '@/lib/format'
+import { BILLING_PERIODS, formatDate, formatDateTime, formatNaira, formatPercent, GUARDIAN_TEXT, levelLabel, slotText } from '@/lib/format'
 import type { Booking } from '@/types'
 
 /** A booking as the parent, tutor or admin sees it. Each reader only receives their own money fields. */
@@ -92,6 +92,11 @@ export default function BookingCard({ booking, viewer, actions, onChange }: {
           </div>
         )}
 
+        {viewer !== 'parent' && booking.guardian_confirmed_at && (
+          <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            The parent confirmed: {GUARDIAN_TEXT}
+          </p>
+        )}
         {viewer !== 'parent' && (
           <div className="grid gap-3 rounded-md bg-muted/50 p-3 text-sm sm:grid-cols-2">
             <div><p className="font-medium">Child&apos;s strengths</p><p className="text-muted-foreground">{booking.child_strengths}</p></div>

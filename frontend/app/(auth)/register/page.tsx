@@ -16,9 +16,11 @@ import GoogleButton from '@/components/auth/GoogleButton'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import { errorMessage } from '@/lib/api'
+import { HEARD_FROM } from '@/lib/format'
 import { register as registerUser, registerWithGoogle } from '@/lib/auth'
 import { readCredential, takeForSignUp, type GoogleCredential } from '@/lib/google'
 import type { OfferInput } from '@/lib/tutors'
+import type { HeardFrom } from '@/types'
 import { cn } from '@/lib/utils'
 import OfferFields, { EMPTY_OFFER, offerProblem } from '@/components/tutors/OfferFields'
 
@@ -78,6 +80,7 @@ function Register() {
   const [offer, setOffer] = useState<OfferInput>(EMPTY_OFFER)
   const [google, setGoogle] = useState<GoogleCredential | null>(null)
   const [useGooglePhoto, setUseGooglePhoto] = useState(true)
+  const [heardFrom, setHeardFrom] = useState<HeardFrom | ''>('')
   const schema = useMemo(() => makeSchema(google !== null), [google])
   const { register, handleSubmit, watch, setValue, getValues, formState: { errors, isSubmitting } } =
     useForm<RegisterValues, unknown, RegisterOutput>({
@@ -130,10 +133,11 @@ function Register() {
       setFormError(`What you teach: ${problem.toLowerCase()}.`)
       return
     }
+    const heard = heardFrom || undefined
     const profile = values.role === 'parent'
-      ? { role: values.role, full_name: values.full_name, phone: values.phone || undefined, address: values.address || undefined }
+      ? { role: values.role, heard_from: heard, full_name: values.full_name, phone: values.phone || undefined, address: values.address || undefined }
       : {
-          role: values.role, first_name: values.first_name, middle_name: values.middle_name || undefined,
+          role: values.role, heard_from: heard, first_name: values.first_name, middle_name: values.middle_name || undefined,
           surname: values.surname, phone: values.phone || undefined,
           area: values.area, bio: values.bio || undefined, offers: [offer],
         }
@@ -263,6 +267,15 @@ function Register() {
                     </>
                   )}
               </>
+
+              <div className="space-y-1.5">
+                <label htmlFor="heard-from" className="text-sm font-medium">How did you hear about TutorLink? (optional)</label>
+                <select id="heard-from" value={heardFrom} onChange={(e) => setHeardFrom(e.target.value as HeardFrom | '')}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm">
+                  <option value="">Choose one</option>
+                  {HEARD_FROM.map((h) => <option key={h.value} value={h.value}>{h.label}</option>)}
+                </select>
+              </div>
 
               {formError && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{formError}</p>}
               <Button type="submit" className="w-full" disabled={isSubmitting}>
