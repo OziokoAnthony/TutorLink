@@ -37,11 +37,17 @@ def get_profile_by_user_id(session: Session, user_id: UUID) -> TutorProfile | No
     return session.exec(select(TutorProfile).where(TutorProfile.user_id == user_id)).first()
 
 
+def _account_open():
+    """A removed tutor (spec 10 R6.3) disappears from search, their profile and booking."""
+    return select(User.id).where(User.id == TutorProfile.user_id, User.is_active == True).exists()  # noqa: E712
+
+
 def get_approved_profile(session: Session, user_id: UUID) -> TutorProfile | None:
     return session.exec(
         select(TutorProfile).where(
             TutorProfile.user_id == user_id,
             TutorProfile.vetting_status == VettingStatus.approved,
+            _account_open(),
         )
     ).first()
 
@@ -223,7 +229,7 @@ def list_approved_tutors(
     limit: int,
     sort: str = "name",
 ) -> list[TutorPublic]:
-    stmt = select(TutorProfile).where(TutorProfile.vetting_status == VettingStatus.approved)
+    stmt = select(TutorProfile).where(TutorProfile.vetting_status == VettingStatus.approved, _account_open())
     if area:
         stmt = stmt.where(TutorProfile.area.icontains(area.strip(), autoescape=True))
     if subject or level:

@@ -36,12 +36,13 @@ from app.domains.payouts.router import router as earnings_router
 from app.domains.reviews.router import router as reviews_router
 from app.domains.tutors.router import admin_router as admin_tutors_router
 from app.domains.tutors.router import router as tutors_router
+from app.domains.users.router import admin_router as admin_people_router
 from app.domains.webhooks.router import router as webhooks_router
 
 api_router = APIRouter()
 
 for router in (
-    auth_router, admin_users_router, admin_activity_router,
+    auth_router, admin_users_router, admin_activity_router, admin_people_router,
     tutors_router, tutor_schedule_router, reviews_router, admin_tutors_router,
     onboarding_router, certificates_router, admin_certificates_router, exam_router, admin_exam_router,
     bookings_router, admin_bookings_router, jobs_router, admin_jobs_router,

@@ -40,6 +40,7 @@ export const LINKS: Record<Role, { href: string; label: string }[]> = {
     { href: '/admin/feedback', label: 'Feedback' },
     { href: '/admin/subjects', label: 'Subjects' },
     { href: '/admin/legal', label: 'Legal pages' },
+    { href: '/admin/users', label: 'Parents & tutors' },
     { href: '/admin/admins', label: 'Admins' },
   ],
 }

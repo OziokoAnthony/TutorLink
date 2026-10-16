@@ -17,6 +17,7 @@ The product is specified in `../specs/`, one approved spec per feature, built in
 7. `feature-7-admin-content.md`: admins keep the subject list and the privacy notice, terms and disclaimer. **Built.**
 8. `feature-8-admin-activity.md`: admin names, the welcome on `/admin`, last session and the admin activity log. **Built.**
 9. `feature-9-legal-agreement.md`: parents and tutors have their own privacy notice, terms and disclaimer, and agree to the latest versions. **Built.**
+10. `feature-10-user-management.md`: parents and tutors at a glance (counts, activity bands, last seen) and removing accounts with 14 days' notice. **Built.**
 
 Read the spec before changing a feature it covers. Requirement ids (R1.2, R5.3…) are the shared
 vocabulary: cite them in docstrings and tests where a rule is enforced. Each spec's acceptance
@@ -86,6 +87,11 @@ Alembic migration per spec or build step in `alembic/versions/`.
   now (`content.must_agree_now`) except the few calls in `ALLOWED_BEFORE_AGREEING`; tutors still onboarding agree as
   the last checklist step and can't be approved before. Tests start with no documents, so nobody must agree unless
   a test publishes them; a parent registered after publishing needs `register_parent(..., photo=False)`.
+- **Accounts (spec 10).** `users.last_seen_at` is set by `users.service.touch` on login and in `get_current_user`
+  (at most hourly). Bands: active < 90 days, inactive 90-180, long inactive > 180, then notice / removed. Removing
+  needs a notice 14 days earlier and nothing outstanding (`users.service.outstanding`: balance, open bookings, unpaid
+  earnings, unfinished lessons). A removed account has `is_active = false` and `removed_at`; tutor search and
+  profiles hide it (`tutors.service._account_open`). Use `clock.now()` for these rules so tests can travel.
 - **Password reset (spec 4 R0.7).** `password_reset_tokens` stores only a SHA-256 of each link's
   token; a link works once, for an hour, and `/auth/forgot-password` answers the same for any email.
 - **Tutor onboarding (spec 4 R2, R3).** `app/domains/onboarding/` holds the checklist
