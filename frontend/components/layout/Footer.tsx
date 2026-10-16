@@ -5,6 +5,7 @@ const COLUMNS = [
     title: 'For parents',
     links: [
       { href: '/tutors', label: 'Find a tutor' },
+      { href: '/subjects', label: 'Tutors by subject' },
       { href: '/dashboard/parent/jobs/new', label: 'Post a job' },
       { href: '/register', label: 'Create an account' },
     ],

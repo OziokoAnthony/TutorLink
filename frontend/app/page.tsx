@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Search, CalendarCheck, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import HeroSlideshow from '@/components/home/HeroSlideshow'
+import HomeHighlights from '@/components/home/HomeHighlights'
 
 const STEPS = [
   {
@@ -68,6 +69,8 @@ export default function LandingPage() {
           ))}
         </ol>
       </section>
+
+      <HomeHighlights />
     </>
   )
 }
